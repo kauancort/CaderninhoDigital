@@ -1,0 +1,143 @@
+package com.InovaSkill.CaderninhoDigital.service;
+
+import com.InovaSkill.CaderninhoDigital.dto.request.CompraMateriaPrimaRequestDTO;
+import com.InovaSkill.CaderninhoDigital.dto.request.ItemCompraMateriaPrimaRequestDTO;
+import com.InovaSkill.CaderninhoDigital.dto.response.CompraMateriaPrimaResponseDTO;
+import com.InovaSkill.CaderninhoDigital.dto.response.ItemCompraMateriaPrimaResponseDTO;
+import com.InovaSkill.CaderninhoDigital.entity.CompraMateriaPrima;
+import com.InovaSkill.CaderninhoDigital.entity.Fornecedor;
+import com.InovaSkill.CaderninhoDigital.entity.ItemCompraMateriaPrima;
+import com.InovaSkill.CaderninhoDigital.entity.MateriaPrima;
+import com.InovaSkill.CaderninhoDigital.entity.Usuario;
+import com.InovaSkill.CaderninhoDigital.enums.StatusPagamento;
+import com.InovaSkill.CaderninhoDigital.exception.BusinessException;
+import com.InovaSkill.CaderninhoDigital.exception.ResourceNotFoundException;
+import com.InovaSkill.CaderninhoDigital.repository.CompraMateriaPrimaRepository;
+import com.InovaSkill.CaderninhoDigital.repository.FornecedorRepository;
+import com.InovaSkill.CaderninhoDigital.repository.MateriaPrimaRepository;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.util.ArrayList;
+import java.util.List;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+@Service
+@RequiredArgsConstructor
+public class CompraMateriaPrimaService {
+
+    private final CompraMateriaPrimaRepository compraRepository;
+    private final FornecedorRepository fornecedorRepository;
+    private final MateriaPrimaRepository materiaPrimaRepository;
+    private final UsuarioAcessoService usuarioAcessoService;
+
+    @Transactional
+    public CompraMateriaPrimaResponseDTO criar(Long usuarioId, CompraMateriaPrimaRequestDTO dto) {
+        Usuario gestor = usuarioAcessoService.buscarGestor(usuarioId);
+        Fornecedor fornecedor = buscarFornecedorOpcional(dto.getFornecedorId(), gestor);
+        CompraMateriaPrima compra = CompraMateriaPrima.builder()
+                .fornecedor(fornecedor)
+                .gestor(gestor)
+                .dataCompra(dto.getDataCompra())
+                .formaPagamento(dto.getFormaPagamento())
+                .statusPagamento(dto.getStatusPagamento() != null ? dto.getStatusPagamento() : StatusPagamento.PENDENTE)
+                .observacao(dto.getObservacao())
+                .valorTotal(BigDecimal.ZERO)
+                .itens(new ArrayList<>())
+                .build();
+
+        BigDecimal total = BigDecimal.ZERO;
+        for (ItemCompraMateriaPrimaRequestDTO itemDto : dto.getItens()) {
+            MateriaPrima materiaPrima = buscarMateriaPrimaDoGestor(itemDto.getMateriaPrimaId(), gestor);
+            BigDecimal valorTotal = itemDto.getValorUnitario().multiply(itemDto.getQuantidade());
+            atualizarEstoqueECusto(materiaPrima, itemDto.getQuantidade(), itemDto.getValorUnitario());
+            ItemCompraMateriaPrima item = ItemCompraMateriaPrima.builder()
+                    .compra(compra)
+                    .materiaPrima(materiaPrima)
+                    .quantidade(itemDto.getQuantidade())
+                    .valorUnitario(itemDto.getValorUnitario())
+                    .valorTotal(valorTotal)
+                    .build();
+            compra.getItens().add(item);
+            total = total.add(valorTotal);
+        }
+
+        compra.setValorTotal(total);
+        return toResponse(compraRepository.save(compra));
+    }
+
+    public List<CompraMateriaPrimaResponseDTO> listar(Long usuarioId) {
+        Usuario gestor = usuarioAcessoService.buscarGestor(usuarioId);
+        return compraRepository.findByGestorOrderByDataCompraDesc(gestor).stream().map(this::toResponse).toList();
+    }
+
+    public CompraMateriaPrimaResponseDTO buscar(Long usuarioId, Long id) {
+        Usuario gestor = usuarioAcessoService.buscarGestor(usuarioId);
+        CompraMateriaPrima compra = compraRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Compra de matéria-prima não encontrada"));
+        if (!compra.getGestor().getId().equals(gestor.getId())) {
+            throw new BusinessException("Esta compra não pertence ao usuário informado");
+        }
+        return toResponse(compra);
+    }
+
+    private Fornecedor buscarFornecedorOpcional(Long fornecedorId, Usuario gestor) {
+        if (fornecedorId == null) {
+            return null;
+        }
+        Fornecedor fornecedor = fornecedorRepository.findById(fornecedorId)
+                .orElseThrow(() -> new ResourceNotFoundException("Fornecedor não encontrado"));
+        if (!fornecedor.getGestor().getId().equals(gestor.getId())) {
+            throw new BusinessException("Este fornecedor não pertence ao usuário informado");
+        }
+        return fornecedor;
+    }
+
+    private MateriaPrima buscarMateriaPrimaDoGestor(Long materiaPrimaId, Usuario gestor) {
+        MateriaPrima materiaPrima = materiaPrimaRepository.findById(materiaPrimaId)
+                .orElseThrow(() -> new ResourceNotFoundException("Matéria-prima não encontrada"));
+        if (!materiaPrima.getGestor().getId().equals(gestor.getId())) {
+            throw new BusinessException("Esta matéria-prima não pertence ao usuário informado");
+        }
+        return materiaPrima;
+    }
+
+    private void atualizarEstoqueECusto(MateriaPrima materiaPrima, BigDecimal quantidadeCompra, BigDecimal valorUnitarioCompra) {
+        BigDecimal estoqueAnterior = materiaPrima.getEstoqueAtual();
+        BigDecimal custoTotalAnterior = estoqueAnterior.multiply(materiaPrima.getCustoMedio());
+        BigDecimal custoTotalCompra = quantidadeCompra.multiply(valorUnitarioCompra);
+        BigDecimal novoEstoque = estoqueAnterior.add(quantidadeCompra);
+        BigDecimal novoCustoMedio = novoEstoque.compareTo(BigDecimal.ZERO) == 0
+                ? BigDecimal.ZERO
+                : custoTotalAnterior.add(custoTotalCompra).divide(novoEstoque, 2, RoundingMode.HALF_UP);
+        materiaPrima.setEstoqueAtual(novoEstoque);
+        materiaPrima.setCustoMedio(novoCustoMedio);
+    }
+
+    private CompraMateriaPrimaResponseDTO toResponse(CompraMateriaPrima compra) {
+        return CompraMateriaPrimaResponseDTO.builder()
+                .id(compra.getId())
+                .fornecedorId(compra.getFornecedor() != null ? compra.getFornecedor().getId() : null)
+                .fornecedorNome(compra.getFornecedor() != null ? compra.getFornecedor().getNome() : null)
+                .dataCompra(compra.getDataCompra())
+                .formaPagamento(compra.getFormaPagamento())
+                .statusPagamento(compra.getStatusPagamento())
+                .valorTotal(compra.getValorTotal())
+                .observacao(compra.getObservacao())
+                .criadoEm(compra.getCriadoEm())
+                .itens(compra.getItens().stream().map(this::toItemResponse).toList())
+                .build();
+    }
+
+    private ItemCompraMateriaPrimaResponseDTO toItemResponse(ItemCompraMateriaPrima item) {
+        return ItemCompraMateriaPrimaResponseDTO.builder()
+                .id(item.getId())
+                .materiaPrimaId(item.getMateriaPrima().getId())
+                .materiaPrimaNome(item.getMateriaPrima().getNome())
+                .quantidade(item.getQuantidade())
+                .valorUnitario(item.getValorUnitario())
+                .valorTotal(item.getValorTotal())
+                .build();
+    }
+}

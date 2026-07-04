@@ -1,0 +1,70 @@
+# Java / Spring Boot
+*.class
+*.jar
+*.war
+*.ear
+*.nar
+hs_err_pid*
+replay_pid*
+
+# Maven
+target/
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.jar
+
+# Gradle, caso seja usado futuramente
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# Spring Boot local files
+application-local.properties
+application-local.yml
+application-*.local.properties
+application-*.local.yml
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.jks
+
+# Logs
+logs/
+*.log
+
+# IDEs and editors
+.idea/
+*.iws
+*.iml
+*.ipr
+.vscode/
+!.vscode/extensions.json
+!.vscode/settings.example.json
+
+# Operating system files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Node / frontend future folder
+node_modules/
+dist/
+.next/
+.nuxt/
+.svelte-kit/
+coverage/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Docker local data
+docker-data/
+mysql-data/
+
+# Project implementation notes
+springBoot/guiaBackend.md
