@@ -1,0 +1,8 @@
+target/
+.mvn/
+HELP.md
+guiaBackend.md
+.idea/
+*.iml
+.DS_Store
+docker-compose.yml
