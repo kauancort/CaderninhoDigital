@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -29,8 +30,11 @@ public class ProducaoController {
     }
 
     @GetMapping
-    public ResponseEntity<List<ProducaoResponseDTO>> listar(@RequestHeader("X-Usuario-Id") Long usuarioId) {
-        return ResponseEntity.ok(producaoService.listar(usuarioId));
+    public ResponseEntity<List<ProducaoResponseDTO>> listar(
+            @RequestHeader("X-Usuario-Id") Long usuarioId,
+            @RequestParam(required = false) Long produtoId
+    ) {
+        return ResponseEntity.ok(producaoService.listar(usuarioId, produtoId));
     }
 
     @GetMapping("/{id}")

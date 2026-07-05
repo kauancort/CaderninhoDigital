@@ -14,4 +14,5 @@ public class ProdutoResponseDTO {
     private BigDecimal precoVenda;
     private BigDecimal estoqueAtual;
     private Boolean ativo;
+    private GabaritoProdutoResponseDTO gabarito;
 }

@@ -13,4 +13,6 @@ public class ClienteResponseDTO {
     private String documento;
     private String endereco;
     private Boolean ativo;
+    private Long gestorId;
+    private String gestorNome;
 }

@@ -35,7 +35,7 @@ public class CompraMateriaPrimaService {
     @Transactional
     public CompraMateriaPrimaResponseDTO criar(Long usuarioId, CompraMateriaPrimaRequestDTO dto) {
         Usuario gestor = usuarioAcessoService.buscarGestor(usuarioId);
-        Fornecedor fornecedor = buscarFornecedorOpcional(dto.getFornecedorId(), gestor);
+        Fornecedor fornecedor = buscarFornecedorOpcional(dto.getFornecedorId());
         CompraMateriaPrima compra = CompraMateriaPrima.builder()
                 .fornecedor(fornecedor)
                 .gestor(gestor)
@@ -82,16 +82,12 @@ public class CompraMateriaPrimaService {
         return toResponse(compra);
     }
 
-    private Fornecedor buscarFornecedorOpcional(Long fornecedorId, Usuario gestor) {
+    private Fornecedor buscarFornecedorOpcional(Long fornecedorId) {
         if (fornecedorId == null) {
             return null;
         }
-        Fornecedor fornecedor = fornecedorRepository.findById(fornecedorId)
+        return fornecedorRepository.findById(fornecedorId)
                 .orElseThrow(() -> new ResourceNotFoundException("Fornecedor não encontrado"));
-        if (!fornecedor.getGestor().getId().equals(gestor.getId())) {
-            throw new BusinessException("Este fornecedor não pertence ao usuário informado");
-        }
-        return fornecedor;
     }
 
     private MateriaPrima buscarMateriaPrimaDoGestor(Long materiaPrimaId, Usuario gestor) {

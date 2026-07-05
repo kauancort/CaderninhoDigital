@@ -4,7 +4,6 @@ import com.InovaSkill.CaderninhoDigital.dto.request.FornecedorRequestDTO;
 import com.InovaSkill.CaderninhoDigital.dto.response.FornecedorResponseDTO;
 import com.InovaSkill.CaderninhoDigital.entity.Fornecedor;
 import com.InovaSkill.CaderninhoDigital.entity.Usuario;
-import com.InovaSkill.CaderninhoDigital.exception.BusinessException;
 import com.InovaSkill.CaderninhoDigital.exception.ResourceNotFoundException;
 import com.InovaSkill.CaderninhoDigital.repository.FornecedorRepository;
 import java.util.List;
@@ -33,21 +32,19 @@ public class FornecedorService {
     }
 
     public List<FornecedorResponseDTO> listar(Long usuarioId) {
-        Usuario gestor = usuarioAcessoService.buscarGestor(usuarioId);
-        return fornecedorRepository.findByGestorOrderByNomeAsc(gestor).stream().map(this::toResponse).toList();
+        usuarioAcessoService.buscarGestor(usuarioId);
+        return fornecedorRepository.findAllByOrderByNomeAsc().stream().map(this::toResponse).toList();
     }
 
     public FornecedorResponseDTO buscar(Long usuarioId, Long id) {
-        Usuario gestor = usuarioAcessoService.buscarGestor(usuarioId);
+        usuarioAcessoService.buscarGestor(usuarioId);
         Fornecedor fornecedor = buscarEntidade(id);
-        validarDono(fornecedor, gestor);
         return toResponse(fornecedor);
     }
 
     public FornecedorResponseDTO atualizar(Long usuarioId, Long id, FornecedorRequestDTO dto) {
-        Usuario gestor = usuarioAcessoService.buscarGestor(usuarioId);
+        usuarioAcessoService.buscarGestor(usuarioId);
         Fornecedor fornecedor = buscarEntidade(id);
-        validarDono(fornecedor, gestor);
         fornecedor.setNome(dto.getNome());
         fornecedor.setEmail(dto.getEmail());
         fornecedor.setTelefone(dto.getTelefone());
@@ -58,20 +55,13 @@ public class FornecedorService {
     }
 
     public void deletar(Long usuarioId, Long id) {
-        Usuario gestor = usuarioAcessoService.buscarGestor(usuarioId);
+        usuarioAcessoService.buscarGestor(usuarioId);
         Fornecedor fornecedor = buscarEntidade(id);
-        validarDono(fornecedor, gestor);
         fornecedorRepository.delete(fornecedor);
     }
 
     private Fornecedor buscarEntidade(Long id) {
         return fornecedorRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Fornecedor não encontrado"));
-    }
-
-    private void validarDono(Fornecedor fornecedor, Usuario gestor) {
-        if (!fornecedor.getGestor().getId().equals(gestor.getId())) {
-            throw new BusinessException("Este fornecedor não pertence ao usuário informado");
-        }
     }
 
     private FornecedorResponseDTO toResponse(Fornecedor fornecedor) {
@@ -83,6 +73,8 @@ public class FornecedorService {
                 .documento(fornecedor.getDocumento())
                 .endereco(fornecedor.getEndereco())
                 .ativo(fornecedor.getAtivo())
+                .gestorId(fornecedor.getGestor().getId())
+                .gestorNome(fornecedor.getGestor().getNome())
                 .build();
     }
 }

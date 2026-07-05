@@ -2,7 +2,6 @@ package com.InovaSkill.CaderninhoDigital.dto.request;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMin;
-import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -22,6 +21,5 @@ public class ProducaoRequestDTO {
     private BigDecimal quantidadeProduzida;
     private String observacao;
     @Valid
-    @NotEmpty(message = "Informe ao menos um insumo da produção")
     private List<InsumoProducaoRequestDTO> insumos;
 }

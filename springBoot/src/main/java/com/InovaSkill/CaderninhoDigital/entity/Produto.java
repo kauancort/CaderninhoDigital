@@ -8,10 +8,12 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import jakarta.persistence.CascadeType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -52,6 +54,9 @@ public class Produto {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "gestor_id", nullable = false)
     private Usuario gestor;
+
+    @OneToOne(mappedBy = "produto", cascade = CascadeType.ALL, orphanRemoval = true)
+    private ProdutoGabarito gabarito;
 
     @Column(nullable = false)
     private LocalDateTime criadoEm;

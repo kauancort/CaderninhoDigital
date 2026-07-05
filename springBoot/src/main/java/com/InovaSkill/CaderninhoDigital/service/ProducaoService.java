@@ -8,6 +8,7 @@ import com.InovaSkill.CaderninhoDigital.entity.ItemProducaoMateriaPrima;
 import com.InovaSkill.CaderninhoDigital.entity.MateriaPrima;
 import com.InovaSkill.CaderninhoDigital.entity.Producao;
 import com.InovaSkill.CaderninhoDigital.entity.Produto;
+import com.InovaSkill.CaderninhoDigital.entity.ProdutoGabaritoItem;
 import com.InovaSkill.CaderninhoDigital.entity.Usuario;
 import com.InovaSkill.CaderninhoDigital.exception.BusinessException;
 import com.InovaSkill.CaderninhoDigital.exception.ResourceNotFoundException;
@@ -15,6 +16,7 @@ import com.InovaSkill.CaderninhoDigital.repository.MateriaPrimaRepository;
 import com.InovaSkill.CaderninhoDigital.repository.ProducaoRepository;
 import com.InovaSkill.CaderninhoDigital.repository.ProdutoRepository;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -44,29 +46,24 @@ public class ProducaoService {
                 .insumos(new ArrayList<>())
                 .build();
 
-        BigDecimal custoEstimado = BigDecimal.ZERO;
-        for (InsumoProducaoRequestDTO insumoDto : dto.getInsumos()) {
-            MateriaPrima materiaPrima = buscarMateriaPrimaDoGestor(insumoDto.getMateriaPrimaId(), gestor);
-            baixarEstoque(materiaPrima, insumoDto.getQuantidadeUtilizada());
-            BigDecimal custoTotal = materiaPrima.getCustoMedio().multiply(insumoDto.getQuantidadeUtilizada());
-            ItemProducaoMateriaPrima item = ItemProducaoMateriaPrima.builder()
-                    .producao(producao)
-                    .materiaPrima(materiaPrima)
-                    .quantidadeUtilizada(insumoDto.getQuantidadeUtilizada())
-                    .custoUnitario(materiaPrima.getCustoMedio())
-                    .custoTotal(custoTotal)
-                    .build();
-            producao.getInsumos().add(item);
-            custoEstimado = custoEstimado.add(custoTotal);
-        }
+        BigDecimal custoEstimado = possuiInsumosManuais(dto)
+                ? adicionarInsumosManuais(producao, dto.getInsumos(), gestor)
+                : adicionarInsumosDoGabarito(producao, produto);
 
         produto.setEstoqueAtual(produto.getEstoqueAtual().add(dto.getQuantidadeProduzida()));
         producao.setCustoEstimado(custoEstimado);
         return toResponse(producaoRepository.save(producao));
     }
 
-    public List<ProducaoResponseDTO> listar(Long usuarioId) {
+    public List<ProducaoResponseDTO> listar(Long usuarioId, Long produtoId) {
         Usuario gestor = usuarioAcessoService.buscarGestor(usuarioId);
+        if (produtoId != null) {
+            Produto produto = buscarProdutoDoGestor(produtoId, gestor);
+            return producaoRepository.findByGestorAndProdutoOrderByDataProducaoDesc(gestor, produto)
+                    .stream()
+                    .map(this::toResponse)
+                    .toList();
+        }
         return producaoRepository.findByGestorOrderByDataProducaoDesc(gestor).stream().map(this::toResponse).toList();
     }
 
@@ -103,6 +100,58 @@ public class ProducaoService {
             throw new BusinessException("Estoque insuficiente para a matéria-prima " + materiaPrima.getNome());
         }
         materiaPrima.setEstoqueAtual(materiaPrima.getEstoqueAtual().subtract(quantidade));
+    }
+
+    private boolean possuiInsumosManuais(ProducaoRequestDTO dto) {
+        return dto.getInsumos() != null && !dto.getInsumos().isEmpty();
+    }
+
+    private BigDecimal adicionarInsumosManuais(
+            Producao producao,
+            List<InsumoProducaoRequestDTO> insumos,
+            Usuario gestor
+    ) {
+        BigDecimal custoEstimado = BigDecimal.ZERO;
+        for (InsumoProducaoRequestDTO insumoDto : insumos) {
+            MateriaPrima materiaPrima = buscarMateriaPrimaDoGestor(insumoDto.getMateriaPrimaId(), gestor);
+            custoEstimado = custoEstimado.add(adicionarInsumo(producao, materiaPrima, insumoDto.getQuantidadeUtilizada()));
+        }
+        return custoEstimado;
+    }
+
+    private BigDecimal adicionarInsumosDoGabarito(Producao producao, Produto produto) {
+        if (produto.getGabarito() == null || produto.getGabarito().getItens().isEmpty()) {
+            throw new BusinessException("Produto sem gabarito de produção cadastrado");
+        }
+
+        BigDecimal fatorProducao = producao.getQuantidadeProduzida()
+                .divide(produto.getGabarito().getQuantidadeBase(), 6, RoundingMode.HALF_UP);
+        BigDecimal custoEstimado = BigDecimal.ZERO;
+
+        for (ProdutoGabaritoItem itemGabarito : produto.getGabarito().getItens()) {
+            BigDecimal quantidadeUtilizada = itemGabarito.getQuantidadeNecessaria().multiply(fatorProducao);
+            custoEstimado = custoEstimado.add(adicionarInsumo(
+                    producao,
+                    itemGabarito.getMateriaPrima(),
+                    quantidadeUtilizada
+            ));
+        }
+
+        return custoEstimado;
+    }
+
+    private BigDecimal adicionarInsumo(Producao producao, MateriaPrima materiaPrima, BigDecimal quantidadeUtilizada) {
+        baixarEstoque(materiaPrima, quantidadeUtilizada);
+        BigDecimal custoTotal = materiaPrima.getCustoMedio().multiply(quantidadeUtilizada);
+        ItemProducaoMateriaPrima item = ItemProducaoMateriaPrima.builder()
+                .producao(producao)
+                .materiaPrima(materiaPrima)
+                .quantidadeUtilizada(quantidadeUtilizada)
+                .custoUnitario(materiaPrima.getCustoMedio())
+                .custoTotal(custoTotal)
+                .build();
+        producao.getInsumos().add(item);
+        return custoTotal;
     }
 
     private ProducaoResponseDTO toResponse(Producao producao) {

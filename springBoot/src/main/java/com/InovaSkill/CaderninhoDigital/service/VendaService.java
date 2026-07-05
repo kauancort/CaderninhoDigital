@@ -34,7 +34,7 @@ public class VendaService {
     @Transactional
     public VendaResponseDTO criar(Long usuarioId, VendaRequestDTO dto) {
         Usuario gestor = usuarioAcessoService.buscarGestor(usuarioId);
-        Cliente cliente = buscarClienteOpcional(dto.getClienteId(), gestor);
+        Cliente cliente = buscarClienteOpcional(dto.getClienteId());
         Venda venda = Venda.builder()
                 .cliente(cliente)
                 .gestor(gestor)
@@ -79,16 +79,12 @@ public class VendaService {
         return toResponse(venda);
     }
 
-    private Cliente buscarClienteOpcional(Long clienteId, Usuario gestor) {
+    private Cliente buscarClienteOpcional(Long clienteId) {
         if (clienteId == null) {
             return null;
         }
-        Cliente cliente = clienteRepository.findById(clienteId)
+        return clienteRepository.findById(clienteId)
                 .orElseThrow(() -> new ResourceNotFoundException("Cliente não encontrado"));
-        if (!cliente.getGestor().getId().equals(gestor.getId())) {
-            throw new BusinessException("Este cliente não pertence ao usuário informado");
-        }
-        return cliente;
     }
 
     private Produto buscarProdutoDoGestor(Long produtoId, Usuario gestor) {

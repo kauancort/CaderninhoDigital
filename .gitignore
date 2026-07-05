@@ -66,5 +66,6 @@ pnpm-debug.log*
 docker-data/
 mysql-data/
 
-# Project implementation notes
-springBoot/guiaBackend.md
+# Markdown docs
+*.md
+!springBoot/FUNCIONALIDADES.md

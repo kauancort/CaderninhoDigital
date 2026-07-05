@@ -4,7 +4,6 @@ import com.InovaSkill.CaderninhoDigital.dto.request.ClienteRequestDTO;
 import com.InovaSkill.CaderninhoDigital.dto.response.ClienteResponseDTO;
 import com.InovaSkill.CaderninhoDigital.entity.Cliente;
 import com.InovaSkill.CaderninhoDigital.entity.Usuario;
-import com.InovaSkill.CaderninhoDigital.exception.BusinessException;
 import com.InovaSkill.CaderninhoDigital.exception.ResourceNotFoundException;
 import com.InovaSkill.CaderninhoDigital.repository.ClienteRepository;
 import java.util.List;
@@ -33,21 +32,19 @@ public class ClienteService {
     }
 
     public List<ClienteResponseDTO> listar(Long usuarioId) {
-        Usuario gestor = usuarioAcessoService.buscarGestor(usuarioId);
-        return clienteRepository.findByGestorOrderByNomeAsc(gestor).stream().map(this::toResponse).toList();
+        usuarioAcessoService.buscarGestor(usuarioId);
+        return clienteRepository.findAllByOrderByNomeAsc().stream().map(this::toResponse).toList();
     }
 
     public ClienteResponseDTO buscar(Long usuarioId, Long id) {
-        Usuario gestor = usuarioAcessoService.buscarGestor(usuarioId);
+        usuarioAcessoService.buscarGestor(usuarioId);
         Cliente cliente = buscarEntidade(id);
-        validarDono(cliente, gestor);
         return toResponse(cliente);
     }
 
     public ClienteResponseDTO atualizar(Long usuarioId, Long id, ClienteRequestDTO dto) {
-        Usuario gestor = usuarioAcessoService.buscarGestor(usuarioId);
+        usuarioAcessoService.buscarGestor(usuarioId);
         Cliente cliente = buscarEntidade(id);
-        validarDono(cliente, gestor);
         cliente.setNome(dto.getNome());
         cliente.setEmail(dto.getEmail());
         cliente.setTelefone(dto.getTelefone());
@@ -58,20 +55,13 @@ public class ClienteService {
     }
 
     public void deletar(Long usuarioId, Long id) {
-        Usuario gestor = usuarioAcessoService.buscarGestor(usuarioId);
+        usuarioAcessoService.buscarGestor(usuarioId);
         Cliente cliente = buscarEntidade(id);
-        validarDono(cliente, gestor);
         clienteRepository.delete(cliente);
     }
 
     private Cliente buscarEntidade(Long id) {
         return clienteRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Cliente não encontrado"));
-    }
-
-    private void validarDono(Cliente cliente, Usuario gestor) {
-        if (!cliente.getGestor().getId().equals(gestor.getId())) {
-            throw new BusinessException("Este cliente não pertence ao usuário informado");
-        }
     }
 
     private ClienteResponseDTO toResponse(Cliente cliente) {
@@ -83,6 +73,8 @@ public class ClienteService {
                 .documento(cliente.getDocumento())
                 .endereco(cliente.getEndereco())
                 .ativo(cliente.getAtivo())
+                .gestorId(cliente.getGestor().getId())
+                .gestorNome(cliente.getGestor().getNome())
                 .build();
     }
 }
