@@ -1,0 +1,45 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: caderninho_mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: caderninho_digital
+      MYSQL_USER: caderninho_user
+      MYSQL_PASSWORD: caderninho_pass
+    ports:
+      - "3306:3306"
+    volumes:
+      - caderninho_mysql_data:/var/lib/mysql
+    networks:
+      - caderninho_network
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: caderninho_api
+    restart: always
+    depends_on:
+      - mysql
+    environment:
+      PORT: 8080
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/caderninho_digital?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=America/Sao_Paulo
+      SPRING_DATASOURCE_USERNAME: caderninho_user
+      SPRING_DATASOURCE_PASSWORD: caderninho_pass
+      SPRING_JPA_HIBERNATE_DDL_AUTO: validate
+      SPRING_JPA_SHOW_SQL: "true"
+      SPRING_FLYWAY_ENABLED: "true"
+      SPRING_FLYWAY_BASELINE_ON_MIGRATE: "true"
+    ports:
+      - "8080:8080"
+    networks:
+      - caderninho_network
+
+volumes:
+  caderninho_mysql_data:
+
+networks:
+  caderninho_network:
+    driver: bridge
