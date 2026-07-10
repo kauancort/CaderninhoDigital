@@ -10,4 +10,6 @@ public interface CompraMateriaPrimaRepository extends JpaRepository<CompraMateri
     List<CompraMateriaPrima> findByGestorOrderByDataCompraDesc(Usuario gestor);
 
     List<CompraMateriaPrima> findByGestorAndDataCompraBetweenOrderByDataCompraDesc(Usuario gestor, LocalDate inicio, LocalDate fim);
+    List<CompraMateriaPrima> findAllByOrderByDataCompraDesc();
+    List<CompraMateriaPrima> findByDataCompraBetweenOrderByDataCompraDesc(LocalDate inicio, LocalDate fim);
 }

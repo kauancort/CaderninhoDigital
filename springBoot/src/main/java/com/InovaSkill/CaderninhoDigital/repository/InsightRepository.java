@@ -7,4 +7,5 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface InsightRepository extends JpaRepository<Insight, Long> {
     List<Insight> findByGestorOrderByCriadoEmDesc(Usuario gestor);
+    List<Insight> findAllByOrderByCriadoEmDesc();
 }

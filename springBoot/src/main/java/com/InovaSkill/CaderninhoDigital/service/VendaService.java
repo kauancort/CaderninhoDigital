@@ -69,13 +69,12 @@ public class VendaService {
 
     public List<VendaResponseDTO> listar(Long usuarioId) {
         Usuario gestor = usuarioAcessoService.buscarGestor(usuarioId);
-        return vendaRepository.findByGestorOrderByDataVendaDesc(gestor).stream().map(this::toResponse).toList();
+        return vendaRepository.findAllByOrderByDataVendaDesc().stream().map(this::toResponse).toList();
     }
 
     public VendaResponseDTO buscar(Long usuarioId, Long id) {
         Usuario gestor = usuarioAcessoService.buscarGestor(usuarioId);
         Venda venda = buscarVenda(id);
-        validarDono(venda, gestor);
         return toResponse(venda);
     }
 
@@ -90,9 +89,6 @@ public class VendaService {
     private Produto buscarProdutoDoGestor(Long produtoId, Usuario gestor) {
         Produto produto = produtoRepository.findById(produtoId)
                 .orElseThrow(() -> new ResourceNotFoundException("Produto não encontrado"));
-        if (!produto.getGestor().getId().equals(gestor.getId())) {
-            throw new BusinessException("Este produto não pertence ao usuário informado");
-        }
         return produto;
     }
 
@@ -105,12 +101,6 @@ public class VendaService {
 
     private Venda buscarVenda(Long id) {
         return vendaRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Venda não encontrada"));
-    }
-
-    private void validarDono(Venda venda, Usuario gestor) {
-        if (!venda.getGestor().getId().equals(gestor.getId())) {
-            throw new BusinessException("Esta venda não pertence ao usuário informado");
-        }
     }
 
     private VendaResponseDTO toResponse(Venda venda) {

@@ -50,14 +50,13 @@ public class ProdutoService {
     @Transactional(readOnly = true)
     public List<ProdutoResponseDTO> listar(Long usuarioId) {
         Usuario gestor = usuarioAcessoService.buscarGestor(usuarioId);
-        return produtoRepository.findByGestorOrderByNomeAsc(gestor).stream().map(this::toResponse).toList();
+        return produtoRepository.findAllByOrderByNomeAsc().stream().map(this::toResponse).toList();
     }
 
     @Transactional(readOnly = true)
     public ProdutoResponseDTO buscar(Long usuarioId, Long id) {
         Usuario gestor = usuarioAcessoService.buscarGestor(usuarioId);
         Produto produto = buscarEntidade(id);
-        validarDono(produto, gestor);
         return toResponse(produto);
     }
 
@@ -65,7 +64,6 @@ public class ProdutoService {
     public ProdutoResponseDTO atualizar(Long usuarioId, Long id, ProdutoRequestDTO dto) {
         Usuario gestor = usuarioAcessoService.buscarGestor(usuarioId);
         Produto produto = buscarEntidade(id);
-        validarDono(produto, gestor);
         produto.setNome(dto.getNome());
         produto.setDescricao(dto.getDescricao());
         produto.setUnidadeMedida(dto.getUnidadeMedida());
@@ -81,24 +79,16 @@ public class ProdutoService {
     public void deletar(Long usuarioId, Long id) {
         Usuario gestor = usuarioAcessoService.buscarGestor(usuarioId);
         Produto produto = buscarEntidade(id);
-        validarDono(produto, gestor);
         produtoRepository.delete(produto);
     }
 
     public Produto buscarProdutoDoGestor(Long produtoId, Usuario gestor) {
         Produto produto = buscarEntidade(produtoId);
-        validarDono(produto, gestor);
         return produto;
     }
 
     private Produto buscarEntidade(Long id) {
         return produtoRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Produto não encontrado"));
-    }
-
-    private void validarDono(Produto produto, Usuario gestor) {
-        if (!produto.getGestor().getId().equals(gestor.getId())) {
-            throw new BusinessException("Este produto não pertence ao usuário informado");
-        }
     }
 
     private BigDecimal valorOuZero(BigDecimal valor) {
@@ -121,10 +111,6 @@ public class ProdutoService {
         for (ItemGabaritoProdutoRequestDTO itemDto : gabarito.getItens()) {
             MateriaPrima materiaPrima = materiaPrimaRepository.findById(itemDto.getMateriaPrimaId())
                     .orElseThrow(() -> new ResourceNotFoundException("Matéria-prima não encontrada"));
-
-            if (!materiaPrima.getGestor().getId().equals(gestor.getId())) {
-                throw new BusinessException("Esta matéria-prima não pertence ao usuário informado");
-            }
 
             ProdutoGabaritoItem item = ProdutoGabaritoItem.builder()
                     .gabarito(produtoGabarito)

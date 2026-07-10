@@ -52,17 +52,13 @@ public class LancamentoService {
 
         List<Lancamento> lancamentos;
         if (tipo != null && inicio != null && fim != null) {
-            lancamentos = lancamentoRepository.findByGestorAndTipoAndDataLancamentoBetweenOrderByDataLancamentoDesc(
-                    gestor, tipo, inicio, fim
-            );
+            lancamentos = lancamentoRepository.findByTipoAndDataLancamentoBetweenOrderByDataLancamentoDesc(tipo, inicio, fim);
         } else if (tipo != null) {
-            lancamentos = lancamentoRepository.findByGestorAndTipoOrderByDataLancamentoDesc(gestor, tipo);
+            lancamentos = lancamentoRepository.findByTipoOrderByDataLancamentoDesc(tipo);
         } else if (inicio != null && fim != null) {
-            lancamentos = lancamentoRepository.findByGestorAndDataLancamentoBetweenOrderByDataLancamentoDesc(
-                    gestor, inicio, fim
-            );
+            lancamentos = lancamentoRepository.findByDataLancamentoBetweenOrderByDataLancamentoDesc(inicio, fim);
         } else {
-            lancamentos = lancamentoRepository.findByGestorOrderByDataLancamentoDesc(gestor);
+            lancamentos = lancamentoRepository.findAllByOrderByDataLancamentoDesc();
         }
 
         return lancamentos.stream()
@@ -73,7 +69,6 @@ public class LancamentoService {
     public LancamentoResponseDTO buscarPorId(Long usuarioId, Long id) {
         Usuario gestor = buscarGestor(usuarioId);
         Lancamento lancamento = buscarLancamento(id);
-        validarDonoDoLancamento(lancamento, gestor);
         return toResponse(lancamento);
     }
 
@@ -82,7 +77,6 @@ public class LancamentoService {
         validarLancamento(dto);
 
         Lancamento lancamento = buscarLancamento(id);
-        validarDonoDoLancamento(lancamento, gestor);
 
         lancamento.setTipo(dto.getTipo());
         lancamento.setTitulo(dto.getTitulo());
@@ -104,7 +98,6 @@ public class LancamentoService {
     public void deletar(Long usuarioId, Long id) {
         Usuario gestor = buscarGestor(usuarioId);
         Lancamento lancamento = buscarLancamento(id);
-        validarDonoDoLancamento(lancamento, gestor);
         lancamentoRepository.delete(lancamento);
     }
 
@@ -122,12 +115,6 @@ public class LancamentoService {
     private Lancamento buscarLancamento(Long id) {
         return lancamentoRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Lançamento não encontrado"));
-    }
-
-    private void validarDonoDoLancamento(Lancamento lancamento, Usuario gestor) {
-        if (!lancamento.getGestor().getId().equals(gestor.getId())) {
-            throw new BusinessException("Este lançamento não pertence ao usuário informado");
-        }
     }
 
     private void validarLancamento(LancamentoRequestDTO dto) {

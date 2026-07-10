@@ -34,13 +34,13 @@ public class DashboardService {
         Usuario gestor = usuarioRepository.findById(usuarioId)
                 .orElseThrow(() -> new ResourceNotFoundException("Usuário não encontrado"));
 
-        List<Venda> vendas = vendaRepository.findByGestorAndDataVendaBetweenOrderByDataVendaDesc(gestor, inicio, fim);
+        List<Venda> vendas = vendaRepository.findByDataVendaBetweenOrderByDataVendaDesc(inicio, fim);
         List<CompraMateriaPrima> compras = compraMateriaPrimaRepository
-                .findByGestorAndDataCompraBetweenOrderByDataCompraDesc(gestor, inicio, fim);
+                .findByDataCompraBetweenOrderByDataCompraDesc(inicio, fim);
         List<Producao> producoes = producaoRepository
-                .findByGestorAndDataProducaoBetweenOrderByDataProducaoDesc(gestor, inicio, fim);
+                .findByDataProducaoBetweenOrderByDataProducaoDesc(inicio, fim);
         List<Lancamento> lancamentosLegados = lancamentoRepository
-                .findByGestorAndDataLancamentoBetweenOrderByDataLancamentoDesc(gestor, inicio, fim);
+                .findByDataLancamentoBetweenOrderByDataLancamentoDesc(inicio, fim);
 
         BigDecimal totalVendas = vendas.stream().map(Venda::getValorTotal).reduce(BigDecimal.ZERO, BigDecimal::add)
                 .add(somarPorTipo(lancamentosLegados, TipoLancamento.VENDA));

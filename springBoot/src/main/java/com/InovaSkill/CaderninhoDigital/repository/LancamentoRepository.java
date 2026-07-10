@@ -25,4 +25,9 @@ public interface LancamentoRepository extends JpaRepository<Lancamento, Long> {
             LocalDate inicio,
             LocalDate fim
     );
+    List<Lancamento> findAllByOrderByDataLancamentoDesc();
+    List<Lancamento> findByTipoOrderByDataLancamentoDesc(TipoLancamento tipo);
+    List<Lancamento> findByDataLancamentoBetweenOrderByDataLancamentoDesc(LocalDate inicio, LocalDate fim);
+    List<Lancamento> findByTipoAndDataLancamentoBetweenOrderByDataLancamentoDesc(
+            TipoLancamento tipo, LocalDate inicio, LocalDate fim);
 }

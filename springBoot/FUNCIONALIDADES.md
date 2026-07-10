@@ -24,6 +24,7 @@ Ainda não existe JWT nem Spring Security.
 Fluxo atual:
 
 1. O usuário faz cadastro.
+2. Todos os gestores acessam a mesma base operacional da empresa; o gestor associado a um registro identifica apenas quem realizou o cadastro.
 2. O usuário faz login com e-mail e senha.
 3. O backend retorna `usuarioId`.
 4. As rotas protegidas recebem o header:
@@ -454,7 +455,10 @@ Migrations atuais:
 V1__create_initial_schema.sql
 V2__create_produto_gabarito_itens.sql
 V3__normalize_produto_gabaritos.sql
+V4__seed_catalogo_inicial_global.sql
 ```
+
+A migration V4 cria o catálogo global de Paçoca, Biriba e Fondant de leite, com seus insumos e gabaritos, inclusive em bancos existentes que ainda não receberam essa migration.
 
 Qualquer alteração estrutural futura deve ser feita por nova migration.
 

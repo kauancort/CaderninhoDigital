@@ -52,7 +52,7 @@ public class Produto {
     private Boolean ativo;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "gestor_id", nullable = false)
+    @JoinColumn(name = "gestor_id")
     private Usuario gestor;
 
     @OneToOne(mappedBy = "produto", cascade = CascadeType.ALL, orphanRemoval = true)

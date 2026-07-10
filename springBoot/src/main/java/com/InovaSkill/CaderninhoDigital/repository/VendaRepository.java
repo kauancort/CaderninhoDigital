@@ -10,4 +10,6 @@ public interface VendaRepository extends JpaRepository<Venda, Long> {
     List<Venda> findByGestorOrderByDataVendaDesc(Usuario gestor);
 
     List<Venda> findByGestorAndDataVendaBetweenOrderByDataVendaDesc(Usuario gestor, LocalDate inicio, LocalDate fim);
+    List<Venda> findAllByOrderByDataVendaDesc();
+    List<Venda> findByDataVendaBetweenOrderByDataVendaDesc(LocalDate inicio, LocalDate fim);
 }

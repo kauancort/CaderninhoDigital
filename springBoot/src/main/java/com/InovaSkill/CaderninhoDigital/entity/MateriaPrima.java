@@ -53,7 +53,7 @@ public class MateriaPrima {
     private Boolean ativo;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "gestor_id", nullable = false)
+    @JoinColumn(name = "gestor_id")
     private Usuario gestor;
 
     @Column(nullable = false)
