@@ -50,9 +50,16 @@ logs/
 Thumbs.db
 desktop.ini
 
-# Node / frontend future folder
+# Node / frontend
 node_modules/
 dist/
+dist-ssr/
+.output/
+.vinxi/
+.nitro/
+.tanstack/
+.wrangler/
+.dev.vars
 .next/
 .nuxt/
 .svelte-kit/
@@ -68,4 +75,6 @@ mysql-data/
 
 # Markdown docs
 *.md
+!README.md
+!frontEnd/README.md
 !springBoot/FUNCIONALIDADES.md

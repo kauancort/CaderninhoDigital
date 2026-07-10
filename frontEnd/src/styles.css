@@ -1,0 +1,202 @@
+@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* Doces da Vó Cida — Design System v1.0
+ * Cores em oklch (convertidas dos HEX do DS).
+ * Fontes: Playfair Display (display), Lora (body), Montserrat (UI).
+ */
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-dark: var(--primary-dark);
+  --color-primary-light: var(--primary-light);
+  --color-primary-bg: var(--primary-bg);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-gold: var(--gold);
+  --color-gold-dark: var(--gold-dark);
+  --color-gold-light: var(--gold-light);
+  --color-gold-bg: var(--gold-bg);
+
+  --color-cream: var(--cream);
+  --color-beige: var(--beige);
+  --color-beige-dark: var(--beige-dark);
+  --color-brown: var(--brown);
+  --color-brown-mid: var(--brown-mid);
+
+  --color-success: var(--success);
+  --color-success-bg: var(--success-bg);
+  --color-warning: var(--warning);
+  --color-warning-bg: var(--warning-bg);
+  --color-error: var(--error);
+  --color-error-bg: var(--error-bg);
+  --color-info: var(--info);
+  --color-info-bg: var(--info-bg);
+
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --font-display: "Playfair Display", Georgia, serif;
+  --font-body: "Lora", Georgia, serif;
+  --font-sans: "Montserrat", system-ui, sans-serif;
+
+  --shadow-sm: 0 1px 2px oklch(0.2 0.02 30 / 0.04);
+  --shadow-md: 0 4px 16px oklch(0.2 0.02 30 / 0.06);
+  --shadow-lg: 0 10px 30px oklch(0.2 0.02 30 / 0.08);
+  --shadow-xl: 0 16px 40px oklch(0.2 0.02 30 / 0.12);
+}
+
+:root {
+  --radius: 0.75rem;
+
+  /* Base — Pêssego/creme rosado conforme prints de referência */
+  --background: oklch(0.96 0.018 35); /* peach claro */
+  --foreground: oklch(0.22 0.03 40); /* marrom escuro */
+
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.22 0.03 40);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.22 0.03 40);
+
+  /* Primária — Vermelho Vó Cida #A31C1C */
+  --primary: oklch(0.48 0.19 27);
+  --primary-foreground: oklch(0.99 0.01 80);
+  --primary-dark: oklch(0.4 0.18 27);
+  --primary-light: oklch(0.58 0.2 27);
+  --primary-bg: oklch(0.95 0.03 25);
+
+  /* Secundária / Dourado #C89A0A */
+  --gold: oklch(0.72 0.14 85);
+  --gold-dark: oklch(0.58 0.13 85);
+  --gold-light: oklch(0.83 0.15 90);
+  --gold-bg: oklch(0.97 0.05 90);
+
+  --secondary: oklch(0.93 0.025 40); /* bege rosado */
+  --secondary-foreground: oklch(0.22 0.03 40);
+
+  --muted: oklch(0.93 0.025 40);
+  --muted-foreground: oklch(0.5 0.04 50);
+
+  --accent: oklch(0.97 0.05 90);
+  --accent-foreground: oklch(0.4 0.18 27);
+
+  /* Neutros nomeados */
+  --cream: oklch(0.96 0.018 35);
+  --beige: oklch(0.93 0.025 40);
+  --beige-dark: oklch(0.87 0.03 35);
+  --brown: oklch(0.22 0.03 40);
+  --brown-mid: oklch(0.4 0.04 50);
+
+  /* Feedback */
+  --success: oklch(0.52 0.13 150);
+  --success-bg: oklch(0.96 0.04 150);
+  --warning: oklch(0.72 0.14 85);
+  --warning-bg: oklch(0.97 0.05 90);
+  --error: oklch(0.62 0.22 27);
+  --error-bg: oklch(0.96 0.04 25);
+  --info: oklch(0.52 0.13 250);
+  --info-bg: oklch(0.96 0.03 250);
+
+  --destructive: oklch(0.62 0.22 27);
+  --destructive-foreground: oklch(0.99 0.01 80);
+
+  --border: oklch(0.91 0.015 40);
+  --input: oklch(0.91 0.015 40);
+  --ring: oklch(0.48 0.19 27);
+
+  /* Sidebar — bege rosado mais quente */
+  --sidebar: oklch(0.92 0.025 35);
+  --sidebar-foreground: oklch(0.4 0.04 50);
+  --sidebar-primary: oklch(0.48 0.19 27);
+  --sidebar-primary-foreground: oklch(0.99 0.01 80);
+  --sidebar-accent: oklch(0.83 0.15 90);
+  --sidebar-accent-foreground: oklch(0.3 0.05 50);
+  --sidebar-border: oklch(0.85 0.03 35);
+  --sidebar-ring: oklch(0.48 0.19 27);
+
+  --chart-1: oklch(0.48 0.19 27);
+  --chart-2: oklch(0.72 0.14 85);
+  --chart-3: oklch(0.52 0.13 150);
+  --chart-4: oklch(0.55 0.04 60);
+  --chart-5: oklch(0.38 0.04 50);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  html,
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    font-feature-settings: "ss01", "cv01";
+  }
+
+  h1,
+  h2,
+  h3,
+  .font-display {
+    font-family: var(--font-display);
+    letter-spacing: -0.01em;
+  }
+
+  .font-body {
+    font-family: var(--font-body);
+  }
+
+  ::selection {
+    background: var(--color-primary);
+    color: var(--color-primary-foreground);
+  }
+}
+
+/* Utilitários custom do Caderninho */
+@layer components {
+  .vovo-gradient {
+    background: linear-gradient(135deg, oklch(0.98 0.01 45) 0%, oklch(0.95 0.015 60) 100%);
+  }
+  .shadow-warm-sm {
+    box-shadow: var(--shadow-sm);
+  }
+  .shadow-warm-md {
+    box-shadow: var(--shadow-md);
+  }
+  .shadow-warm-lg {
+    box-shadow: var(--shadow-lg);
+  }
+}

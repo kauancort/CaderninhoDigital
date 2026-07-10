@@ -13,4 +13,7 @@ public interface ProducaoRepository extends JpaRepository<Producao, Long> {
     List<Producao> findByGestorAndProdutoOrderByDataProducaoDesc(Usuario gestor, Produto produto);
 
     List<Producao> findByGestorAndDataProducaoBetweenOrderByDataProducaoDesc(Usuario gestor, LocalDate inicio, LocalDate fim);
+    List<Producao> findAllByOrderByDataProducaoDesc();
+    List<Producao> findByProdutoOrderByDataProducaoDesc(Produto produto);
+    List<Producao> findByDataProducaoBetweenOrderByDataProducaoDesc(LocalDate inicio, LocalDate fim);
 }

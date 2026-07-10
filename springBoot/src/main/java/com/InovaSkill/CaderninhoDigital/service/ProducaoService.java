@@ -59,39 +59,30 @@ public class ProducaoService {
         Usuario gestor = usuarioAcessoService.buscarGestor(usuarioId);
         if (produtoId != null) {
             Produto produto = buscarProdutoDoGestor(produtoId, gestor);
-            return producaoRepository.findByGestorAndProdutoOrderByDataProducaoDesc(gestor, produto)
+            return producaoRepository.findByProdutoOrderByDataProducaoDesc(produto)
                     .stream()
                     .map(this::toResponse)
                     .toList();
         }
-        return producaoRepository.findByGestorOrderByDataProducaoDesc(gestor).stream().map(this::toResponse).toList();
+        return producaoRepository.findAllByOrderByDataProducaoDesc().stream().map(this::toResponse).toList();
     }
 
     public ProducaoResponseDTO buscar(Long usuarioId, Long id) {
         Usuario gestor = usuarioAcessoService.buscarGestor(usuarioId);
         Producao producao = producaoRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Produção não encontrada"));
-        if (!producao.getGestor().getId().equals(gestor.getId())) {
-            throw new BusinessException("Esta produção não pertence ao usuário informado");
-        }
         return toResponse(producao);
     }
 
     private Produto buscarProdutoDoGestor(Long produtoId, Usuario gestor) {
         Produto produto = produtoRepository.findById(produtoId)
                 .orElseThrow(() -> new ResourceNotFoundException("Produto não encontrado"));
-        if (!produto.getGestor().getId().equals(gestor.getId())) {
-            throw new BusinessException("Este produto não pertence ao usuário informado");
-        }
         return produto;
     }
 
     private MateriaPrima buscarMateriaPrimaDoGestor(Long materiaPrimaId, Usuario gestor) {
         MateriaPrima materiaPrima = materiaPrimaRepository.findById(materiaPrimaId)
                 .orElseThrow(() -> new ResourceNotFoundException("Matéria-prima não encontrada"));
-        if (!materiaPrima.getGestor().getId().equals(gestor.getId())) {
-            throw new BusinessException("Esta matéria-prima não pertence ao usuário informado");
-        }
         return materiaPrima;
     }
 

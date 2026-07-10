@@ -7,4 +7,5 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface MateriaPrimaRepository extends JpaRepository<MateriaPrima, Long> {
     List<MateriaPrima> findByGestorOrderByNomeAsc(Usuario gestor);
+    List<MateriaPrima> findAllByOrderByNomeAsc();
 }

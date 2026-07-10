@@ -69,16 +69,13 @@ public class CompraMateriaPrimaService {
 
     public List<CompraMateriaPrimaResponseDTO> listar(Long usuarioId) {
         Usuario gestor = usuarioAcessoService.buscarGestor(usuarioId);
-        return compraRepository.findByGestorOrderByDataCompraDesc(gestor).stream().map(this::toResponse).toList();
+        return compraRepository.findAllByOrderByDataCompraDesc().stream().map(this::toResponse).toList();
     }
 
     public CompraMateriaPrimaResponseDTO buscar(Long usuarioId, Long id) {
         Usuario gestor = usuarioAcessoService.buscarGestor(usuarioId);
         CompraMateriaPrima compra = compraRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Compra de matéria-prima não encontrada"));
-        if (!compra.getGestor().getId().equals(gestor.getId())) {
-            throw new BusinessException("Esta compra não pertence ao usuário informado");
-        }
         return toResponse(compra);
     }
 
@@ -93,9 +90,6 @@ public class CompraMateriaPrimaService {
     private MateriaPrima buscarMateriaPrimaDoGestor(Long materiaPrimaId, Usuario gestor) {
         MateriaPrima materiaPrima = materiaPrimaRepository.findById(materiaPrimaId)
                 .orElseThrow(() -> new ResourceNotFoundException("Matéria-prima não encontrada"));
-        if (!materiaPrima.getGestor().getId().equals(gestor.getId())) {
-            throw new BusinessException("Esta matéria-prima não pertence ao usuário informado");
-        }
         return materiaPrima;
     }
 

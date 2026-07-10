@@ -39,18 +39,18 @@ public class InsightService {
 
     public List<InsightResponseDTO> listar(Long usuarioId) {
         Usuario gestor = buscarUsuario(usuarioId);
-        return insightRepository.findByGestorOrderByCriadoEmDesc(gestor).stream()
+        return insightRepository.findAllByOrderByCriadoEmDesc().stream()
                 .map(this::toResponse)
                 .toList();
     }
 
     public List<InsightResponseDTO> gerar(Long usuarioId) {
         Usuario gestor = buscarUsuario(usuarioId);
-        List<Lancamento> lancamentos = lancamentoRepository.findByGestorOrderByDataLancamentoDesc(gestor);
-        List<Venda> vendas = vendaRepository.findByGestorOrderByDataVendaDesc(gestor);
-        List<CompraMateriaPrima> compras = compraMateriaPrimaRepository.findByGestorOrderByDataCompraDesc(gestor);
-        List<Producao> producoes = producaoRepository.findByGestorOrderByDataProducaoDesc(gestor);
-        List<MateriaPrima> materiasPrimas = materiaPrimaRepository.findByGestorOrderByNomeAsc(gestor);
+        List<Lancamento> lancamentos = lancamentoRepository.findAllByOrderByDataLancamentoDesc();
+        List<Venda> vendas = vendaRepository.findAllByOrderByDataVendaDesc();
+        List<CompraMateriaPrima> compras = compraMateriaPrimaRepository.findAllByOrderByDataCompraDesc();
+        List<Producao> producoes = producaoRepository.findAllByOrderByDataProducaoDesc();
+        List<MateriaPrima> materiasPrimas = materiaPrimaRepository.findAllByOrderByNomeAsc();
 
         List<Insight> insights = new ArrayList<>();
         BigDecimal totalVendas = vendas.stream().map(Venda::getValorTotal).reduce(BigDecimal.ZERO, BigDecimal::add)

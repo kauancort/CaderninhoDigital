@@ -36,20 +36,18 @@ public class MateriaPrimaService {
 
     public List<MateriaPrimaResponseDTO> listar(Long usuarioId) {
         Usuario gestor = usuarioAcessoService.buscarGestor(usuarioId);
-        return materiaPrimaRepository.findByGestorOrderByNomeAsc(gestor).stream().map(this::toResponse).toList();
+        return materiaPrimaRepository.findAllByOrderByNomeAsc().stream().map(this::toResponse).toList();
     }
 
     public MateriaPrimaResponseDTO buscar(Long usuarioId, Long id) {
         Usuario gestor = usuarioAcessoService.buscarGestor(usuarioId);
         MateriaPrima materiaPrima = buscarEntidade(id);
-        validarDono(materiaPrima, gestor);
         return toResponse(materiaPrima);
     }
 
     public MateriaPrimaResponseDTO atualizar(Long usuarioId, Long id, MateriaPrimaRequestDTO dto) {
         Usuario gestor = usuarioAcessoService.buscarGestor(usuarioId);
         MateriaPrima materiaPrima = buscarEntidade(id);
-        validarDono(materiaPrima, gestor);
         materiaPrima.setNome(dto.getNome());
         materiaPrima.setDescricao(dto.getDescricao());
         materiaPrima.setUnidadeMedida(dto.getUnidadeMedida());
@@ -63,25 +61,17 @@ public class MateriaPrimaService {
     public void deletar(Long usuarioId, Long id) {
         Usuario gestor = usuarioAcessoService.buscarGestor(usuarioId);
         MateriaPrima materiaPrima = buscarEntidade(id);
-        validarDono(materiaPrima, gestor);
         materiaPrimaRepository.delete(materiaPrima);
     }
 
     public MateriaPrima buscarMateriaPrimaDoGestor(Long materiaPrimaId, Usuario gestor) {
         MateriaPrima materiaPrima = buscarEntidade(materiaPrimaId);
-        validarDono(materiaPrima, gestor);
         return materiaPrima;
     }
 
     private MateriaPrima buscarEntidade(Long id) {
         return materiaPrimaRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Matéria-prima não encontrada"));
-    }
-
-    private void validarDono(MateriaPrima materiaPrima, Usuario gestor) {
-        if (!materiaPrima.getGestor().getId().equals(gestor.getId())) {
-            throw new BusinessException("Esta matéria-prima não pertence ao usuário informado");
-        }
     }
 
     private BigDecimal valorOuZero(BigDecimal valor) {

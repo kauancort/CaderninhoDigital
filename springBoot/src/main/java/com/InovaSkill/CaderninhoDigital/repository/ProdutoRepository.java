@@ -7,4 +7,5 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface ProdutoRepository extends JpaRepository<Produto, Long> {
     List<Produto> findByGestorOrderByNomeAsc(Usuario gestor);
+    List<Produto> findAllByOrderByNomeAsc();
 }
