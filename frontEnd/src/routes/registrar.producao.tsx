@@ -69,6 +69,7 @@ function RegistrarProducao() {
     setErro(null);
     if (!produtoId) return setErro("Escolha o produto produzido.");
     if (!potes || Number(potes) <= 0) return setErro("Informe a quantidade produzida.");
+    if (!unidade) return setErro("Escolha o tamanho do pote.");
     if (qtd <= 0) return setErro("Quantidade deve ser maior que zero.");
     const ings = ingredientes
       .filter((i) => i.materia_prima_id && Number(i.quantidade_utilizada) > 0)
@@ -131,11 +132,15 @@ function RegistrarProducao() {
               onChange={(e) => setProdutoId(e.target.value)}
             >
               <option value="">Escolha...</option>
-              {produtos.map((p: any) => (
-                <option key={p.id} value={p.id}>
+                 {[
+                  { id: "biriba", nome: "Biriba" },
+                  { id: "fondant", nome: "Fondant de leite" },
+                  { id: "pacoca", nome: "Paçoca Caseira" },
+                ].map((p) => (
+                  <option key={p.id} value={p.id}>
                   {p.nome}
                 </option>
-              ))}
+                 ))}
             </select>
           </div>
 
@@ -155,7 +160,7 @@ function RegistrarProducao() {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-sm font-semibold text-foreground mb-2 block">
-                Quantidade produzida *
+                Quantidade de potes produzidos *
               </label>
               <select className="ds-input" value={potes} onChange={(e) => setPotes(e.target.value)}>
                 <option value="">Selecione...</option>
@@ -168,9 +173,9 @@ function RegistrarProducao() {
             </div>
             <div>
               <label className="text-sm font-semibold text-foreground mb-2 block">
-                Tamanho do pote (opcional)
+                Tamanho do pote *
               </label>
-              <Select value={unidade} onValueChange={setUnidade}>
+              <Select required value={unidade} onValueChange={setUnidade}>
                 <SelectTrigger className="w-full min-h-[48px] text-base">
                   <SelectValue placeholder="Selecione..." />
                 </SelectTrigger>
