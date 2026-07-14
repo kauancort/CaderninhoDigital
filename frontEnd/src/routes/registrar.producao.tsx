@@ -108,6 +108,7 @@ function RegistrarProducao() {
         <button
           onClick={() => navigate({ to: "/registrar" })}
           className="w-10 h-10 rounded-full bg-card border border-border flex items-center justify-center hover:bg-secondary"
+          aria-label="Voltar para registrar"
         >
           <ArrowLeft size={18} />
         </button>
@@ -132,15 +133,15 @@ function RegistrarProducao() {
               onChange={(e) => setProdutoId(e.target.value)}
             >
               <option value="">Escolha...</option>
-                 {[
-                  { id: "biriba", nome: "Biriba" },
-                  { id: "fondant", nome: "Fondant de leite" },
-                  { id: "pacoca", nome: "Paçoca Caseira" },
-                ].map((p) => (
-                  <option key={p.id} value={p.id}>
+              {[
+                { id: "biriba", nome: "Biriba" },
+                { id: "fondant", nome: "Fondant de leite" },
+                { id: "pacoca", nome: "Paçoca Caseira" },
+              ].map((p) => (
+                <option key={p.id} value={p.id}>
                   {p.nome}
                 </option>
-                 ))}
+              ))}
             </select>
           </div>
 
@@ -246,6 +247,7 @@ function RegistrarProducao() {
                       type="button"
                       onClick={() => setIngredientes((p) => p.filter((_, i) => i !== idx))}
                       className="w-10 h-10 rounded-md text-error hover:bg-error-bg"
+                      aria-label={`Remover ingrediente ${idx + 1}`}
                     >
                       <Trash2 size={16} className="mx-auto" />
                     </button>
@@ -309,8 +311,6 @@ function RegistrarProducao() {
           </button>
         </div>
       </form>
-
-      <style>{`.ds-input{width:100%;font-family:var(--font-sans);font-size:1rem;color:var(--color-foreground);background:var(--color-card);border:1.5px solid var(--color-border);border-radius:.5rem;padding:.75rem 1rem;min-height:48px;outline:none;transition:all 150ms ease;}.ds-input:focus{border-color:var(--color-primary);box-shadow:0 0 0 3px oklch(0.48 0.19 27/0.12);}`}</style>
     </div>
   );
 }

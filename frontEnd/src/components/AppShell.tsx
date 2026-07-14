@@ -9,6 +9,7 @@ import {
   ReceiptText,
   Users,
   LogOut,
+  MoreHorizontal,
 } from "lucide-react";
 
 import { useEffect, useState } from "react";
@@ -19,6 +20,13 @@ import { logout } from "@/lib/auth.functions";
 import { AssistenteVoz } from "@/components/AssistenteVoz";
 import { AssistenteChat } from "@/components/AssistenteChat";
 import voCidaImg from "@/assets/vo-cida.png";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 
 type Item = {
   to: "/" | "/registrar" | "/vendas" | "/estoque" | "/producao" | "/gastos" | "/clientes";
@@ -34,6 +42,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   const [chatAberto, setChatAberto] = useState(false);
   const [vozAberta, setVozAberta] = useState(false);
+  const [maisAberto, setMaisAberto] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) navigate({ to: "/login" });
@@ -60,8 +69,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   ];
 
   const mobileItems = items.filter((i) =>
-    ["/", "/registrar", "/clientes", "/estoque", "/producao"].includes(i.to),
+    ["/", "/registrar", "/estoque", "/producao"].includes(i.to),
   );
+  const moreItems = items.filter((i) => ["/vendas", "/clientes", "/gastos"].includes(i.to));
+
+  function itemAtivo(to: Item["to"]) {
+    if (to === "/") return location.pathname === "/";
+    return location.pathname === to || location.pathname.startsWith(`${to}/`);
+  }
+
+  const moreActive = moreItems.some((item) => itemAtivo(item.to));
 
   async function sair() {
     await logout();
@@ -93,7 +110,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
         <nav className="flex-1 p-3 overflow-y-auto">
           {items.map((it) => {
-            const active = location.pathname === it.to;
+            const active = itemAtivo(it.to);
             const Icon = it.icon;
             return (
               <Link
@@ -146,9 +163,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </aside>
 
       {/* Bottom nav mobile */}
-      <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-sidebar border-t border-sidebar-border flex">
+      <nav className="mobile-safe-bottom md:hidden fixed bottom-0 inset-x-0 z-40 bg-sidebar border-t border-sidebar-border flex">
         {mobileItems.map((it) => {
-          const active = location.pathname === it.to;
+          const active = itemAtivo(it.to);
           const Icon = it.icon;
           return (
             <Link
@@ -171,10 +188,23 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </Link>
           );
         })}
+        <button
+          type="button"
+          onClick={() => setMaisAberto(true)}
+          className={[
+            "flex-1 flex flex-col items-center gap-1 py-2 text-[11px] font-medium",
+            moreActive ? "text-primary" : "text-muted-foreground",
+          ].join(" ")}
+          aria-label="Abrir mais opções"
+          aria-expanded={maisAberto}
+        >
+          <MoreHorizontal size={19} />
+          Mais
+        </button>
       </nav>
 
       {/* Main */}
-      <main className="flex-1 min-w-0 pb-20 md:pb-0 md:ml-60">
+      <main className="flex-1 min-w-0 pb-24 md:pb-0 md:ml-60">
         <header className="md:hidden flex items-center gap-3 px-5 py-4 border-b border-border bg-sidebar">
           <div className="w-10 h-10 rounded-full bg-card overflow-hidden flex items-center justify-center">
             <img src={voCidaImg} alt="Doces da Vó Cida" className="w-full h-full object-contain" />
@@ -204,6 +234,56 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         }}
       />
       <AssistenteVoz open={vozAberta} onClose={() => setVozAberta(false)} />
+
+      <Sheet open={maisAberto} onOpenChange={setMaisAberto}>
+        <SheetContent
+          side="bottom"
+          className="rounded-t-3xl border-sidebar-border bg-sidebar px-5 pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))] pt-6 md:hidden"
+        >
+          <SheetHeader className="pr-8 text-left">
+            <SheetTitle className="font-display text-2xl text-primary">Mais opções</SheetTitle>
+            <SheetDescription className="truncate">{user.email}</SheetDescription>
+          </SheetHeader>
+          <nav className="mt-5 grid gap-2" aria-label="Mais opções de navegação">
+            {moreItems.map((item) => {
+              const Icon = item.icon;
+              const active = itemAtivo(item.to);
+              return (
+                <Link
+                  key={item.to}
+                  to={item.to}
+                  onClick={() => setMaisAberto(false)}
+                  className={[
+                    "flex min-h-12 items-center gap-3 rounded-xl border px-4 text-sm font-semibold",
+                    active
+                      ? "border-primary/30 bg-card text-primary shadow-warm-sm"
+                      : "border-border bg-card/70 text-foreground",
+                  ].join(" ")}
+                >
+                  <Icon size={19} /> {item.label}
+                </Link>
+              );
+            })}
+            <button
+              type="button"
+              onClick={() => {
+                setMaisAberto(false);
+                setChatAberto(true);
+              }}
+              className="flex min-h-12 items-center gap-3 rounded-xl border border-gold-light/50 vovo-gradient px-4 text-sm font-semibold text-primary"
+            >
+              <Sparkles size={19} /> IA Assistente
+            </button>
+            <button
+              type="button"
+              onClick={sair}
+              className="flex min-h-12 items-center gap-3 rounded-xl px-4 text-sm font-semibold text-muted-foreground"
+            >
+              <LogOut size={19} /> Sair
+            </button>
+          </nav>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

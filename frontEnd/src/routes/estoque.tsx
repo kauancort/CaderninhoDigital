@@ -12,6 +12,7 @@ import {
   criarProduto,
 } from "@/lib/catalogo.functions";
 import { fmtBRL } from "@/lib/format";
+import { PageHeader } from "@/components/DesignSystem";
 
 export const Route = createFileRoute("/estoque")({
   component: () => (
@@ -102,12 +103,7 @@ function Estoque() {
 
   return (
     <div className="space-y-6 md:space-y-8">
-      <header>
-        <h1 className="text-2xl md:text-4xl font-display font-bold text-foreground">Estoque</h1>
-        <p className="font-body text-sm md:text-base text-muted-foreground mt-1">
-          Ingredientes e produtos finais.
-        </p>
-      </header>
+      <PageHeader title="Estoque" description="Ingredientes e produtos finais." />
 
       <div className="flex flex-wrap gap-2 bg-card border border-border rounded-2xl md:rounded-full p-1 shadow-warm-sm w-full md:w-fit">
         <button
@@ -320,8 +316,6 @@ function Estoque() {
           </div>
         </>
       )}
-
-      <style>{`.ds-input{width:100%;font-family:var(--font-sans);font-size:1rem;color:var(--color-foreground);background:var(--color-card);border:1.5px solid var(--color-border);border-radius:.5rem;padding:.5rem .75rem;min-height:42px;outline:none;}.ds-input:focus{border-color:var(--color-primary);box-shadow:0 0 0 3px oklch(0.48 0.19 27/0.12);}`}</style>
     </div>
   );
 }

@@ -167,6 +167,19 @@
     font-feature-settings: "ss01", "cv01";
   }
 
+  button,
+  a,
+  input,
+  select,
+  textarea {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  :where(button, a, input, select, textarea):focus-visible {
+    outline: 3px solid color-mix(in oklch, var(--color-ring) 35%, transparent);
+    outline-offset: 2px;
+  }
+
   h1,
   h2,
   h3,
@@ -187,6 +200,40 @@
 
 /* Utilitários custom do Caderninho */
 @layer components {
+  .ds-input {
+    width: 100%;
+    min-height: 48px;
+    border: 1.5px solid var(--color-border);
+    border-radius: 0.5rem;
+    background: var(--color-card);
+    padding: 0.75rem 1rem;
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    font-size: 1rem;
+    outline: none;
+    transition:
+      border-color 150ms ease,
+      box-shadow 150ms ease,
+      background-color 150ms ease;
+  }
+  .ds-input:focus {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px oklch(0.48 0.19 27 / 0.12);
+  }
+  .ds-input.ds-input-search {
+    padding-left: 3rem;
+  }
+  .ds-input[aria-invalid="true"] {
+    border-color: var(--color-error);
+  }
+  .ds-input:disabled {
+    cursor: not-allowed;
+    background: var(--color-muted);
+    opacity: 0.7;
+  }
+  .mobile-safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
   .vovo-gradient {
     background: linear-gradient(135deg, oklch(0.98 0.01 45) 0%, oklch(0.95 0.015 60) 100%);
   }

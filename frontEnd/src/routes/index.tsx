@@ -4,6 +4,7 @@ import { Wallet, TrendingDown, Package, Cookie, PlusCircle, Sparkles } from "luc
 import { AppShell } from "@/components/AppShell";
 import { obterDashboard } from "@/lib/dashboard.functions";
 import { fmtBRL, fmtDate } from "@/lib/format";
+import { FeedbackBanner } from "@/components/DesignSystem";
 
 export const Route = createFileRoute("/")({
   component: () => (
@@ -53,25 +54,21 @@ function Dashboard() {
   return (
     <div className="space-y-8">
       {isError && (
-        <div className="bg-error-bg border border-error/30 rounded-xl px-4 py-3 flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="text-sm font-semibold text-error">
-              A API do Spring Boot está indisponível.
-            </p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              O painel foi aberto com valores vazios. Inicie o backend na porta 8080 para carregar
-              os dados.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => refetch()}
-            disabled={isFetching}
-            className="px-3 py-2 rounded-md bg-primary text-primary-foreground text-xs font-semibold disabled:opacity-60"
-          >
-            {isFetching ? "Tentando..." : "Tentar novamente"}
-          </button>
-        </div>
+        <FeedbackBanner
+          tone="error"
+          title="A API do Spring Boot está indisponível."
+          description="O painel foi aberto com valores vazios. Inicie o backend na porta 8080 para carregar os dados."
+          action={
+            <button
+              type="button"
+              onClick={() => refetch()}
+              disabled={isFetching}
+              className="min-h-11 rounded-md bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground disabled:opacity-60"
+            >
+              {isFetching ? "Tentando..." : "Tentar novamente"}
+            </button>
+          }
+        />
       )}
 
       <header>
