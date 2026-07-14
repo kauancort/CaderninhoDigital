@@ -11,6 +11,7 @@ function mapProducao(p: any) {
     unidade: 22,
     observacoes: p.observacao || "",
     data_producao: p.dataProducao,
+    criado_em: p.criadoEm || null,
     produtos_finais: {
       nome: p.produtoNome || "Produto",
       imagem: null,
