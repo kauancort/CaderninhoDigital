@@ -14,6 +14,20 @@ export const listarProdutos = createApiFn({ method: "GET" }).handler(async ({ co
     custo_estimado: p.precoVenda * 0.3, // Mock estimated cost as 30% of price
     imagem: p.descricao || null,
     quantidade_estoque: p.estoqueAtual || 0,
+    gabarito: p.gabarito
+      ? {
+          id: String(p.gabarito.id),
+          quantidade_base: Number(p.gabarito.quantidadeBase),
+          tutorial: p.gabarito.observacao || "",
+          ingredientes: (p.gabarito.itens || []).map((item: any) => ({
+            id: String(item.id),
+            materia_prima_id: String(item.materiaPrimaId),
+            nome: item.materiaPrimaNome,
+            unidade: item.unidadeMedida,
+            quantidade: Number(item.quantidadeNecessaria),
+          })),
+        }
+      : null,
   }));
 });
 

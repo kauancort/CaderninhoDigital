@@ -133,11 +133,7 @@ function RegistrarProducao() {
               onChange={(e) => setProdutoId(e.target.value)}
             >
               <option value="">Escolha...</option>
-              {[
-                { id: "biriba", nome: "Biriba" },
-                { id: "fondant", nome: "Fondant de leite" },
-                { id: "pacoca", nome: "Paçoca Caseira" },
-              ].map((p) => (
+              {produtos.map((p: any) => (
                 <option key={p.id} value={p.id}>
                   {p.nome}
                 </option>

@@ -2,9 +2,9 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { AppShell } from "@/components/AppShell";
 import { listarProducoes } from "@/lib/producoes.functions";
-import { fmtDateLong } from "@/lib/format";
-import { ArrowLeft, ArrowRight, Cookie, NotebookPen } from "lucide-react";
-import { FAMILIAS, detectarFamilia, imgFamilia, type FamiliaKey } from "@/lib/produto-familia";
+import { ArrowLeft, ArrowRight, CalendarDays, Clock, Cookie, UserRound } from "lucide-react";
+import { FAMILIAS, detectarFamilia, type FamiliaKey } from "@/lib/produto-familia";
+import { useAuth } from "@/hooks/use-auth";
 
 export const Route = createFileRoute("/producao/historico/$familia")({
   component: () => (
@@ -17,6 +17,7 @@ export const Route = createFileRoute("/producao/historico/$familia")({
 function HistoricoFamilia() {
   const { familia } = Route.useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const famKey = familia as FamiliaKey;
   const fam = FAMILIAS.find((f) => f.key === famKey);
   const { data: lotes = [] } = useQuery({
@@ -64,71 +65,79 @@ function HistoricoFamilia() {
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {lotesFam.map((lote: any) => {
-            const ings = lote.producao_ingredientes ?? [];
-            return (
-              <Link
-                key={lote.id}
-                to="/producao/$id"
-                params={{ id: lote.id }}
-                className="bg-card border border-border rounded-2xl overflow-hidden shadow-warm-sm hover:shadow-warm-md transition-shadow flex flex-col group"
-              >
-                <div className="relative aspect-[4/3] bg-secondary">
-                  <img
-                    src={imgFamilia(famKey)}
-                    alt={fam.nome}
-                    loading="lazy"
-                    className="w-full h-full object-cover"
-                  />
-                  <span className="absolute bottom-3 left-3 bg-gold text-foreground text-xs font-bold px-3 py-1 rounded-full shadow-warm-sm">
-                    {fmtDateLong(lote.data_producao)}
-                  </span>
-                </div>
-                <div className="p-5 flex-1 flex flex-col">
-                  <h3 className="font-display text-xl font-bold text-foreground mb-1">
-                    {lote.produtos_finais?.nome ?? fam.nome}
-                  </h3>
-                  <div className="text-xs text-muted-foreground mb-1">
-                    {Number(lote.potes ?? 0)} potes · {Number(lote.unidade ?? 0)} uni/pote
-                  </div>
-                  <div className="text-xs text-muted-foreground mb-3">
-                    {Number(lote.quantidade_produzida)} unidades totais
-                  </div>
-                  {ings.length > 0 && (
-                    <>
-                      <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-primary mb-2">
-                        <NotebookPen size={14} /> Ingredientes
+        <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-warm-sm">
+          <ul className="divide-y divide-border" aria-label={`Lotes de ${fam.nome}`}>
+            {lotesFam.map((lote: any) => {
+              const dataHora = formatarDataHora(lote.criado_em, lote.data_producao);
+              const potes = Number(lote.potes ?? 0);
+              const totalUnidades = potes * Number(lote.unidade ?? 0);
+              return (
+                <li key={lote.id}>
+                  <Link
+                    to="/producao/$id"
+                    params={{ id: lote.id }}
+                    className="group flex min-h-24 items-center gap-4 px-4 py-4 transition-colors hover:bg-secondary/60 sm:px-6"
+                    aria-label={`Abrir lote ${formatarNumeroLote(lote.id)}`}
+                  >
+                    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-primary-bg font-display text-lg font-bold text-primary sm:h-16 sm:w-16">
+                      {formatarNumeroLote(lote.id)}
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <h2 className="font-display text-lg font-bold text-foreground">
+                        Lote {formatarNumeroLote(lote.id)}
+                      </h2>
+                      <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
+                        <span className="inline-flex items-center gap-1.5">
+                          <CalendarDays size={15} aria-hidden="true" /> {dataHora.data}
+                        </span>
+                        <span className="inline-flex items-center gap-1.5">
+                          <Clock size={15} aria-hidden="true" /> {dataHora.hora}
+                        </span>
+                        <span className="inline-flex min-w-0 items-center gap-1.5">
+                          <UserRound size={15} aria-hidden="true" />
+                          <span className="truncate">
+                            {user?.nome ?? "Responsável não informado"}
+                          </span>
+                        </span>
                       </div>
-                      <ul className="space-y-1.5 mb-4 flex-1">
-                        {ings.slice(0, 4).map((i: any, idx: number) => (
-                          <li
-                            key={idx}
-                            className="flex items-start gap-2 text-sm font-body text-brown-mid"
-                          >
-                            <span className="w-1.5 h-1.5 rounded-full bg-gold mt-2 shrink-0" />
-                            {Number(i.quantidade_utilizada)} {i.materia_prima?.unidade} de{" "}
-                            {i.materia_prima?.nome}
-                          </li>
-                        ))}
-                      </ul>
-                    </>
-                  )}
-                  <div className="flex items-center justify-between pt-3 border-t border-border mt-auto">
-                    <span className="text-sm font-bold text-muted-foreground">
-                      Lote #{lote.numero_lote}
-                    </span>
+                    </div>
+
+                    <div className="shrink-0 text-right">
+                      <div className="text-sm font-bold text-foreground">
+                        {potes} {potes === 1 ? "pote" : "potes"}
+                      </div>
+                      <div className="mt-0.5 text-xs text-muted-foreground">
+                        {totalUnidades} {totalUnidades === 1 ? "unidade" : "unidades"}
+                      </div>
+                    </div>
+
                     <ArrowRight
                       size={20}
-                      className="text-primary group-hover:translate-x-1 transition-transform"
+                      aria-hidden="true"
+                      className="shrink-0 text-primary transition-transform group-hover:translate-x-1"
                     />
-                  </div>
-                </div>
-              </Link>
-            );
-          })}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
         </div>
       )}
     </div>
   );
+}
+
+function formatarNumeroLote(id: string | number) {
+  return String(id).padStart(3, "0");
+}
+
+function formatarDataHora(criadoEm: string | null, dataProducao: string) {
+  const data = criadoEm ? new Date(criadoEm) : new Date(`${dataProducao}T00:00:00`);
+  return {
+    data: new Intl.DateTimeFormat("pt-BR").format(data),
+    hora: criadoEm
+      ? new Intl.DateTimeFormat("pt-BR", { hour: "2-digit", minute: "2-digit" }).format(data)
+      : "Horário não informado",
+  };
 }

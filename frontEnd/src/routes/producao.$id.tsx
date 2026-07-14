@@ -7,6 +7,7 @@ import { ArrowLeft, Cookie, NotebookPen } from "lucide-react";
 import pacoca from "@/assets/pacoca.jpg";
 import biriba from "@/assets/biriba.jpg";
 import fondant from "@/assets/fondant.jpg";
+import { detectarFamilia } from "@/lib/produto-familia";
 
 const imgs: Record<string, string> = { pacoca, biriba, fondant };
 
@@ -43,11 +44,20 @@ function DetalheLote() {
     hour: "2-digit",
     minute: "2-digit",
   });
+  const familia = detectarFamilia(l.produtos_finais?.nome);
+
+  function voltar() {
+    if (familia) {
+      navigate({ to: "/producao/historico/$familia", params: { familia } });
+      return;
+    }
+    navigate({ to: "/producao" });
+  }
 
   return (
     <div className="space-y-6 max-w-3xl">
       <button
-        onClick={() => navigate({ to: "/producao" })}
+        onClick={voltar}
         className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
       >
         <ArrowLeft size={16} /> Voltar
