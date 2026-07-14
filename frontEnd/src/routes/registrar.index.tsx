@@ -42,6 +42,7 @@ const tipos = [
 
 function RegistrarHub() {
   const [vozAberta, setVozAberta] = useState(false);
+  const [avisoFoto, setAvisoFoto] = useState(false);
 
   return (
     <div className="space-y-10">
@@ -93,18 +94,33 @@ function RegistrarHub() {
             </div>
             <div className="text-xs font-bold text-foreground">Voz</div>
           </button>
-          <Link to="/registrar/venda" className="flex flex-col items-center gap-2 group">
-            <div className="w-14 h-14 rounded-full flex items-center justify-center border-2 border-border bg-card text-brown-mid hover:border-primary hover:text-primary transition-all">
+          <button
+            type="button"
+            onClick={() => setAvisoFoto(true)}
+            className="flex flex-col items-center gap-2 group"
+            aria-describedby="aviso-foto"
+          >
+            <div className="relative w-14 h-14 rounded-full flex items-center justify-center border-2 border-border bg-muted text-muted-foreground transition-all">
               <Camera size={22} />
+              <span className="absolute -right-3 -top-2 rounded-full bg-gold-bg px-1.5 py-0.5 text-[10px] font-bold text-gold-dark">
+                Em breve
+              </span>
             </div>
             <div className="text-xs font-bold text-foreground">Foto</div>
-          </Link>
+          </button>
           <Link to="/registrar/venda" className="flex flex-col items-center gap-2 group">
             <div className="w-14 h-14 rounded-full flex items-center justify-center border-2 border-border bg-card text-brown-mid hover:border-primary hover:text-primary transition-all">
               <Keyboard size={22} />
             </div>
-            <div className="text-xs font-bold text-foreground">Texto</div>
+            <div className="text-xs font-bold text-foreground">Formulário de venda</div>
           </Link>
+        </div>
+        <div id="aviso-foto" aria-live="polite" className="min-h-6">
+          {avisoFoto && (
+            <p className="mt-4 text-center text-sm font-medium text-gold-dark">
+              O registro por foto estará disponível em breve.
+            </p>
+          )}
         </div>
         <p className="text-center text-xs text-muted-foreground mt-4 font-body italic">
           ✨ Diga uma venda, compra, produção ou gasto e a Vovó preenche pra você.

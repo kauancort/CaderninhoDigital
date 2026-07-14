@@ -203,7 +203,8 @@ function LoginPage() {
                   type="button"
                   onClick={() => setMostrarSenha((v) => !v)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                  tabIndex={-1}
+                  aria-label={mostrarSenha ? "Ocultar senha" : "Mostrar senha"}
+                  aria-pressed={mostrarSenha}
                 >
                   {mostrarSenha ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
@@ -264,26 +265,6 @@ function LoginPage() {
           </form>
         </div>
       </div>
-
-      <style>{`
-        .ds-input {
-          width: 100%;
-          font-family: var(--font-sans);
-          font-size: 1rem;
-          color: var(--color-foreground);
-          background: var(--color-card);
-          border: 1.5px solid var(--color-border);
-          border-radius: 0.5rem;
-          padding: 0.75rem 1rem;
-          min-height: 48px;
-          outline: none;
-          transition: all 150ms ease;
-        }
-        .ds-input:focus {
-          border-color: var(--color-primary);
-          box-shadow: 0 0 0 3px oklch(0.48 0.19 27 / 0.12);
-        }
-      `}</style>
     </div>
   );
 }

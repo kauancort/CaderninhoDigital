@@ -349,8 +349,6 @@ function Clientes() {
           </div>
         </div>
       )}
-
-      <style>{`.ds-input{width:100%;font-family:var(--font-sans);font-size:1rem;color:var(--color-foreground);background:var(--color-card);border:1.5px solid var(--color-border);border-radius:.5rem;padding:.6rem .85rem;min-height:44px;outline:none;transition:all 150ms ease;}.ds-input.ds-input-search{padding-left:3rem;}.ds-input:focus{border-color:var(--color-primary);box-shadow:0 0 0 3px oklch(0.48 0.19 27/0.12);}`}</style>
     </div>
   );
 }
