@@ -10,7 +10,7 @@ Backend do Caderninho Digital Inteligente, uma API REST em Java Spring Boot para
 - Spring Web
 - Spring Data JPA
 - Bean Validation
-- MySQL 8
+- PostgreSQL 16
 - Flyway
 - Docker / Docker Compose
 - Swagger / OpenAPI
@@ -29,7 +29,7 @@ Serviços:
 
 ```txt
 API:   http://localhost:8080
-MySQL: localhost:3306
+PostgreSQL: localhost:5432
 ```
 
 Swagger:
@@ -62,19 +62,19 @@ Parar e apagar o banco local:
 docker compose down -v
 ```
 
-Use `down -v` apenas quando quiser apagar todos os dados locais do MySQL.
+Use `down -v` apenas quando quiser apagar todos os dados locais do PostgreSQL.
 
 ## Como Rodar Sem Docker Para a API
 
-Também é possível rodar apenas o MySQL no Docker e executar a API localmente com Maven.
+Também é possível rodar apenas o PostgreSQL no Docker e executar a API localmente com Maven.
 
 ```bash
 cd springBoot
-docker compose up -d mysql
+docker compose up -d postgres
 ./mvnw spring-boot:run
 ```
 
-Neste modo, a API usa o MySQL em `localhost:3306`.
+Neste modo, a API usa o PostgreSQL em `localhost:5432`.
 
 ## Banco De Dados Local
 
@@ -85,7 +85,7 @@ Database: caderninho_digital
 User:     caderninho_user
 Password: caderninho_pass
 Root:     root
-Port:     3306
+Port:     5432
 ```
 
 ## Variáveis De Ambiente
@@ -97,29 +97,32 @@ PORT
 SPRING_DATASOURCE_URL
 SPRING_DATASOURCE_USERNAME
 SPRING_DATASOURCE_PASSWORD
-SPRING_DATASOURCE_DRIVER_CLASS_NAME
 SPRING_JPA_HIBERNATE_DDL_AUTO
 SPRING_JPA_SHOW_SQL
 SPRING_FLYWAY_ENABLED
-SPRING_FLYWAY_BASELINE_ON_MIGRATE
+DB_HOST
+DB_PORT
+DB_NAME
+DB_USERNAME
+DB_PASSWORD
 ```
 
 Valores locais padrão:
 
 ```txt
 PORT=8080
-SPRING_DATASOURCE_URL=jdbc:mysql://localhost:3306/caderninho_digital?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=America/Sao_Paulo
+SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/caderninho_digital
 SPRING_DATASOURCE_USERNAME=caderninho_user
 SPRING_DATASOURCE_PASSWORD=caderninho_pass
 SPRING_JPA_HIBERNATE_DDL_AUTO=validate
-SPRING_JPA_SHOW_SQL=true
+SPRING_JPA_SHOW_SQL=false
 SPRING_FLYWAY_ENABLED=true
 ```
 
-Dentro do Docker Compose, a API usa `mysql` como host do banco:
+Dentro do Docker Compose, a API usa `postgres` como host do banco:
 
 ```txt
-jdbc:mysql://mysql:3306/caderninho_digital
+jdbc:postgresql://postgres:5432/caderninho_digital
 ```
 
 ## Flyway
@@ -161,7 +164,7 @@ cd springBoot
 ./mvnw test
 ```
 
-Os testes usam H2 em memória com perfil `test`, sem depender do MySQL local.
+Os testes usam Testcontainers com PostgreSQL 16 real. Docker deve estar ativo ao executar a suíte.
 
 ## Endpoints Principais
 
@@ -230,7 +233,7 @@ curl http://localhost:8080/api/v1/produtos \
 
 Para deploy no Render, use o `Dockerfile` da API ou configure build Maven.
 
-O banco de produção deve ser externo/gerenciado, não o MySQL do Docker Compose local.
+O `render.yaml` na raiz provisiona a API e um PostgreSQL gerenciado usando a rede interna do Render.
 
 Configure no Render:
 

@@ -1,19 +1,23 @@
 services:
-  mysql:
-    image: mysql:8.0
-    container_name: caderninho_mysql
+  postgres:
+    image: postgres:16-alpine
+    container_name: caderninho_postgres
     restart: always
     environment:
-      MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: caderninho_digital
-      MYSQL_USER: caderninho_user
-      MYSQL_PASSWORD: caderninho_pass
+      POSTGRES_DB: caderninho_digital
+      POSTGRES_USER: caderninho_user
+      POSTGRES_PASSWORD: caderninho_pass
     ports:
-      - "3306:3306"
+      - "5432:5432"
     volumes:
-      - caderninho_mysql_data:/var/lib/mysql
+      - caderninho_postgres_data:/var/lib/postgresql/data
     networks:
       - caderninho_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U caderninho_user -d caderninho_digital"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   api:
     build:
@@ -22,23 +26,23 @@ services:
     container_name: caderninho_api
     restart: always
     depends_on:
-      - mysql
+      postgres:
+        condition: service_healthy
     environment:
       PORT: 8080
-      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/caderninho_digital?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=America/Sao_Paulo
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/caderninho_digital
       SPRING_DATASOURCE_USERNAME: caderninho_user
       SPRING_DATASOURCE_PASSWORD: caderninho_pass
       SPRING_JPA_HIBERNATE_DDL_AUTO: validate
-      SPRING_JPA_SHOW_SQL: "true"
+      SPRING_JPA_SHOW_SQL: "false"
       SPRING_FLYWAY_ENABLED: "true"
-      SPRING_FLYWAY_BASELINE_ON_MIGRATE: "true"
     ports:
       - "8080:8080"
     networks:
       - caderninho_network
 
 volumes:
-  caderninho_mysql_data:
+  caderninho_postgres_data:
 
 networks:
   caderninho_network:
