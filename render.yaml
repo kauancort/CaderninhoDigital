@@ -1,0 +1,46 @@
+services:
+  - type: web
+    name: caderninho-digital-api
+    runtime: docker
+    plan: free
+    region: virginia
+    dockerContext: ./springBoot
+    dockerfilePath: ./springBoot/Dockerfile
+    healthCheckPath: /actuator/health
+    autoDeployTrigger: checksPass
+    envVars:
+      - key: DB_HOST
+        fromDatabase:
+          name: caderninho-digital-db
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: caderninho-digital-db
+          property: port
+      - key: DB_NAME
+        fromDatabase:
+          name: caderninho-digital-db
+          property: database
+      - key: DB_USERNAME
+        fromDatabase:
+          name: caderninho-digital-db
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: caderninho-digital-db
+          property: password
+      - key: SPRING_JPA_HIBERNATE_DDL_AUTO
+        value: validate
+      - key: SPRING_JPA_SHOW_SQL
+        value: "false"
+      - key: SPRING_FLYWAY_ENABLED
+        value: "true"
+
+databases:
+  - name: caderninho-digital-db
+    databaseName: caderninho_digital
+    user: caderninho_user
+    plan: free
+    region: virginia
+    postgresMajorVersion: "16"
+    ipAllowList: []

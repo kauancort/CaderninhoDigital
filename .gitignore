@@ -72,6 +72,7 @@ pnpm-debug.log*
 # Docker local data
 docker-data/
 mysql-data/
+postgres-data/
 
 # Markdown docs
 *.md

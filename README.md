@@ -7,7 +7,7 @@ Sistema de gestão para a produção e venda de Biriba, Fondant de leite e Paço
 ```text
 CaderninhoDigital/
 ├── frontEnd/    # React 19, TypeScript e Vite
-└── springBoot/  # Java 21, Spring Boot e MySQL
+└── springBoot/  # Java 21, Spring Boot e PostgreSQL
 ```
 
 ## Dependências
@@ -21,12 +21,12 @@ Para a forma recomendada de execução:
 Para executar o backend sem Docker também são necessários:
 
 - Java 21;
-- MySQL 8;
+- PostgreSQL 16;
 - Maven não precisa ser instalado separadamente, pois o projeto possui Maven Wrapper.
 
 ## Executar o backend com Docker
 
-Entre na pasta do backend e suba a API e o MySQL:
+Entre na pasta do backend e suba a API e o PostgreSQL:
 
 ```bash
 cd springBoot
@@ -47,7 +47,7 @@ Para interromper os containers sem apagar o banco:
 docker compose down
 ```
 
-Não use `docker compose down -v` se quiser preservar os dados. O parâmetro `-v` remove o volume do MySQL.
+Não use `docker compose down -v` se quiser preservar os dados. O parâmetro `-v` remove o volume do PostgreSQL.
 
 ## Executar o frontend
 
@@ -71,11 +71,11 @@ VITE_ENABLE_TEST_LOGIN="false"
 
 ## Executar o backend sem Docker
 
-Crie um banco MySQL chamado `caderninho_digital` e um usuário compatível com as configurações abaixo, ou forneça suas próprias variáveis de ambiente:
+Crie um banco PostgreSQL chamado `caderninho_digital` e um usuário compatível com as configurações abaixo, ou forneça suas próprias variáveis de ambiente:
 
 ```bash
 cd springBoot
-export SPRING_DATASOURCE_URL='jdbc:mysql://localhost:3306/caderninho_digital?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=America/Sao_Paulo'
+export SPRING_DATASOURCE_URL='jdbc:postgresql://localhost:5432/caderninho_digital'
 export SPRING_DATASOURCE_USERNAME='caderninho_user'
 export SPRING_DATASOURCE_PASSWORD='caderninho_pass'
 ./mvnw spring-boot:run
@@ -110,6 +110,12 @@ docker compose up -d --build
 ```
 
 As migrations pendentes serão aplicadas automaticamente no banco existente.
+
+## Deploy no Render
+
+O arquivo `render.yaml` da raiz cria a API Docker e um PostgreSQL 16 na mesma região. Importe o repositório como Blueprint no Render; as credenciais são injetadas pelo próprio Render e o health check usa `/actuator/health`.
+
+Os planos gratuitos são apropriados para homologação. Faça upgrade do banco antes de armazenar dados reais que precisem de persistência e backups.
 
 ## Repositório
 
