@@ -14,6 +14,8 @@ export const Route = createFileRoute("/vendas")({
   ),
 });
 
+type StatusPagamento = "PAGO" | "PENDENTE" | "ATRASADO" | "NAO_SE_APLICA";
+
 function Vendas() {
   const { data: vendas = [] } = useQuery({ queryKey: ["vendas"], queryFn: () => listarVendas() });
   const [filtro, setFiltro] = useState<"todas" | "hoje" | "semana">("todas");
@@ -88,9 +90,11 @@ function Vendas() {
               >
                 <div className="min-w-0 flex-1">
                   <div className="font-semibold text-foreground">{resumo || "—"}</div>
-                  <div className="text-xs text-muted-foreground mt-0.5">
+                  <div className="text-xs text-muted-foreground mt-0.5 flex flex-wrap items-center gap-x-1 gap-y-1">
                     {v.comprador && <>{v.comprador} · </>}
-                    {fmtDateTime(v.data_venda)} <PagamentoBadge tipo={v.forma_pagamento} />
+                    {fmtDateTime(v.data_venda)}
+                    <PagamentoBadge tipo={v.forma_pagamento} />
+                    <StatusPagamentoBadge status={v.status_pagamento} />
                   </div>
                 </div>
                 <div className="text-right font-display font-bold text-primary tabular-nums">
@@ -141,7 +145,24 @@ function PagamentoBadge({ tipo }: { tipo: FormaPagamento }) {
   const { label, cls } = map[tipo];
   return (
     <span
-      className={`ml-1 inline-flex items-center text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${cls}`}
+      className={`inline-flex items-center text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${cls}`}
+    >
+      {label}
+    </span>
+  );
+}
+
+function StatusPagamentoBadge({ status }: { status: StatusPagamento }) {
+  const map: Record<StatusPagamento, { label: string; cls: string }> = {
+    PAGO: { label: "Pago", cls: "bg-success-bg text-success" },
+    PENDENTE: { label: "Pendente", cls: "bg-warning-bg text-warning" },
+    ATRASADO: { label: "Atrasado", cls: "bg-red-100 text-red-700" },
+    NAO_SE_APLICA: { label: "N/A", cls: "bg-secondary text-brown-mid" },
+  };
+  const { label, cls } = map[status] ?? map.NAO_SE_APLICA;
+  return (
+    <span
+      className={`inline-flex items-center text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${cls}`}
     >
       {label}
     </span>

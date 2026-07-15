@@ -1,16 +1,21 @@
 import { createApiFn } from "@/lib/api-function";
 import { API_URL as BASE_URL, apiFetch as fetch } from "@/lib/api-client";
 import { z } from "zod";
+
 export const listarVendas = createApiFn({ method: "GET" }).handler(async ({ context }) => {
   const res = await fetch(`${BASE_URL}/vendas`, {
     headers: { "X-Usuario-Id": String(context.userId) },
   });
+
   if (!res.ok) throw new Error("Erro ao listar vendas");
+
   const data = await res.json();
+
   return data.map((v: any) => ({
     id: String(v.id),
     comprador: v.clienteNome || v.observacao || "Cliente Avulso",
     forma_pagamento: v.formaPagamento ? v.formaPagamento.toLowerCase() : "pix",
+    status_pagamento: v.statusPagamento ?? "NAO_SE_APLICA",
     valor_total: v.valorTotal || 0,
     data_venda: v.dataVenda,
     itens_venda: (v.itens || []).map((i: any) => ({
@@ -115,6 +120,7 @@ export const registrarVenda = createApiFn({ method: "POST" })
       id: String(resData.id),
       comprador: resData.clienteNome || data.comprador || "Cliente Avulso",
       forma_pagamento: data.forma_pagamento,
+      status_pagamento: data.status_pagamento,
       valor_total: resData.valorTotal,
     };
   });
