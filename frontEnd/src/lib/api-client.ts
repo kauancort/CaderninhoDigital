@@ -1,7 +1,12 @@
-export const API_URL = (import.meta.env.VITE_API_URL || "http://localhost:8080/api/v1").replace(
-  /\/$/,
-  "",
-);
+const LOCAL_API_URL = "http://localhost:8080/api/v1";
+const RENDER_API_URL = "https://caderninho-digital-api.onrender.com/api/v1";
+const configuredApiUrl = import.meta.env.VITE_API_URL;
+const isLocalApiUrl = configuredApiUrl?.startsWith("http://localhost");
+const DEFAULT_API_URL = import.meta.env.PROD ? RENDER_API_URL : LOCAL_API_URL;
+
+export const API_URL = (
+  import.meta.env.PROD && isLocalApiUrl ? RENDER_API_URL : configuredApiUrl || DEFAULT_API_URL
+).replace(/\/$/, "");
 
 type ApiErrorBody = {
   message?: string;
