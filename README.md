@@ -69,6 +69,8 @@ VITE_API_URL="http://localhost:8080/api/v1"
 VITE_ENABLE_TEST_LOGIN="false"
 ```
 
+Em builds de produção, o frontend usa por padrão `https://caderninho-digital-api.onrender.com/api/v1`. A variável `VITE_API_URL` pode sobrescrever esse endereço em qualquer ambiente.
+
 ## Executar o backend sem Docker
 
 Crie um banco PostgreSQL chamado `caderninho_digital` e um usuário compatível com as configurações abaixo, ou forneça suas próprias variáveis de ambiente:
