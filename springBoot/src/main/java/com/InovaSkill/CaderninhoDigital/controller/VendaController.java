@@ -1,5 +1,6 @@
 package com.InovaSkill.CaderninhoDigital.controller;
 
+import com.InovaSkill.CaderninhoDigital.dto.request.ContatoRequestDTO;
 import com.InovaSkill.CaderninhoDigital.dto.request.VendaRequestDTO;
 import com.InovaSkill.CaderninhoDigital.dto.response.VendaResponseDTO;
 import com.InovaSkill.CaderninhoDigital.service.VendaService;
@@ -36,5 +37,10 @@ public class VendaController {
     @GetMapping("/{id}")
     public ResponseEntity<VendaResponseDTO> buscar(@RequestHeader("X-Usuario-Id") Long usuarioId, @PathVariable Long id) {
         return ResponseEntity.ok(vendaService.buscar(usuarioId, id));
+    }
+
+    @PostMapping("/{id}/contatos")
+    public ResponseEntity<VendaResponseDTO> adicionarContato(@RequestHeader("X-Usuario-Id") Long usuarioId, @PathVariable Long id, @RequestBody @Valid ContatoRequestDTO dto) {
+        return ResponseEntity.ok(vendaService.adicionarContato(usuarioId, id, dto));
     }
 }

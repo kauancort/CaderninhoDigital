@@ -2,6 +2,7 @@ package com.InovaSkill.CaderninhoDigital.entity;
 
 import com.InovaSkill.CaderninhoDigital.enums.FormaPagamento;
 import com.InovaSkill.CaderninhoDigital.enums.StatusPagamento;
+import com.InovaSkill.CaderninhoDigital.enums.TipoCartao;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -64,6 +65,19 @@ public class Venda {
 
     @Column(length = 500)
     private String observacao;
+
+    @Column(name = "data_vencimento")
+    private LocalDate dataVencimento;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "tipo_cartao", length = 20)
+    private TipoCartao tipoCartao;
+
+    @Column(name = "parcelas")
+    private Integer parcelas;
+
+    @Column(name = "contatos", columnDefinition = "TEXT")
+    private String contatos;
 
     @OneToMany(mappedBy = "venda", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default

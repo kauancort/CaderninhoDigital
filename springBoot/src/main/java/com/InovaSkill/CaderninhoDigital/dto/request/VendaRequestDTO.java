@@ -2,6 +2,7 @@ package com.InovaSkill.CaderninhoDigital.dto.request;
 
 import com.InovaSkill.CaderninhoDigital.enums.FormaPagamento;
 import com.InovaSkill.CaderninhoDigital.enums.StatusPagamento;
+import com.InovaSkill.CaderninhoDigital.enums.TipoCartao;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
@@ -19,6 +20,9 @@ public class VendaRequestDTO {
     private FormaPagamento formaPagamento;
     private StatusPagamento statusPagamento;
     private String observacao;
+    private LocalDate dataVencimento;
+    private TipoCartao tipoCartao;
+    private Integer parcelas;
     @Valid
     @NotEmpty(message = "Informe ao menos um item da venda")
     private List<ItemVendaRequestDTO> itens;
