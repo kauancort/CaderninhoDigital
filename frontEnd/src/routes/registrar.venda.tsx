@@ -1,10 +1,11 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useApiFn } from "@/lib/api-function";
 import { Check, Sparkles, ArrowLeft, Pencil, Plus, Trash2 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { listarProdutos } from "@/lib/catalogo.functions";
+import { listarClientes } from "@/lib/clientes.functions";
 import { registrarVenda } from "@/lib/vendas.functions";
 import { fmtBRL, hojeISO, type FormaPagamento, type StatusPagamento } from "@/lib/format";
 import { consumePrefill, type PrefillVenda } from "@/lib/voz-prefill";
@@ -18,6 +19,7 @@ export const Route = createFileRoute("/registrar/venda")({
 });
 
 type TipoVenda = "pote" | "caixa";
+type TipoCartao = "CREDITO" | "DEBITO";
 type ItemForm = {
   produto_final_id: string;
   quantidade: string;
@@ -46,13 +48,23 @@ function RegistrarVenda() {
     queryFn: () => listarProdutos(),
   });
 
+  const { data: clientes = [] } = useQuery({
+    queryKey: ["clientes"],
+    queryFn: () => listarClientes(),
+  });
+
   const [itens, setItens] = useState<ItemForm[]>([
     { produto_final_id: "", quantidade: "1", preco_unitario: "", tipo: "pote" },
   ]);
   const [forma, setForma] = useState<FormaPagamento>("pix");
+  const [tipoCartao, setTipoCartao] = useState<TipoCartao | null>(null);
+  const [parcelas, setParcelas] = useState("1");
   const [dataVenda, setDataVenda] = useState(hojeISO());
+  const [dataVencimento, setDataVencimento] = useState("");
   const [statusPagamento, setStatusPagamento] = useState<StatusPagamento>("PAGO");
   const [cliente, setCliente] = useState("");
+  const [clienteId, setClienteId] = useState<string | null>(null);
+  const [mostrarSugestoes, setMostrarSugestoes] = useState(false);
   const [observacao, setObservacao] = useState("");
   const [erro, setErro] = useState<string | null>(null);
   const [confirmar, setConfirmar] = useState(false);
@@ -80,6 +92,7 @@ function RegistrarVenda() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["vendas"] });
       qc.invalidateQueries({ queryKey: ["produtos"] });
+      qc.invalidateQueries({ queryKey: ["clientes"] });
       qc.invalidateQueries({ queryKey: ["dashboard"] });
       setTimeout(() => navigate({ to: "/vendas" }), 800);
     },
@@ -94,6 +107,21 @@ function RegistrarVenda() {
     return { ...i, nome: (prod as any)?.nome ?? "—", subtotal: potes * p, qtd: q, potes, preco: p };
   });
   const total = itensCalculados.reduce((s, i) => s + i.subtotal, 0);
+
+  const sugestoesCliente = useMemo(() => {
+    const termo = cliente.trim().toLowerCase();
+    if (termo.length < 2) return [];
+    return clientes
+      .filter((c: any) => {
+        return (
+          c.nome?.toLowerCase().includes(termo) ||
+          c.email?.toLowerCase().includes(termo) ||
+          c.documento?.toLowerCase().includes(termo) ||
+          c.telefone?.toLowerCase().includes(termo)
+        );
+      })
+      .slice(0, 6);
+  }, [cliente, clientes]);
 
   function atualizarItem(idx: number, patch: Partial<ItemForm>) {
     setItens((prev) => prev.map((it, i) => (i === idx ? { ...it, ...patch } : it)));
@@ -110,6 +138,18 @@ function RegistrarVenda() {
     atualizarItem(idx, { produto_final_id: id, preco_unitario: preco });
   }
 
+  function selecionarCliente(c: any) {
+    setCliente(c.nome);
+    setClienteId(String(c.id));
+    setMostrarSugestoes(false);
+  }
+
+  function alterarCliente(valor: string) {
+    setCliente(valor);
+    setClienteId(null); // digitou algo novo, desassocia até selecionar de novo
+    setMostrarSugestoes(true);
+  }
+
   function abrirConfirmacao(e: React.FormEvent) {
     e.preventDefault();
     setErro(null);
@@ -117,6 +157,12 @@ function RegistrarVenda() {
       return setErro("Escolha o produto em todos os itens.");
     if (itensCalculados.some((i) => i.qtd <= 0 || i.preco <= 0))
       return setErro("Verifique quantidades e preços.");
+    if (statusPagamento === "PENDENTE" && !dataVencimento)
+      return setErro("Informe a data de vencimento para vendas pendentes.");
+    if (forma === "cartao" && !tipoCartao)
+      return setErro("Escolha se o pagamento no cartão foi Crédito ou Débito.");
+    if (forma === "cartao" && tipoCartao === "CREDITO" && (!parcelas || Number(parcelas) < 1))
+      return setErro("Informe a quantidade de parcelas.");
     setConfirmar(true);
   }
 
@@ -124,9 +170,13 @@ function RegistrarVenda() {
     mutation.mutate({
       data: {
         comprador: cliente.trim() || null,
+        cliente_id: clienteId,
         data_venda: dataVenda,
         forma_pagamento: forma,
         status_pagamento: statusPagamento,
+        data_vencimento: statusPagamento === "PENDENTE" ? dataVencimento : null,
+        tipo_cartao: forma === "cartao" ? tipoCartao : null,
+        parcelas: forma === "cartao" && tipoCartao === "CREDITO" ? Number(parcelas) : null,
         observacao: observacao.trim() || null,
         itens: itensCalculados.map((i) => ({
           produto_final_id: i.produto_final_id,
@@ -291,7 +341,13 @@ function RegistrarVenda() {
                 <button
                   key={f}
                   type="button"
-                  onClick={() => setForma(f)}
+                  onClick={() => {
+                    setForma(f);
+                    if (f !== "cartao") {
+                      setTipoCartao(null);
+                      setParcelas("1");
+                    }
+                  }}
                   className={[
                     "py-2.5 rounded-md text-xs font-bold uppercase tracking-wider transition-colors",
                     forma === f
@@ -303,6 +359,48 @@ function RegistrarVenda() {
                 </button>
               ))}
             </div>
+
+            {forma === "cartao" && (
+              <div className="mt-3 space-y-3 border border-border rounded-lg p-3">
+                <div>
+                  <label className="text-xs font-semibold text-muted-foreground mb-1 block">
+                    Crédito ou débito?
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {(["CREDITO", "DEBITO"] as const).map((t) => (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => setTipoCartao(t)}
+                        className={[
+                          "py-2 rounded-md text-xs font-bold uppercase tracking-wider transition-colors",
+                          tipoCartao === t
+                            ? "bg-primary text-primary-foreground shadow-warm-sm"
+                            : "bg-secondary text-brown-mid hover:bg-beige-dark",
+                        ].join(" ")}
+                      >
+                        {t === "CREDITO" ? "Crédito" : "Débito"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {tipoCartao === "CREDITO" && (
+                  <div>
+                    <label className="text-xs font-semibold text-muted-foreground mb-1 block">
+                      Quantas parcelas?
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      step="1"
+                      className="ds-input"
+                      value={parcelas}
+                      onChange={(e) => setParcelas(e.target.value)}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="grid sm:grid-cols-2 gap-4">
@@ -327,22 +425,58 @@ function RegistrarVenda() {
               >
                 <option value="PAGO">Pago</option>
                 <option value="PENDENTE">Pendente</option>
-                <option value="ATRASADO">Atrasado</option>
                 <option value="NAO_SE_APLICA">Não se aplica</option>
               </select>
             </div>
           </div>
 
-          <div>
-            <label className="text-sm font-semibold text-foreground mb-2 block">
-              Comprador (opcional)
-            </label>
+          {statusPagamento === "PENDENTE" && (
+            <div>
+              <label className="text-sm font-semibold text-foreground mb-2 block">
+                Data de vencimento *
+              </label>
+              <input
+                type="date"
+                required
+                className="ds-input"
+                value={dataVencimento}
+                onChange={(e) => setDataVencimento(e.target.value)}
+              />
+              <p className="text-[11px] text-muted-foreground mt-1">
+                Se passar dessa data sem pagamento, a venda aparece como "Em atraso" na tela de
+                Vendas.
+              </p>
+            </div>
+          )}
+
+          <div className="relative">
+            <label className="text-sm font-semibold text-foreground mb-2 block">Comprador</label>
             <input
               className="ds-input"
               value={cliente}
-              onChange={(e) => setCliente(e.target.value)}
-              placeholder="Ex.: Dona Maria"
+              onChange={(e) => alterarCliente(e.target.value)}
+              onFocus={() => setMostrarSugestoes(true)}
+              onBlur={() => setTimeout(() => setMostrarSugestoes(false), 150)}
+              placeholder="Nome, CPF, e-mail..."
+              autoComplete="off"
             />
+            {mostrarSugestoes && sugestoesCliente.length > 0 && (
+              <div className="absolute z-10 mt-1 w-full bg-card border border-border rounded-lg shadow-warm-sm overflow-hidden">
+                {sugestoesCliente.map((c: any) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onMouseDown={() => selecionarCliente(c)}
+                    className="w-full text-left px-3 py-2 hover:bg-secondary text-sm"
+                  >
+                    <div className="font-semibold text-foreground">{c.nome}</div>
+                    <div className="text-[11px] text-muted-foreground">
+                      {[c.documento, c.email, c.telefone].filter(Boolean).join(" · ")}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           <div>
@@ -435,10 +569,23 @@ function RegistrarVenda() {
               </ul>
               <div className="text-xs text-muted-foreground">
                 Pagamento: <strong>{formaLabel[forma]}</strong>
+                {forma === "cartao" && tipoCartao && (
+                  <>
+                    {" "}
+                    (<strong>{tipoCartao === "CREDITO" ? "Crédito" : "Débito"}</strong>
+                    {tipoCartao === "CREDITO" && ` · ${parcelas}x`})
+                  </>
+                )}
                 {cliente && (
                   <>
                     {" "}
                     · Para <strong>{cliente}</strong>
+                  </>
+                )}
+                {statusPagamento === "PENDENTE" && dataVencimento && (
+                  <>
+                    {" "}
+                    · Vence em <strong>{dataVencimento.split("-").reverse().join("/")}</strong>
                   </>
                 )}
               </div>
