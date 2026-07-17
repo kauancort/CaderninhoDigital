@@ -10,6 +10,7 @@ import {
   Users,
   LogOut,
   MoreHorizontal,
+  HandCoins,
 } from "lucide-react";
 
 import { useEffect, useState } from "react";
@@ -29,7 +30,15 @@ import {
 } from "@/components/ui/sheet";
 
 type Item = {
-  to: "/" | "/registrar" | "/vendas" | "/estoque" | "/producao" | "/gastos" | "/clientes";
+  to:
+    | "/"
+    | "/registrar"
+    | "/vendas"
+    | "/a-receber"
+    | "/estoque"
+    | "/producao"
+    | "/gastos"
+    | "/clientes";
 
   icon: typeof LayoutDashboard;
   label: string;
@@ -62,6 +71,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     { to: "/", icon: LayoutDashboard, label: "Painel" },
     { to: "/registrar", icon: PlusCircle, label: "Registrar" },
     { to: "/vendas", icon: ReceiptText, label: "Vendas" },
+    { to: "/a-receber", icon: HandCoins, label: "A receber" },
     { to: "/clientes", icon: Users, label: "Clientes" },
     { to: "/estoque", icon: Package, label: "Estoque", badge: baixos || undefined },
     { to: "/producao", icon: Cookie, label: "Produção" },
@@ -71,7 +81,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const mobileItems = items.filter((i) =>
     ["/", "/registrar", "/estoque", "/producao"].includes(i.to),
   );
-  const moreItems = items.filter((i) => ["/vendas", "/clientes", "/gastos"].includes(i.to));
+  const moreItems = items.filter((i) =>
+    ["/vendas", "/a-receber", "/clientes", "/gastos"].includes(i.to),
+  );
 
   function itemAtivo(to: Item["to"]) {
     if (to === "/") return location.pathname === "/";
