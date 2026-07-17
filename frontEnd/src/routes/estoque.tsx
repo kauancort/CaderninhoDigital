@@ -194,50 +194,10 @@ function Estoque() {
             </div>
           )}
 
-          <div className="bg-card border border-border rounded-2xl p-5 shadow-warm-sm">
-            <div className="text-sm font-bold mb-3">Adicionar matéria-prima</div>
-            <div className="grid grid-cols-1 md:grid-cols-[1fr_100px_120px_auto] gap-2">
-              <input
-                className="ds-input"
-                placeholder="Nome"
-                value={novoMP.nome}
-                onChange={(e) => setNovoMP({ ...novoMP, nome: e.target.value })}
-              />
-              <select
-                className="ds-input"
-                value={novoMP.unidade}
-                onChange={(e) => setNovoMP({ ...novoMP, unidade: e.target.value })}
-              >
-                <option value="kg">kg</option>
-                <option value="g">g</option>
-                <option value="un">un</option>
-                <option value="lata">lata</option>
-                <option value="L">L</option>
-              </select>
-              <input
-                className="ds-input"
-                placeholder="Mín."
-                type="number"
-                value={novoMP.estoque_minimo}
-                onChange={(e) => setNovoMP({ ...novoMP, estoque_minimo: e.target.value })}
-              />
-              <button
-                onClick={adicionarMP}
-                className="px-4 rounded-md bg-primary text-primary-foreground font-bold text-sm"
-              >
-                Adicionar
-              </button>
-            </div>
-          </div>
-
           <div ref={listaRef} className="space-y-3">
             {mpsExibidos.length === 0 ? (
               <Empty
-                msg={
-                  soAlerta
-                    ? "Nenhum item em alerta. 🎉"
-                    : "Nenhum ingrediente. Use uma compra ou o formulário acima."
-                }
+                msg={soAlerta ? "Nenhum item em alerta. 🎉" : "Nenhum ingrediente. Use uma compra."}
               />
             ) : (
               mpsExibidos.map((i: any) => (
@@ -248,7 +208,7 @@ function Estoque() {
                   }}
                   className={`rounded-2xl transition-all ${destacado === i.id ? "ring-2 ring-primary ring-offset-2 ring-offset-background" : ""}`}
                 >
-                  <RowMP item={i} onAjustar={ajustar} />
+                  <RowMP item={i} />
                 </div>
               ))
             )}
@@ -258,38 +218,9 @@ function Estoque() {
 
       {aba === "pf" && (
         <>
-          <div className="bg-card border border-border rounded-2xl p-5 shadow-warm-sm">
-            <div className="text-sm font-bold mb-3">Adicionar produto final</div>
-            <div className="grid grid-cols-1 md:grid-cols-[1fr_140px_auto] gap-2">
-              <input
-                className="ds-input"
-                placeholder="Nome (ex.: Brigadeiro)"
-                value={novoPF.nome}
-                onChange={(e) => setNovoPF({ ...novoPF, nome: e.target.value })}
-              />
-              <div className="relative">
-                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-muted-foreground">
-                  R$
-                </span>
-                <input
-                  className="ds-input pl-9"
-                  placeholder="Preço"
-                  value={novoPF.preco_venda}
-                  onChange={(e) => setNovoPF({ ...novoPF, preco_venda: e.target.value })}
-                />
-              </div>
-              <button
-                onClick={adicionarPF}
-                className="px-4 rounded-md bg-primary text-primary-foreground font-bold text-sm"
-              >
-                Adicionar
-              </button>
-            </div>
-          </div>
-
           <div className="space-y-3">
             {produtos.length === 0 ? (
-              <Empty msg="Nenhum produto. Cadastre acima." />
+              <Empty msg="Nenhum produto cadastrado." />
             ) : (
               produtos.map((p: any) => (
                 <div
@@ -320,7 +251,7 @@ function Estoque() {
   );
 }
 
-function RowMP({ item, onAjustar }: { item: any; onAjustar: (id: string, delta: number) => void }) {
+function RowMP({ item }: { item: any }) {
   const estoque = Number(item.quantidade_estoque);
   const min = Number(item.estoque_minimo);
   const pct = Math.min(100, (estoque / Math.max(min * 2, 0.01)) * 100);
@@ -334,7 +265,6 @@ function RowMP({ item, onAjustar }: { item: any; onAjustar: (id: string, delta: 
         ? "bg-warning-bg text-gold-dark"
         : "bg-success-bg text-success";
   const statusLabel = status === "danger" ? "Crítico" : status === "warning" ? "Acabando" : "Ok";
-  const step = item.unidade === "un" || item.unidade === "lata" ? 1 : 0.1;
 
   return (
     <div className="bg-card border border-border rounded-2xl p-5 shadow-warm-sm flex flex-col md:flex-row md:items-center gap-4">
@@ -367,20 +297,6 @@ function RowMP({ item, onAjustar }: { item: any; onAjustar: (id: string, delta: 
               {item.unidade}
             </span>
           </div>
-        </div>
-        <div className="flex gap-1">
-          <button
-            onClick={() => onAjustar(item.id, -step)}
-            className="w-10 h-10 rounded-full bg-secondary text-brown-mid hover:bg-beige-dark flex items-center justify-center"
-          >
-            <Minus size={16} />
-          </button>
-          <button
-            onClick={() => onAjustar(item.id, step)}
-            className="w-10 h-10 rounded-full bg-primary text-primary-foreground hover:bg-primary-dark flex items-center justify-center shadow-warm-sm"
-          >
-            <Plus size={16} />
-          </button>
         </div>
       </div>
     </div>
