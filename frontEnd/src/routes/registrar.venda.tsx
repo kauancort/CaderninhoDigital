@@ -32,10 +32,22 @@ const POTES_POR_CAIXA = 6;
 const PRECO_POTE_FIXO: Record<string, number> = {
   "Fondant de leite palito": 21.3,
   "Fondant de leite": 20.7,
+  "Foundant de leite palito": 21.3,
+  "Foundant de leite": 20.7,
+  "Foundant palito": 21.3,
+  Foundant: 20.7,
+  "Fondant palito": 21.3,
+  Fondant: 20.7,
+  "Fouandant de leite palito": 21.3,
+  "Fouandant de leite": 20.7,
+  "Fouandant palito": 21.3,
+  Fouandant: 20.7,
   "Biriba palito": 19.7,
   Biriba: 19.7,
   "Paçoca Caseira palito": 18.7,
   "Paçoca Caseira": 18.7,
+  Paçoca: 18.7,
+  Pacoca: 18.7,
 };
 
 function RegistrarVenda() {
@@ -129,12 +141,29 @@ function RegistrarVenda() {
   function selecionarProduto(idx: number, id: string) {
     const p = produtos.find((p: any) => p.id === id) as any;
     const nome: string = p?.nome ?? "";
-    const nomeBase = nome.split("(")[0].trim();
-    const chave = Object.keys(PRECO_POTE_FIXO).find(
-      (k) => k.toLowerCase() === nomeBase.toLowerCase(),
-    );
-    const precoFixo = chave ? PRECO_POTE_FIXO[chave] : undefined;
-    const preco = precoFixo !== undefined ? precoFixo.toFixed(2).replace(".", ",") : "";
+    const nomeLower = nome.toLowerCase();
+
+    let precoFixo: number | undefined = undefined;
+
+    if (
+      nomeLower.includes("fondant") ||
+      nomeLower.includes("foundant") ||
+      nomeLower.includes("fouandant")
+    ) {
+      precoFixo = nomeLower.includes("palito") ? 21.3 : 20.7;
+    } else if (nomeLower.includes("biriba")) {
+      precoFixo = 19.7;
+    } else if (nomeLower.includes("paçoca") || nomeLower.includes("pacoca")) {
+      precoFixo = 18.7;
+    }
+
+    const preco =
+      precoFixo !== undefined
+        ? precoFixo.toFixed(2).replace(".", ",")
+        : p?.preco_venda
+          ? Number(p.preco_venda).toFixed(2).replace(".", ",")
+          : "";
+
     atualizarItem(idx, { produto_final_id: id, preco_unitario: preco });
   }
 
