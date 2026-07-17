@@ -16,6 +16,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as GastosRouteImport } from './routes/gastos'
 import { Route as EstoqueRouteImport } from './routes/estoque'
 import { Route as ClientesRouteImport } from './routes/clientes'
+import { Route as AReceberRouteImport } from './routes/a-receber'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as RegistrarIndexRouteImport } from './routes/registrar.index'
 import { Route as RegistrarVendaRouteImport } from './routes/registrar.venda'
@@ -58,6 +59,11 @@ const EstoqueRoute = EstoqueRouteImport.update({
 const ClientesRoute = ClientesRouteImport.update({
   id: '/clientes',
   path: '/clientes',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AReceberRoute = AReceberRouteImport.update({
+  id: '/a-receber',
+  path: '/a-receber',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -104,6 +110,7 @@ const ProducaoHistoricoFamiliaRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/a-receber': typeof AReceberRoute
   '/clientes': typeof ClientesRoute
   '/estoque': typeof EstoqueRoute
   '/gastos': typeof GastosRoute
@@ -121,6 +128,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/a-receber': typeof AReceberRoute
   '/clientes': typeof ClientesRoute
   '/estoque': typeof EstoqueRoute
   '/gastos': typeof GastosRoute
@@ -138,6 +146,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/a-receber': typeof AReceberRoute
   '/clientes': typeof ClientesRoute
   '/estoque': typeof EstoqueRoute
   '/gastos': typeof GastosRoute
@@ -157,6 +166,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/a-receber'
     | '/clientes'
     | '/estoque'
     | '/gastos'
@@ -174,6 +184,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/a-receber'
     | '/clientes'
     | '/estoque'
     | '/gastos'
@@ -190,6 +201,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/a-receber'
     | '/clientes'
     | '/estoque'
     | '/gastos'
@@ -208,6 +220,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AReceberRoute: typeof AReceberRoute
   ClientesRoute: typeof ClientesRoute
   EstoqueRoute: typeof EstoqueRoute
   GastosRoute: typeof GastosRoute
@@ -266,6 +279,13 @@ declare module '@tanstack/react-router' {
       path: '/clientes'
       fullPath: '/clientes'
       preLoaderRoute: typeof ClientesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/a-receber': {
+      id: '/a-receber'
+      path: '/a-receber'
+      fullPath: '/a-receber'
+      preLoaderRoute: typeof AReceberRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -363,6 +383,7 @@ const RegistrarRouteWithChildren = RegistrarRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AReceberRoute: AReceberRoute,
   ClientesRoute: ClientesRoute,
   EstoqueRoute: EstoqueRoute,
   GastosRoute: GastosRoute,
