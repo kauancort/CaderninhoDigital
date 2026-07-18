@@ -6,17 +6,27 @@ import com.InovaSkill.CaderninhoDigital.dto.request.ProdutoRequestDTO;
 import com.InovaSkill.CaderninhoDigital.dto.response.GabaritoProdutoResponseDTO;
 import com.InovaSkill.CaderninhoDigital.dto.response.ItemGabaritoProdutoResponseDTO;
 import com.InovaSkill.CaderninhoDigital.dto.response.ProdutoResponseDTO;
+import com.InovaSkill.CaderninhoDigital.dto.response.ProdutoResumoResponseDTO;
 import com.InovaSkill.CaderninhoDigital.entity.MateriaPrima;
+import com.InovaSkill.CaderninhoDigital.entity.CategoriaProduto;
 import com.InovaSkill.CaderninhoDigital.entity.Produto;
 import com.InovaSkill.CaderninhoDigital.entity.ProdutoGabarito;
 import com.InovaSkill.CaderninhoDigital.entity.ProdutoGabaritoItem;
 import com.InovaSkill.CaderninhoDigital.entity.Usuario;
+import com.InovaSkill.CaderninhoDigital.enums.OrigemMovimentacaoEstoque;
+import com.InovaSkill.CaderninhoDigital.enums.TipoMovimentacaoEstoque;
 import com.InovaSkill.CaderninhoDigital.exception.BusinessException;
 import com.InovaSkill.CaderninhoDigital.exception.ResourceNotFoundException;
 import com.InovaSkill.CaderninhoDigital.repository.MateriaPrimaRepository;
+import com.InovaSkill.CaderninhoDigital.repository.CategoriaProdutoRepository;
 import com.InovaSkill.CaderninhoDigital.repository.ProdutoRepository;
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Locale;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,14 +37,21 @@ public class ProdutoService {
 
     private final ProdutoRepository produtoRepository;
     private final MateriaPrimaRepository materiaPrimaRepository;
+    private final CategoriaProdutoRepository categoriaProdutoRepository;
     private final UsuarioAcessoService usuarioAcessoService;
+    private final MovimentacaoEstoqueService movimentacaoEstoqueService;
+    private final HistoricoValorService historicoValorService;
+    private final AuditoriaService auditoriaService;
 
     @Transactional
     public ProdutoResponseDTO criar(Long usuarioId, ProdutoRequestDTO dto) {
         Usuario gestor = usuarioAcessoService.buscarGestor(usuarioId);
+        validarSku(dto.getSku(), null);
         Produto produto = Produto.builder()
                 .nome(dto.getNome())
                 .descricao(dto.getDescricao())
+                .sku(normalizarSku(dto.getSku()))
+                .categoria(buscarCategoria(dto.getCategoriaId()))
                 .unidadeMedida(dto.getUnidadeMedida())
                 .precoVenda(dto.getPrecoVenda())
                 .estoqueAtual(valorOuZero(dto.getEstoqueAtual()))
@@ -44,13 +61,43 @@ public class ProdutoService {
         if (dto.getGabarito() != null) {
             atualizarGabarito(produto, dto.getGabarito(), gestor);
         }
-        return toResponse(produtoRepository.save(produto));
+        Produto salvo = produtoRepository.save(produto);
+        historicoValorService.registrarPreco(salvo, gestor, null, "Preço inicial do produto");
+        movimentacaoEstoqueService.registrarProduto(
+                salvo, gestor, BigDecimal.ZERO, salvo.getEstoqueAtual(),
+                TipoMovimentacaoEstoque.ENTRADA, OrigemMovimentacaoEstoque.CADASTRO,
+                "Saldo inicial no cadastro do produto");
+        return toResponse(salvo);
     }
 
     @Transactional(readOnly = true)
     public List<ProdutoResponseDTO> listar(Long usuarioId) {
         Usuario gestor = usuarioAcessoService.buscarGestor(usuarioId);
         return produtoRepository.findAllByOrderByNomeAsc().stream().map(this::toResponse).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public Page<ProdutoResumoResponseDTO> pesquisar(Long usuarioId, String busca, int pagina, int tamanho, Boolean ativo) {
+        usuarioAcessoService.buscarGestor(usuarioId);
+        String termo = busca == null ? "" : busca.trim().toLowerCase(Locale.ROOT);
+        Specification<Produto> filtro = (root, query, cb) -> {
+            var p = cb.conjunction();
+            if (!termo.isBlank()) {
+                String like = "%" + termo + "%";
+                p = cb.and(p, cb.or(cb.like(cb.lower(root.get("nome")), like), cb.like(cb.lower(root.get("descricao")), like), cb.like(cb.lower(root.get("sku")), like)));
+            }
+            if (ativo != null) p = cb.and(p, cb.equal(root.get("ativo"), ativo));
+            return p;
+        };
+        return produtoRepository.findAll(filtro, PageRequest.of(Math.max(0, pagina), Math.min(100, Math.max(1, tamanho)), Sort.by("nome")))
+                .map(this::toResumo);
+    }
+
+    private ProdutoResumoResponseDTO toResumo(Produto produto) {
+        return ProdutoResumoResponseDTO.builder().id(produto.getId()).nome(produto.getNome()).sku(produto.getSku())
+                .categoria(produto.getCategoria() == null ? null : produto.getCategoria().getNome())
+                .unidadeMedida(produto.getUnidadeMedida()).precoVenda(produto.getPrecoVenda())
+                .estoqueAtual(produto.getEstoqueAtual()).ativo(produto.getAtivo()).tipo("PRODUTO_FINAL").build();
     }
 
     @Transactional(readOnly = true)
@@ -64,8 +111,13 @@ public class ProdutoService {
     public ProdutoResponseDTO atualizar(Long usuarioId, Long id, ProdutoRequestDTO dto) {
         Usuario gestor = usuarioAcessoService.buscarGestor(usuarioId);
         Produto produto = buscarEntidade(id);
+        validarSku(dto.getSku(), id);
+        BigDecimal estoqueAnterior = produto.getEstoqueAtual();
+        BigDecimal precoAnterior = produto.getPrecoVenda();
         produto.setNome(dto.getNome());
         produto.setDescricao(dto.getDescricao());
+        produto.setSku(normalizarSku(dto.getSku()));
+        produto.setCategoria(buscarCategoria(dto.getCategoriaId()));
         produto.setUnidadeMedida(dto.getUnidadeMedida());
         produto.setPrecoVenda(dto.getPrecoVenda());
         produto.setEstoqueAtual(dto.getEstoqueAtual() != null ? dto.getEstoqueAtual() : produto.getEstoqueAtual());
@@ -73,7 +125,17 @@ public class ProdutoService {
         if (dto.getGabarito() != null) {
             atualizarGabarito(produto, dto.getGabarito(), gestor);
         }
-        return toResponse(produtoRepository.save(produto));
+        Produto salvo = produtoRepository.save(produto);
+        historicoValorService.registrarPreco(salvo, gestor, precoAnterior, "Preço alterado na edição do produto");
+        if (precoAnterior.compareTo(salvo.getPrecoVenda()) != 0) auditoriaService.registrar(gestor, "PRODUTO", salvo.getId(), "ALTERACAO_PRECO", precoAnterior, salvo.getPrecoVenda(), "Edição do produto", "CADASTRO_PRODUTO");
+        if (salvo.getEstoqueAtual().compareTo(estoqueAnterior) != 0) {
+            auditoriaService.registrar(gestor, "PRODUTO", salvo.getId(), "AJUSTE_ESTOQUE", estoqueAnterior, salvo.getEstoqueAtual(), "Estoque alterado na edição", "AJUSTE_MANUAL");
+            movimentacaoEstoqueService.registrarProduto(
+                    salvo, gestor, estoqueAnterior, salvo.getEstoqueAtual(),
+                    TipoMovimentacaoEstoque.AJUSTE, OrigemMovimentacaoEstoque.AJUSTE_MANUAL,
+                    "Estoque alterado na edição do produto");
+        }
+        return toResponse(salvo);
     }
 
     public void deletar(Long usuarioId, Long id) {
@@ -126,12 +188,33 @@ public class ProdutoService {
                 .id(produto.getId())
                 .nome(produto.getNome())
                 .descricao(produto.getDescricao())
+                .sku(produto.getSku())
+                .categoriaId(produto.getCategoria() == null ? null : produto.getCategoria().getId())
+                .categoriaNome(produto.getCategoria() == null ? null : produto.getCategoria().getNome())
                 .unidadeMedida(produto.getUnidadeMedida())
                 .precoVenda(produto.getPrecoVenda())
                 .estoqueAtual(produto.getEstoqueAtual())
                 .ativo(produto.getAtivo())
                 .gabarito(toGabaritoResponse(produto))
                 .build();
+    }
+
+    private CategoriaProduto buscarCategoria(Long id) {
+        if (id == null) return null;
+        return categoriaProdutoRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Categoria não encontrada"));
+    }
+
+    private void validarSku(String sku, Long id) {
+        String valor = normalizarSku(sku);
+        if (valor == null) return;
+        boolean existe = id == null ? produtoRepository.existsBySkuIgnoreCase(valor)
+                : produtoRepository.existsBySkuIgnoreCaseAndIdNot(valor, id);
+        if (existe) throw new BusinessException("Já existe um produto com este SKU");
+    }
+
+    private String normalizarSku(String sku) {
+        return sku == null || sku.isBlank() ? null : sku.trim().toUpperCase(Locale.ROOT);
     }
 
     private GabaritoProdutoResponseDTO toGabaritoResponse(Produto produto) {

@@ -24,6 +24,8 @@ import { Route as RegistrarProducaoRouteImport } from './routes/registrar.produc
 import { Route as RegistrarGastosRouteImport } from './routes/registrar.gastos'
 import { Route as RegistrarCompraRouteImport } from './routes/registrar.compra'
 import { Route as ProducaoIdRouteImport } from './routes/producao.$id'
+import { Route as EstoqueHistoricoRouteImport } from './routes/estoque.historico'
+import { Route as EstoqueConsultarRouteImport } from './routes/estoque.consultar'
 import { Route as ProducaoHistoricoFamiliaRouteImport } from './routes/producao.historico.$familia'
 
 const VendasRoute = VendasRouteImport.update({
@@ -101,6 +103,16 @@ const ProducaoIdRoute = ProducaoIdRouteImport.update({
   path: '/$id',
   getParentRoute: () => ProducaoRoute,
 } as any)
+const EstoqueHistoricoRoute = EstoqueHistoricoRouteImport.update({
+  id: '/historico',
+  path: '/historico',
+  getParentRoute: () => EstoqueRoute,
+} as any)
+const EstoqueConsultarRoute = EstoqueConsultarRouteImport.update({
+  id: '/consultar',
+  path: '/consultar',
+  getParentRoute: () => EstoqueRoute,
+} as any)
 const ProducaoHistoricoFamiliaRoute =
   ProducaoHistoricoFamiliaRouteImport.update({
     id: '/historico/$familia',
@@ -112,12 +124,14 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/a-receber': typeof AReceberRoute
   '/clientes': typeof ClientesRoute
-  '/estoque': typeof EstoqueRoute
+  '/estoque': typeof EstoqueRouteWithChildren
   '/gastos': typeof GastosRoute
   '/login': typeof LoginRoute
   '/producao': typeof ProducaoRouteWithChildren
   '/registrar': typeof RegistrarRouteWithChildren
   '/vendas': typeof VendasRoute
+  '/estoque/consultar': typeof EstoqueConsultarRoute
+  '/estoque/historico': typeof EstoqueHistoricoRoute
   '/producao/$id': typeof ProducaoIdRoute
   '/registrar/compra': typeof RegistrarCompraRoute
   '/registrar/gastos': typeof RegistrarGastosRoute
@@ -130,11 +144,13 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/a-receber': typeof AReceberRoute
   '/clientes': typeof ClientesRoute
-  '/estoque': typeof EstoqueRoute
+  '/estoque': typeof EstoqueRouteWithChildren
   '/gastos': typeof GastosRoute
   '/login': typeof LoginRoute
   '/producao': typeof ProducaoRouteWithChildren
   '/vendas': typeof VendasRoute
+  '/estoque/consultar': typeof EstoqueConsultarRoute
+  '/estoque/historico': typeof EstoqueHistoricoRoute
   '/producao/$id': typeof ProducaoIdRoute
   '/registrar/compra': typeof RegistrarCompraRoute
   '/registrar/gastos': typeof RegistrarGastosRoute
@@ -148,12 +164,14 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/a-receber': typeof AReceberRoute
   '/clientes': typeof ClientesRoute
-  '/estoque': typeof EstoqueRoute
+  '/estoque': typeof EstoqueRouteWithChildren
   '/gastos': typeof GastosRoute
   '/login': typeof LoginRoute
   '/producao': typeof ProducaoRouteWithChildren
   '/registrar': typeof RegistrarRouteWithChildren
   '/vendas': typeof VendasRoute
+  '/estoque/consultar': typeof EstoqueConsultarRoute
+  '/estoque/historico': typeof EstoqueHistoricoRoute
   '/producao/$id': typeof ProducaoIdRoute
   '/registrar/compra': typeof RegistrarCompraRoute
   '/registrar/gastos': typeof RegistrarGastosRoute
@@ -174,6 +192,8 @@ export interface FileRouteTypes {
     | '/producao'
     | '/registrar'
     | '/vendas'
+    | '/estoque/consultar'
+    | '/estoque/historico'
     | '/producao/$id'
     | '/registrar/compra'
     | '/registrar/gastos'
@@ -191,6 +211,8 @@ export interface FileRouteTypes {
     | '/login'
     | '/producao'
     | '/vendas'
+    | '/estoque/consultar'
+    | '/estoque/historico'
     | '/producao/$id'
     | '/registrar/compra'
     | '/registrar/gastos'
@@ -209,6 +231,8 @@ export interface FileRouteTypes {
     | '/producao'
     | '/registrar'
     | '/vendas'
+    | '/estoque/consultar'
+    | '/estoque/historico'
     | '/producao/$id'
     | '/registrar/compra'
     | '/registrar/gastos'
@@ -222,7 +246,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AReceberRoute: typeof AReceberRoute
   ClientesRoute: typeof ClientesRoute
-  EstoqueRoute: typeof EstoqueRoute
+  EstoqueRoute: typeof EstoqueRouteWithChildren
   GastosRoute: typeof GastosRoute
   LoginRoute: typeof LoginRoute
   ProducaoRoute: typeof ProducaoRouteWithChildren
@@ -337,6 +361,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProducaoIdRouteImport
       parentRoute: typeof ProducaoRoute
     }
+    '/estoque/historico': {
+      id: '/estoque/historico'
+      path: '/historico'
+      fullPath: '/estoque/historico'
+      preLoaderRoute: typeof EstoqueHistoricoRouteImport
+      parentRoute: typeof EstoqueRoute
+    }
+    '/estoque/consultar': {
+      id: '/estoque/consultar'
+      path: '/consultar'
+      fullPath: '/estoque/consultar'
+      preLoaderRoute: typeof EstoqueConsultarRouteImport
+      parentRoute: typeof EstoqueRoute
+    }
     '/producao/historico/$familia': {
       id: '/producao/historico/$familia'
       path: '/historico/$familia'
@@ -346,6 +384,19 @@ declare module '@tanstack/react-router' {
     }
   }
 }
+
+interface EstoqueRouteChildren {
+  EstoqueConsultarRoute: typeof EstoqueConsultarRoute
+  EstoqueHistoricoRoute: typeof EstoqueHistoricoRoute
+}
+
+const EstoqueRouteChildren: EstoqueRouteChildren = {
+  EstoqueConsultarRoute: EstoqueConsultarRoute,
+  EstoqueHistoricoRoute: EstoqueHistoricoRoute,
+}
+
+const EstoqueRouteWithChildren =
+  EstoqueRoute._addFileChildren(EstoqueRouteChildren)
 
 interface ProducaoRouteChildren {
   ProducaoIdRoute: typeof ProducaoIdRoute
@@ -385,7 +436,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AReceberRoute: AReceberRoute,
   ClientesRoute: ClientesRoute,
-  EstoqueRoute: EstoqueRoute,
+  EstoqueRoute: EstoqueRouteWithChildren,
   GastosRoute: GastosRoute,
   LoginRoute: LoginRoute,
   ProducaoRoute: ProducaoRouteWithChildren,

@@ -14,6 +14,8 @@ public class ProdutoRequestDTO {
     @NotBlank(message = "O nome é obrigatório")
     private String nome;
     private String descricao;
+    private String sku;
+    private Long categoriaId;
     @NotBlank(message = "A unidade de medida é obrigatória")
     private String unidadeMedida;
     @NotNull(message = "O preço de venda é obrigatório")

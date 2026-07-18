@@ -5,7 +5,7 @@ import { useApiFn } from "@/lib/api-function";
 import { Check, Sparkles, ArrowLeft, Pencil, Plus, Trash2, UserPlus, X } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { listarProdutos } from "@/lib/catalogo.functions";
-import { criarCliente, listarClientes } from "@/lib/clientes.functions";
+import { criarCliente, pesquisarClientes } from "@/lib/clientes.functions";
 import { registrarVenda } from "@/lib/vendas.functions";
 import { fmtBRL, hojeISO, type FormaPagamento, type StatusPagamento } from "@/lib/format";
 import { consumePrefill, type PrefillVenda } from "@/lib/voz-prefill";
@@ -80,11 +80,6 @@ function RegistrarVenda() {
     queryFn: () => listarProdutos(),
   });
 
-  const { data: clientes = [] } = useQuery<Cliente[]>({
-    queryKey: ["clientes"],
-    queryFn: () => listarClientes(),
-  });
-
   const [itens, setItens] = useState<ItemForm[]>([
     { produto_final_id: "", quantidade: "1", preco_unitario: "", tipo: "pote" },
   ]);
@@ -95,6 +90,7 @@ function RegistrarVenda() {
   const [dataVencimento, setDataVencimento] = useState("");
   const [statusPagamento, setStatusPagamento] = useState<StatusPagamento>("PAGO");
   const [cliente, setCliente] = useState("");
+  const [buscaCliente, setBuscaCliente] = useState("");
   const [clienteId, setClienteId] = useState<string | null>(null);
   const [mostrarSugestoes, setMostrarSugestoes] = useState(false);
   const [sugestaoAtiva, setSugestaoAtiva] = useState(0);
@@ -106,10 +102,26 @@ function RegistrarVenda() {
   const [confirmar, setConfirmar] = useState(false);
 
   useEffect(() => {
+    const timer = window.setTimeout(() => setBuscaCliente(cliente.trim()), 300);
+    return () => window.clearTimeout(timer);
+  }, [cliente]);
+
+  const { data: paginaClientes, isFetching: pesquisandoClientes } = useQuery({
+    queryKey: ["clientes", "pesquisa", buscaCliente],
+    queryFn: () => pesquisarClientes({ data: { busca: buscaCliente, pagina: 0, tamanho: 20 } }),
+    enabled: buscaCliente.length >= 2 && !clienteId,
+    placeholderData: (anterior) => anterior,
+  });
+  const clientes = (paginaClientes?.registros ?? []) as Cliente[];
+
+  useEffect(() => {
     const pre = consumePrefill<PrefillVenda>("venda");
     if (!pre) return;
     if (pre.forma_pagamento) setForma(pre.forma_pagamento);
     if (pre.comprador) setCliente(pre.comprador);
+    const duplicacao = pre as PrefillVenda & { cliente_id?: string; avisos?: string[] };
+    if (duplicacao.cliente_id) setClienteId(duplicacao.cliente_id);
+    if (duplicacao.avisos?.length) setErro(duplicacao.avisos.join(" "));
     if (Array.isArray(pre.itens) && pre.itens.length > 0) {
       setItens(
         pre.itens.map((i) => ({
@@ -138,11 +150,7 @@ function RegistrarVenda() {
   const criarClienteMutation = useMutation({
     mutationFn: (data: ClienteRapidoForm) => fnCriarCliente({ data }),
     onSuccess: (novoCliente) => {
-      qc.setQueryData<Cliente[]>(["clientes"], (atuais = []) =>
-        [...atuais.filter((c) => c.id !== novoCliente.id), novoCliente].sort((a, b) =>
-          a.nome.localeCompare(b.nome, "pt-BR"),
-        ),
-      );
+      qc.invalidateQueries({ queryKey: ["clientes"] });
       selecionarCliente(novoCliente);
       setClienteRapido(clienteRapidoInicial);
       setErroClienteRapido(null);
@@ -679,7 +687,10 @@ function RegistrarVenda() {
                     </div>
                   </button>
                 ))}
-                {sugestoesCliente.length === 0 && (
+                {pesquisandoClientes && (
+                  <div className="px-3 py-3 text-xs text-muted-foreground">Pesquisando clientes...</div>
+                )}
+                {!pesquisandoClientes && sugestoesCliente.length === 0 && (
                   <>
                     <div className="px-3 py-2 text-xs text-muted-foreground">
                       Nenhum cliente encontrado.

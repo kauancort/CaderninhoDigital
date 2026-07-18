@@ -25,6 +25,16 @@ export const listarClientes = createApiFn({ method: "GET" }).handler(async ({ co
   }));
 });
 
+export const pesquisarClientes = createApiFn({ method: "GET" })
+  .inputValidator((d) => z.object({ busca: z.string().default(""), pagina: z.number().int().min(0).default(0), tamanho: z.number().int().min(1).max(100).default(20) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const params = new URLSearchParams({ busca: data.busca, pagina: String(data.pagina), tamanho: String(data.tamanho), ativo: "true" });
+    const res = await fetch(`${BASE_URL}/clientes/pagina?${params}`, { headers: { "X-Usuario-Id": String(context.userId) } });
+    if (!res.ok) throw new Error("Erro ao pesquisar clientes");
+    const pagina = await res.json();
+    return { ...pagina, registros: pagina.registros.map((c: any) => ({ id: String(c.id), nome: c.nome, telefone: c.telefone || "", email: c.email || "", endereco: c.endereco || "", documento: c.documento || "" })) };
+  });
+
 export const criarCliente = createApiFn({ method: "POST" })
   .inputValidator((d) => clienteSchema.parse(d))
   .handler(async ({ data, context }) => {

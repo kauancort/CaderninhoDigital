@@ -2,6 +2,7 @@ package com.InovaSkill.CaderninhoDigital.controller;
 
 import com.InovaSkill.CaderninhoDigital.dto.request.MateriaPrimaRequestDTO;
 import com.InovaSkill.CaderninhoDigital.dto.response.MateriaPrimaResponseDTO;
+import com.InovaSkill.CaderninhoDigital.dto.response.PaginaResponseDTO;
 import com.InovaSkill.CaderninhoDigital.service.MateriaPrimaService;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -17,6 +18,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.RequestParam;
 
 @RestController
 @RequestMapping("/api/v1/materias-primas")
@@ -33,6 +35,14 @@ public class MateriaPrimaController {
     @GetMapping
     public ResponseEntity<List<MateriaPrimaResponseDTO>> listar(@RequestHeader("X-Usuario-Id") Long usuarioId) {
         return ResponseEntity.ok(materiaPrimaService.listar(usuarioId));
+    }
+
+    @GetMapping("/pagina")
+    public ResponseEntity<PaginaResponseDTO<MateriaPrimaResponseDTO>> pesquisar(
+            @RequestHeader("X-Usuario-Id") Long usuarioId, @RequestParam(required = false) String busca,
+            @RequestParam(defaultValue = "0") int pagina, @RequestParam(defaultValue = "20") int tamanho,
+            @RequestParam(required = false) Boolean ativo) {
+        return ResponseEntity.ok(PaginaResponseDTO.de(materiaPrimaService.pesquisar(usuarioId, busca, pagina, tamanho, ativo)));
     }
 
     @GetMapping("/{id}")

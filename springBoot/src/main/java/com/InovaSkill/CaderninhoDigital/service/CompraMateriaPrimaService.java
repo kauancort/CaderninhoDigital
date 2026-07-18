@@ -10,6 +10,8 @@ import com.InovaSkill.CaderninhoDigital.entity.ItemCompraMateriaPrima;
 import com.InovaSkill.CaderninhoDigital.entity.MateriaPrima;
 import com.InovaSkill.CaderninhoDigital.entity.Usuario;
 import com.InovaSkill.CaderninhoDigital.enums.StatusPagamento;
+import com.InovaSkill.CaderninhoDigital.enums.OrigemMovimentacaoEstoque;
+import com.InovaSkill.CaderninhoDigital.enums.TipoMovimentacaoEstoque;
 import com.InovaSkill.CaderninhoDigital.exception.BusinessException;
 import com.InovaSkill.CaderninhoDigital.exception.ResourceNotFoundException;
 import com.InovaSkill.CaderninhoDigital.repository.CompraMateriaPrimaRepository;
@@ -31,6 +33,7 @@ public class CompraMateriaPrimaService {
     private final FornecedorRepository fornecedorRepository;
     private final MateriaPrimaRepository materiaPrimaRepository;
     private final UsuarioAcessoService usuarioAcessoService;
+    private final MovimentacaoEstoqueService movimentacaoEstoqueService;
 
     @Transactional
     public CompraMateriaPrimaResponseDTO criar(Long usuarioId, CompraMateriaPrimaRequestDTO dto) {
@@ -50,8 +53,13 @@ public class CompraMateriaPrimaService {
         BigDecimal total = BigDecimal.ZERO;
         for (ItemCompraMateriaPrimaRequestDTO itemDto : dto.getItens()) {
             MateriaPrima materiaPrima = buscarMateriaPrimaDoGestor(itemDto.getMateriaPrimaId(), gestor);
+            BigDecimal estoqueAnterior = materiaPrima.getEstoqueAtual();
             BigDecimal valorTotal = itemDto.getValorUnitario().multiply(itemDto.getQuantidade());
             atualizarEstoqueECusto(materiaPrima, itemDto.getQuantidade(), itemDto.getValorUnitario());
+            movimentacaoEstoqueService.registrarMateriaPrima(
+                    materiaPrima, gestor, estoqueAnterior, materiaPrima.getEstoqueAtual(),
+                    TipoMovimentacaoEstoque.ENTRADA, OrigemMovimentacaoEstoque.COMPRA,
+                    dto.getObservacao());
             ItemCompraMateriaPrima item = ItemCompraMateriaPrima.builder()
                     .compra(compra)
                     .materiaPrima(materiaPrima)

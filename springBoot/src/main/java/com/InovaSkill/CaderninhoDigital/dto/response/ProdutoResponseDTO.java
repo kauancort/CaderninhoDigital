@@ -10,6 +10,9 @@ public class ProdutoResponseDTO {
     private Long id;
     private String nome;
     private String descricao;
+    private String sku;
+    private Long categoriaId;
+    private String categoriaNome;
     private String unidadeMedida;
     private BigDecimal precoVenda;
     private BigDecimal estoqueAtual;

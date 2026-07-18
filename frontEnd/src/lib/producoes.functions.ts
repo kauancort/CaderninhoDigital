@@ -36,6 +36,27 @@ export const listarProducoes = createApiFn({ method: "GET" }).handler(async ({ c
   return data.map(mapProducao);
 });
 
+export const listarProducoesPaginado = createApiFn({ method: "GET" })
+  .inputValidator((d) => z.object({
+    pagina: z.number().int().min(0).default(0),
+    tamanho: z.number().int().min(1).max(100).default(20),
+    inicio: z.string().date().optional(),
+    fim: z.string().date().optional(),
+    produtoId: z.union([z.string(), z.number()]).optional(),
+  }).parse(d))
+  .handler(async ({ data, context }) => {
+    const params = new URLSearchParams({ pagina: String(data.pagina), tamanho: String(data.tamanho) });
+    if (data.inicio) params.set("inicio", data.inicio);
+    if (data.fim) params.set("fim", data.fim);
+    if (data.produtoId) params.set("produtoId", String(data.produtoId));
+    const res = await fetch(`${BASE_URL}/producoes/pagina?${params}`, {
+      headers: { "X-Usuario-Id": String(context.userId) },
+    });
+    if (!res.ok) throw new Error("Erro ao listar produções");
+    const pagina = await res.json();
+    return { ...pagina, registros: pagina.registros.map(mapProducao) };
+  });
+
 export const obterProducao = createApiFn({ method: "GET" })
   .inputValidator((d) => z.object({ id: z.union([z.string(), z.number()]) }).parse(d))
   .handler(async ({ data, context }) => {

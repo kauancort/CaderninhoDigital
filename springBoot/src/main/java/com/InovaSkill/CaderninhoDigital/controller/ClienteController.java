@@ -2,6 +2,7 @@ package com.InovaSkill.CaderninhoDigital.controller;
 
 import com.InovaSkill.CaderninhoDigital.dto.request.ClienteRequestDTO;
 import com.InovaSkill.CaderninhoDigital.dto.response.ClienteResponseDTO;
+import com.InovaSkill.CaderninhoDigital.dto.response.PaginaResponseDTO;
 import com.InovaSkill.CaderninhoDigital.service.ClienteService;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -17,6 +18,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.RequestParam;
 
 @RestController
 @RequestMapping("/api/v1/clientes")
@@ -33,6 +35,14 @@ public class ClienteController {
     @GetMapping
     public ResponseEntity<List<ClienteResponseDTO>> listar(@RequestHeader("X-Usuario-Id") Long usuarioId) {
         return ResponseEntity.ok(clienteService.listar(usuarioId));
+    }
+
+    @GetMapping("/pagina")
+    public ResponseEntity<PaginaResponseDTO<ClienteResponseDTO>> pesquisar(
+            @RequestHeader("X-Usuario-Id") Long usuarioId, @RequestParam(required = false) String busca,
+            @RequestParam(defaultValue = "0") int pagina, @RequestParam(defaultValue = "20") int tamanho,
+            @RequestParam(required = false) Boolean ativo) {
+        return ResponseEntity.ok(PaginaResponseDTO.de(clienteService.pesquisar(usuarioId, busca, pagina, tamanho, ativo)));
     }
 
     @GetMapping("/{id}")

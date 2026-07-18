@@ -7,6 +7,11 @@ import com.InovaSkill.CaderninhoDigital.entity.Usuario;
 import com.InovaSkill.CaderninhoDigital.exception.ResourceNotFoundException;
 import com.InovaSkill.CaderninhoDigital.repository.ClienteRepository;
 import java.util.List;
+import java.util.Locale;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -34,6 +39,25 @@ public class ClienteService {
     public List<ClienteResponseDTO> listar(Long usuarioId) {
         usuarioAcessoService.buscarGestor(usuarioId);
         return clienteRepository.findAllByOrderByNomeAsc().stream().map(this::toResponse).toList();
+    }
+
+    public Page<ClienteResponseDTO> pesquisar(Long usuarioId, String busca, int pagina, int tamanho, Boolean ativo) {
+        usuarioAcessoService.buscarGestor(usuarioId);
+        String termo = busca == null ? "" : busca.trim().toLowerCase(Locale.ROOT);
+        Specification<Cliente> filtro = (root, query, cb) -> {
+            var p = cb.conjunction();
+            if (!termo.isBlank()) {
+                String like = "%" + termo + "%";
+                p = cb.and(p, cb.or(
+                        cb.like(cb.lower(root.get("nome")), like),
+                        cb.like(cb.lower(root.get("email")), like),
+                        cb.like(cb.lower(root.get("documento")), like)));
+            }
+            if (ativo != null) p = cb.and(p, cb.equal(root.get("ativo"), ativo));
+            return p;
+        };
+        return clienteRepository.findAll(filtro, PageRequest.of(Math.max(0, pagina), Math.min(100, Math.max(1, tamanho)), Sort.by("nome")))
+                .map(this::toResponse);
     }
 
     public ClienteResponseDTO buscar(Long usuarioId, Long id) {
