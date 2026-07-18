@@ -3,8 +3,8 @@ import { API_URL as BASE_URL, apiFetch as fetch } from "@/lib/api-client";
 import { z } from "zod";
 const clienteSchema = z.object({
   nome: z.string().min(1).max(120),
-  telefone: z.string().max(40).optional().default(""),
-  email: z.string().max(120).optional().default(""),
+  telefone: z.string().trim().min(1, "Informe o telefone do cliente.").max(40),
+  email: z.string().trim().email("Informe um e-mail válido.").max(120),
   endereco: z.string().max(240).optional().default(""),
   documento: z.string().max(40).optional().default(""),
 });
@@ -47,7 +47,15 @@ export const criarCliente = createApiFn({ method: "POST" })
       const err = await res.json().catch(() => ({ message: "Erro ao criar cliente" }));
       throw new Error(err.message || "Erro ao criar cliente");
     }
-    return { ok: true };
+    const cliente = await res.json();
+    return {
+      id: String(cliente.id),
+      nome: cliente.nome,
+      telefone: cliente.telefone || "",
+      email: cliente.email || "",
+      endereco: cliente.endereco || "",
+      documento: cliente.documento || "",
+    };
   });
 
 export const atualizarCliente = createApiFn({ method: "POST" })
