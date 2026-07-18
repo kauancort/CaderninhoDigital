@@ -31,6 +31,16 @@ export const listarProdutos = createApiFn({ method: "GET" }).handler(async ({ co
   }));
 });
 
+export const pesquisarProdutos = createApiFn({ method: "GET" })
+  .inputValidator((d) => z.object({ busca: z.string().default(""), pagina: z.number().int().min(0).default(0), tamanho: z.number().int().min(1).max(100).default(20) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const params = new URLSearchParams({ busca: data.busca, pagina: String(data.pagina), tamanho: String(data.tamanho), ativo: "true" });
+    const res = await fetch(`${BASE_URL}/produtos/pagina?${params}`, { headers: { "X-Usuario-Id": String(context.userId) } });
+    if (!res.ok) throw new Error("Erro ao pesquisar produtos");
+    const pagina = await res.json();
+    return { ...pagina, registros: pagina.registros.map((p: any) => ({ id: String(p.id), nome: p.nome, sku: p.sku || "", categoria: p.categoria || "", preco_venda: p.precoVenda, quantidade_estoque: p.estoqueAtual || 0 })) };
+  });
+
 export const criarProduto = createApiFn({ method: "POST" })
   .inputValidator((d) =>
     z

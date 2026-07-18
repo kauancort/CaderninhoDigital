@@ -1,10 +1,11 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useApiFn } from "@/lib/api-function";
 import { AppShell } from "@/components/AppShell";
-import { listarVendas, adicionarContatoVenda } from "@/lib/vendas.functions";
+import { listarVendasPaginado, adicionarContatoVenda, prepararDuplicacaoVenda } from "@/lib/vendas.functions";
+import { setPrefill } from "@/lib/voz-prefill";
 import { fmtBRL, fmtDateTime, type FormaPagamento } from "@/lib/format";
-import { ReceiptText, X, Phone, Send } from "lucide-react";
+import { ChevronLeft, ChevronRight, Copy, ReceiptText, X, Phone, Send } from "lucide-react";
 import { useState } from "react";
 
 export const Route = createFileRoute("/vendas")({
@@ -18,18 +19,26 @@ export const Route = createFileRoute("/vendas")({
 type StatusPagamento = "PAGO" | "PENDENTE" | "ATRASADO" | "NAO_SE_APLICA";
 
 function Vendas() {
-  const { data: vendas = [] } = useQuery({ queryKey: ["vendas"], queryFn: () => listarVendas() });
+  const navigate = useNavigate();
+  const fnDuplicar = useApiFn(prepararDuplicacaoVenda);
   const [filtro, setFiltro] = useState<"todas" | "hoje" | "semana">("todas");
+  const [pagina, setPagina] = useState(0);
   const [vendaSelecionada, setVendaSelecionada] = useState<any | null>(null);
-
-  const hoje = new Date().toDateString();
-  const sete = Date.now() - 7 * 86400000;
-
-  const filtradas = vendas.filter((v: any) => {
-    if (filtro === "hoje") return new Date(v.data_venda).toDateString() === hoje;
-    if (filtro === "semana") return +new Date(v.data_venda) >= sete;
-    return true;
+  const duplicar = useMutation({
+    mutationFn: (id: string) => fnDuplicar({ data: { id } }),
+    onSuccess: (dados: any) => {
+      setPrefill("venda", { comprador: dados.clienteNome, cliente_id: String(dados.clienteId), avisos: dados.avisos,
+        itens: dados.itens.map((i: any) => ({ produto_final_id: String(i.produtoId), quantidade: Number(i.quantidade), preco_unitario: Number(i.precoAtual), tipo: "pote" })) });
+      navigate({ to: "/registrar/venda" });
+    },
   });
+  const periodo = periodoDoFiltro(filtro);
+  const { data, isLoading } = useQuery({
+    queryKey: ["vendas", "pagina", pagina, filtro],
+    queryFn: () => listarVendasPaginado({ data: { pagina, tamanho: 20, ...periodo } }),
+    placeholderData: (anterior) => anterior,
+  });
+  const filtradas = data?.registros ?? [];
 
   const total = filtradas.reduce((s: number, v: any) => s + Number(v.valor_total), 0);
   const totalItens = filtradas.reduce(
@@ -51,7 +60,7 @@ function Vendas() {
           {(["todas", "hoje", "semana"] as const).map((f) => (
             <button
               key={f}
-              onClick={() => setFiltro(f)}
+              onClick={() => { setFiltro(f); setPagina(0); }}
               className={[
                 "px-3 md:px-4 py-1.5 rounded-full text-[11px] md:text-xs font-bold uppercase tracking-wider transition",
                 filtro === f
@@ -66,12 +75,14 @@ function Vendas() {
       </header>
 
       <div className="grid grid-cols-3 gap-2 md:gap-4">
-        <Card label="Total" value={fmtBRL(total)} tone="primary" />
-        <Card label="Vendas" value={String(filtradas.length)} tone="gold" />
-        <Card label="Docinhos" value={String(totalItens)} tone="success" />
+        <Card label="Total na página" value={fmtBRL(total)} tone="primary" />
+        <Card label="Total de vendas" value={String(data?.totalRegistros ?? 0)} tone="gold" />
+        <Card label="Itens na página" value={String(totalItens)} tone="success" />
       </div>
 
-      {filtradas.length === 0 ? (
+      {isLoading ? (
+        <div className="text-center py-12 text-sm text-muted-foreground">Carregando vendas...</div>
+      ) : filtradas.length === 0 ? (
         <div className="text-center py-12 px-6 bg-card border border-dashed border-border rounded-2xl">
           <ReceiptText className="mx-auto text-muted-foreground mb-3" size={36} />
           <h3 className="font-display text-xl text-foreground mb-1">Nenhuma venda</h3>
@@ -108,6 +119,10 @@ function Vendas() {
                       Toque para ver/registrar contato com o cliente
                     </div>
                   )}
+                  <button type="button" onClick={(e) => { e.stopPropagation(); duplicar.mutate(v.id); }}
+                    className="mt-2 inline-flex items-center gap-1 text-[11px] font-bold text-primary hover:underline">
+                    <Copy size={12} /> Duplicar venda
+                  </button>
                 </div>
                 <div className="text-right font-display font-bold text-primary tabular-nums">
                   {fmtBRL(Number(v.valor_total))}
@@ -118,11 +133,36 @@ function Vendas() {
         </div>
       )}
 
+      {(data?.totalPaginas ?? 0) > 1 && (
+        <div className="flex items-center justify-center gap-3">
+          <button className="ds-button-secondary px-3 py-2" disabled={!data?.temAnterior}
+            onClick={() => setPagina((p) => Math.max(0, p - 1))}>
+            <ChevronLeft size={16} /> Anterior
+          </button>
+          <span className="text-sm text-muted-foreground">
+            Página {(data?.paginaAtual ?? 0) + 1} de {data?.totalPaginas}
+          </span>
+          <button className="ds-button-secondary px-3 py-2" disabled={!data?.temProxima}
+            onClick={() => setPagina((p) => p + 1)}>
+            Próxima <ChevronRight size={16} />
+          </button>
+        </div>
+      )}
+
       {vendaSelecionada && (
         <ModalContatos venda={vendaSelecionada} onClose={() => setVendaSelecionada(null)} />
       )}
     </div>
   );
+}
+
+function periodoDoFiltro(filtro: "todas" | "hoje" | "semana") {
+  if (filtro === "todas") return {};
+  const fim = new Date();
+  const inicio = new Date(fim);
+  if (filtro === "semana") inicio.setDate(inicio.getDate() - 7);
+  const formatar = (data: Date) => data.toLocaleDateString("en-CA");
+  return { inicio: formatar(inicio), fim: formatar(fim) };
 }
 
 function ModalContatos({ venda, onClose }: { venda: any; onClose: () => void }) {

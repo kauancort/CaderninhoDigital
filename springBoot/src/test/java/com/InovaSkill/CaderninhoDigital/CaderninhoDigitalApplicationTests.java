@@ -31,7 +31,7 @@ class CaderninhoDigitalApplicationTests {
 
 	@Test
 	void contextLoads() {
-		assertThat(flyway.info().applied()).hasSize(4);
+		assertThat(flyway.info().applied()).hasSize(7);
 	}
 
 	@Test

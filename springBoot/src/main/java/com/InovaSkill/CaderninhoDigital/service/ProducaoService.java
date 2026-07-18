@@ -11,17 +11,29 @@ import com.InovaSkill.CaderninhoDigital.entity.Produto;
 import com.InovaSkill.CaderninhoDigital.entity.ProdutoGabaritoItem;
 import com.InovaSkill.CaderninhoDigital.entity.Usuario;
 import com.InovaSkill.CaderninhoDigital.exception.BusinessException;
+import com.InovaSkill.CaderninhoDigital.enums.OrigemMovimentacaoEstoque;
+import com.InovaSkill.CaderninhoDigital.enums.TipoMovimentacaoEstoque;
 import com.InovaSkill.CaderninhoDigital.exception.ResourceNotFoundException;
 import com.InovaSkill.CaderninhoDigital.repository.MateriaPrimaRepository;
 import com.InovaSkill.CaderninhoDigital.repository.ProducaoRepository;
 import com.InovaSkill.CaderninhoDigital.repository.ProdutoRepository;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 
 @Service
 @RequiredArgsConstructor
@@ -31,6 +43,7 @@ public class ProducaoService {
     private final ProdutoRepository produtoRepository;
     private final MateriaPrimaRepository materiaPrimaRepository;
     private final UsuarioAcessoService usuarioAcessoService;
+    private final MovimentacaoEstoqueService movimentacaoEstoqueService;
 
     @Transactional
     public ProducaoResponseDTO criar(Long usuarioId, ProducaoRequestDTO dto) {
@@ -50,7 +63,12 @@ public class ProducaoService {
                 ? adicionarInsumosManuais(producao, dto.getInsumos(), gestor)
                 : adicionarInsumosDoGabarito(producao, produto);
 
-        produto.setEstoqueAtual(produto.getEstoqueAtual().add(dto.getQuantidadeProduzida()));
+        BigDecimal estoqueProdutoAnterior = produto.getEstoqueAtual();
+        produto.setEstoqueAtual(estoqueProdutoAnterior.add(dto.getQuantidadeProduzida()));
+        movimentacaoEstoqueService.registrarProduto(
+                produto, gestor, estoqueProdutoAnterior, produto.getEstoqueAtual(),
+                TipoMovimentacaoEstoque.ENTRADA, OrigemMovimentacaoEstoque.PRODUCAO,
+                dto.getObservacao());
         producao.setCustoEstimado(custoEstimado);
         return toResponse(producaoRepository.save(producao));
     }
@@ -65,6 +83,40 @@ public class ProducaoService {
                     .toList();
         }
         return producaoRepository.findAllByOrderByDataProducaoDesc().stream().map(this::toResponse).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public Page<ProducaoResponseDTO> listarPaginado(
+            Long usuarioId,
+            int pagina,
+            int tamanho,
+            String ordenarPor,
+            Sort.Direction direcao,
+            LocalDate inicio,
+            LocalDate fim,
+            Long produtoId
+    ) {
+        usuarioAcessoService.buscarGestor(usuarioId);
+        int tamanhoSeguro = Math.min(Math.max(tamanho, 1), 100);
+        String campoOrdenacao = "criadoEm".equals(ordenarPor) ? "criadoEm" : "dataProducao";
+        Specification<Producao> filtros = (root, query, builder) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            if (inicio != null) predicates.add(builder.greaterThanOrEqualTo(root.get("dataProducao"), inicio));
+            if (fim != null) predicates.add(builder.lessThanOrEqualTo(root.get("dataProducao"), fim));
+            if (produtoId != null) predicates.add(builder.equal(root.get("produto").get("id"), produtoId));
+            return builder.and(predicates.toArray(Predicate[]::new));
+        };
+        PageRequest pageable = PageRequest.of(
+                Math.max(pagina, 0), tamanhoSeguro, Sort.by(direcao, campoOrdenacao).and(Sort.by(direcao, "id")));
+        Page<Producao> paginaEntidades = producaoRepository.findAll(filtros, pageable);
+        if (paginaEntidades.isEmpty()) {
+            return new PageImpl<>(List.of(), pageable, paginaEntidades.getTotalElements());
+        }
+        List<Long> ids = paginaEntidades.getContent().stream().map(Producao::getId).toList();
+        Map<Long, Producao> detalhes = producaoRepository.buscarDetalhesPorIds(ids).stream()
+                .collect(Collectors.toMap(Producao::getId, Function.identity()));
+        List<ProducaoResponseDTO> registros = ids.stream().map(detalhes::get).map(this::toResponse).toList();
+        return new PageImpl<>(registros, pageable, paginaEntidades.getTotalElements());
     }
 
     public ProducaoResponseDTO buscar(Long usuarioId, Long id) {
@@ -132,7 +184,12 @@ public class ProducaoService {
     }
 
     private BigDecimal adicionarInsumo(Producao producao, MateriaPrima materiaPrima, BigDecimal quantidadeUtilizada) {
+        BigDecimal estoqueAnterior = materiaPrima.getEstoqueAtual();
         baixarEstoque(materiaPrima, quantidadeUtilizada);
+        movimentacaoEstoqueService.registrarMateriaPrima(
+                materiaPrima, producao.getGestor(), estoqueAnterior, materiaPrima.getEstoqueAtual(),
+                TipoMovimentacaoEstoque.SAIDA, OrigemMovimentacaoEstoque.PRODUCAO,
+                producao.getObservacao());
         BigDecimal custoTotal = materiaPrima.getCustoMedio().multiply(quantidadeUtilizada);
         ItemProducaoMateriaPrima item = ItemProducaoMateriaPrima.builder()
                 .producao(producao)

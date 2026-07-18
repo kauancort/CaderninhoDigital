@@ -39,6 +39,13 @@ public class Produto {
     @Column(length = 500)
     private String descricao;
 
+    @Column(length = 60)
+    private String sku;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "categoria_id")
+    private CategoriaProduto categoria;
+
     @Column(nullable = false, length = 30)
     private String unidadeMedida;
 
