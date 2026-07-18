@@ -43,7 +43,7 @@ public class VendaService {
     @Transactional
     public VendaResponseDTO criar(Long usuarioId, VendaRequestDTO dto) {
         Usuario gestor = usuarioAcessoService.buscarGestor(usuarioId);
-        Cliente cliente = buscarClienteOpcional(dto.getClienteId());
+        Cliente cliente = buscarCliente(dto.getClienteId());
 
         StatusPagamento status = dto.getStatusPagamento() != null ? dto.getStatusPagamento() : StatusPagamento.PENDENTE;
         validarRegrasNegocio(dto, status);
@@ -123,9 +123,9 @@ public class VendaService {
         return toResponse(vendaRepository.save(venda));
     }
 
-    private Cliente buscarClienteOpcional(Long clienteId) {
+    private Cliente buscarCliente(Long clienteId) {
         if (clienteId == null) {
-            return null;
+            throw new BusinessException("Selecione um cliente para registrar a venda");
         }
         return clienteRepository.findById(clienteId)
                 .orElseThrow(() -> new ResourceNotFoundException("Cliente não encontrado"));

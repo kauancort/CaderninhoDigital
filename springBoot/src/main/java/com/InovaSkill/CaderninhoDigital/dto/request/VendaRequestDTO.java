@@ -14,6 +14,7 @@ import lombok.Setter;
 @Getter
 @Setter
 public class VendaRequestDTO {
+    @NotNull(message = "Selecione um cliente para registrar a venda")
     private Long clienteId;
     @NotNull(message = "A data da venda é obrigatória")
     private LocalDate dataVenda;

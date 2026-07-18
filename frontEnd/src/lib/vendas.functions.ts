@@ -43,8 +43,8 @@ export const registrarVenda = createApiFn({ method: "POST" })
   .inputValidator((d) =>
     z
       .object({
-        comprador: z.string().max(120).optional().nullable(),
-        cliente_id: z.union([z.string(), z.number()]).optional().nullable(),
+        comprador: z.string().max(120),
+        cliente_id: z.union([z.string().min(1), z.number().positive()]),
         data_venda: z.string().date(),
         forma_pagamento: z.enum(["dinheiro", "pix", "cartao", "boleto", "outro"]).nullable(),
         status_pagamento: z.enum(["PAGO", "PENDENTE", "ATRASADO", "NAO_SE_APLICA"]),
@@ -65,43 +65,8 @@ export const registrarVenda = createApiFn({ method: "POST" })
       .parse(d),
   )
   .handler(async ({ data, context }) => {
-    let clienteId: number | null = data.cliente_id ? Number(data.cliente_id) : null;
-
-    // Se não veio um cliente_id (usuário digitou nome livre), tenta achar/criar por nome
-    if (!clienteId && data.comprador && data.comprador.trim().length > 0) {
-      const compradorNome = data.comprador.trim();
-      const clientsRes = await fetch(`${BASE_URL}/clientes`, {
-        headers: { "X-Usuario-Id": String(context.userId) },
-      });
-      if (clientsRes.ok) {
-        const clients = await clientsRes.json();
-        const matched = clients.find(
-          (c: any) => c.nome.toLowerCase() === compradorNome.toLowerCase(),
-        );
-        if (matched) {
-          clienteId = matched.id;
-        } else {
-          const createRes = await fetch(`${BASE_URL}/clientes`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "X-Usuario-Id": String(context.userId),
-            },
-            body: JSON.stringify({
-              nome: compradorNome,
-              ativo: true,
-            }),
-          });
-          if (createRes.ok) {
-            const newClient = await createRes.json();
-            clienteId = newClient.id;
-          }
-        }
-      }
-    }
-
     const payload = {
-      clienteId: clienteId,
+      clienteId: Number(data.cliente_id),
       dataVenda: data.data_venda,
       formaPagamento: data.forma_pagamento?.toUpperCase() ?? null,
       statusPagamento: data.status_pagamento,

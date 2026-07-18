@@ -104,6 +104,14 @@ function Clientes() {
       setErro("Informe o nome do cliente.");
       return;
     }
+    if (!form.telefone.trim()) {
+      setErro("Informe o telefone do cliente.");
+      return;
+    }
+    if (!form.email.trim()) {
+      setErro("Informe o e-mail do cliente.");
+      return;
+    }
     setSalvando(true);
     try {
       const payload = {
@@ -255,17 +263,20 @@ function Clientes() {
                   placeholder="Ex.: Dona Maria"
                 />
               </Campo>
-              <Campo label="Telefone">
+              <Campo label="Telefone *">
                 <input
+                  type="tel"
+                  required
                   className="ds-input"
                   value={form.telefone}
                   onChange={(e) => setForm({ ...form, telefone: e.target.value })}
                   placeholder="(11) 99999-9999"
                 />
               </Campo>
-              <Campo label="E-mail">
+              <Campo label="E-mail *">
                 <input
                   type="email"
+                  required
                   className="ds-input"
                   value={form.email}
                   onChange={(e) => setForm({ ...form, email: e.target.value })}
