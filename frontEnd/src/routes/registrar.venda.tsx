@@ -1,10 +1,10 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useApiFn } from "@/lib/api-function";
 import { Check, Sparkles, ArrowLeft, Pencil, Plus, Trash2, UserPlus, X } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
-import { listarProdutos } from "@/lib/catalogo.functions";
+import { obterProduto, pesquisarProdutos } from "@/lib/catalogo.functions";
 import { criarCliente, pesquisarClientes } from "@/lib/clientes.functions";
 import { registrarVenda } from "@/lib/vendas.functions";
 import { fmtBRL, hojeISO, type FormaPagamento, type StatusPagamento } from "@/lib/format";
@@ -75,11 +75,6 @@ function RegistrarVenda() {
   const produtoRefs = useRef<Array<HTMLSelectElement | null>>([]);
   const quantidadeRefs = useRef<Array<HTMLInputElement | null>>([]);
 
-  const { data: produtos = [] } = useQuery({
-    queryKey: ["produtos"],
-    queryFn: () => listarProdutos(),
-  });
-
   const [itens, setItens] = useState<ItemForm[]>([
     { produto_final_id: "", quantidade: "1", preco_unitario: "", tipo: "pote" },
   ]);
@@ -100,6 +95,46 @@ function RegistrarVenda() {
   const [observacao, setObservacao] = useState("");
   const [erro, setErro] = useState<string | null>(null);
   const [confirmar, setConfirmar] = useState(false);
+  const [buscaProduto, setBuscaProduto] = useState("");
+  const [buscaProdutoDebounced, setBuscaProdutoDebounced] = useState("");
+  const [produtosSelecionados, setProdutosSelecionados] = useState<any[]>([]);
+
+  useEffect(() => {
+    const t = setTimeout(() => setBuscaProdutoDebounced(buscaProduto.trim()), 300);
+    return () => clearTimeout(t);
+  }, [buscaProduto]);
+  const { data: paginaProdutos, isFetching: pesquisandoProdutos } = useQuery({
+    queryKey: ["produtos", "seletor-venda", buscaProdutoDebounced],
+    queryFn: () =>
+      pesquisarProdutos({ data: { busca: buscaProdutoDebounced, pagina: 0, tamanho: 20 } }),
+    placeholderData: (a) => a,
+  });
+  const idsProdutosSelecionados = [
+    ...new Set(itens.map((item) => item.produto_final_id).filter(Boolean)),
+  ];
+  const produtosEncontrados = paginaProdutos?.registros ?? [];
+  const idsProdutosAusentes = idsProdutosSelecionados.filter(
+    (id) =>
+      !produtosSelecionados.some((produto) => produto.id === id) &&
+      !produtosEncontrados.some((produto: any) => produto.id === id),
+  );
+  const consultasProdutosSelecionados = useQueries({
+    queries: idsProdutosAusentes.map((id) => ({
+      queryKey: ["produto", id],
+      queryFn: () => obterProduto({ data: { id } }),
+      staleTime: 60_000,
+    })),
+  });
+  const produtosFixos = [
+    ...produtosSelecionados,
+    ...consultasProdutosSelecionados.flatMap((consulta) => (consulta.data ? [consulta.data] : [])),
+  ].filter(
+    (produto, indice, todos) => todos.findIndex((item) => item.id === produto.id) === indice,
+  );
+  const produtos = [
+    ...produtosFixos,
+    ...produtosEncontrados.filter((p: any) => !produtosFixos.some((s) => s.id === p.id)),
+  ];
 
   useEffect(() => {
     const timer = window.setTimeout(() => setBuscaCliente(cliente.trim()), 300);
@@ -112,7 +147,10 @@ function RegistrarVenda() {
     enabled: buscaCliente.length >= 2 && !clienteId,
     placeholderData: (anterior) => anterior,
   });
-  const clientes = (paginaClientes?.registros ?? []) as Cliente[];
+  const clientes = useMemo(
+    () => (paginaClientes?.registros ?? []) as Cliente[],
+    [paginaClientes?.registros],
+  );
 
   useEffect(() => {
     const pre = consumePrefill<PrefillVenda>("venda");
@@ -388,6 +426,15 @@ function RegistrarVenda() {
         <div className="flex flex-col gap-5 rounded-2xl border border-border bg-card p-6 shadow-warm-sm md:col-start-1 md:row-start-1">
           <div className="order-2 space-y-3">
             <label className="text-sm font-semibold text-foreground">Itens da venda</label>
+            <input
+              className="ds-input"
+              value={buscaProduto}
+              onChange={(e) => setBuscaProduto(e.target.value)}
+              placeholder="Buscar produto por nome ou SKU..."
+            />
+            {pesquisandoProdutos && (
+              <div className="text-xs text-muted-foreground">Pesquisando produtos...</div>
+            )}
             {itens.map((it, idx) => (
               <div key={idx} className="space-y-2 border border-border rounded-lg p-3">
                 <div className="grid grid-cols-[1fr_auto] gap-2 items-end">
@@ -397,7 +444,14 @@ function RegistrarVenda() {
                     }}
                     className="ds-input"
                     value={it.produto_final_id}
-                    onChange={(e) => selecionarProduto(idx, e.target.value)}
+                    onChange={(e) => {
+                      const escolhido = produtos.find((p: any) => p.id === e.target.value);
+                      if (escolhido)
+                        setProdutosSelecionados((a) =>
+                          a.some((p) => p.id === escolhido.id) ? a : [...a, escolhido],
+                        );
+                      selecionarProduto(idx, e.target.value);
+                    }}
                   >
                     <option value="">Escolha o produto...</option>
                     {produtos.map((p: any) => (
@@ -688,7 +742,9 @@ function RegistrarVenda() {
                   </button>
                 ))}
                 {pesquisandoClientes && (
-                  <div className="px-3 py-3 text-xs text-muted-foreground">Pesquisando clientes...</div>
+                  <div className="px-3 py-3 text-xs text-muted-foreground">
+                    Pesquisando clientes...
+                  </div>
                 )}
                 {!pesquisandoClientes && sugestoesCliente.length === 0 && (
                   <>

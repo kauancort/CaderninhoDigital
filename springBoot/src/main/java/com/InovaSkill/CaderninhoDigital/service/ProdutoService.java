@@ -54,6 +54,7 @@ public class ProdutoService {
                 .categoria(buscarCategoria(dto.getCategoriaId()))
                 .unidadeMedida(dto.getUnidadeMedida())
                 .precoVenda(dto.getPrecoVenda())
+                .custoAtual(dto.getCustoAtual())
                 .estoqueAtual(valorOuZero(dto.getEstoqueAtual()))
                 .ativo(dto.getAtivo())
                 .gestor(gestor)
@@ -63,6 +64,7 @@ public class ProdutoService {
         }
         Produto salvo = produtoRepository.save(produto);
         historicoValorService.registrarPreco(salvo, gestor, null, "Preço inicial do produto");
+        historicoValorService.registrarCustoProduto(salvo, gestor, null, "Custo inicial informado", "CADASTRO_PRODUTO");
         movimentacaoEstoqueService.registrarProduto(
                 salvo, gestor, BigDecimal.ZERO, salvo.getEstoqueAtual(),
                 TipoMovimentacaoEstoque.ENTRADA, OrigemMovimentacaoEstoque.CADASTRO,
@@ -97,6 +99,7 @@ public class ProdutoService {
         return ProdutoResumoResponseDTO.builder().id(produto.getId()).nome(produto.getNome()).sku(produto.getSku())
                 .categoria(produto.getCategoria() == null ? null : produto.getCategoria().getNome())
                 .unidadeMedida(produto.getUnidadeMedida()).precoVenda(produto.getPrecoVenda())
+                .custoAtual(produto.getCustoAtual())
                 .estoqueAtual(produto.getEstoqueAtual()).ativo(produto.getAtivo()).tipo("PRODUTO_FINAL").build();
     }
 
@@ -114,12 +117,14 @@ public class ProdutoService {
         validarSku(dto.getSku(), id);
         BigDecimal estoqueAnterior = produto.getEstoqueAtual();
         BigDecimal precoAnterior = produto.getPrecoVenda();
+        BigDecimal custoAnterior = produto.getCustoAtual();
         produto.setNome(dto.getNome());
         produto.setDescricao(dto.getDescricao());
         produto.setSku(normalizarSku(dto.getSku()));
         produto.setCategoria(buscarCategoria(dto.getCategoriaId()));
         produto.setUnidadeMedida(dto.getUnidadeMedida());
         produto.setPrecoVenda(dto.getPrecoVenda());
+        if (dto.getCustoAtual() != null) produto.setCustoAtual(dto.getCustoAtual());
         produto.setEstoqueAtual(dto.getEstoqueAtual() != null ? dto.getEstoqueAtual() : produto.getEstoqueAtual());
         produto.setAtivo(dto.getAtivo() != null ? dto.getAtivo() : produto.getAtivo());
         if (dto.getGabarito() != null) {
@@ -127,7 +132,9 @@ public class ProdutoService {
         }
         Produto salvo = produtoRepository.save(produto);
         historicoValorService.registrarPreco(salvo, gestor, precoAnterior, "Preço alterado na edição do produto");
+        historicoValorService.registrarCustoProduto(salvo, gestor, custoAnterior, "Custo alterado na edição do produto", "CADASTRO_PRODUTO");
         if (precoAnterior.compareTo(salvo.getPrecoVenda()) != 0) auditoriaService.registrar(gestor, "PRODUTO", salvo.getId(), "ALTERACAO_PRECO", precoAnterior, salvo.getPrecoVenda(), "Edição do produto", "CADASTRO_PRODUTO");
+        if (valoresDiferentes(custoAnterior, salvo.getCustoAtual())) auditoriaService.registrar(gestor, "PRODUTO", salvo.getId(), "ALTERACAO_CUSTO", custoAnterior, salvo.getCustoAtual(), "Edição do produto", "CADASTRO_PRODUTO");
         if (salvo.getEstoqueAtual().compareTo(estoqueAnterior) != 0) {
             auditoriaService.registrar(gestor, "PRODUTO", salvo.getId(), "AJUSTE_ESTOQUE", estoqueAnterior, salvo.getEstoqueAtual(), "Estoque alterado na edição", "AJUSTE_MANUAL");
             movimentacaoEstoqueService.registrarProduto(
@@ -155,6 +162,11 @@ public class ProdutoService {
 
     private BigDecimal valorOuZero(BigDecimal valor) {
         return valor != null ? valor : BigDecimal.ZERO;
+    }
+
+    private boolean valoresDiferentes(BigDecimal anterior, BigDecimal atual) {
+        if (anterior == null || atual == null) return anterior != atual;
+        return anterior.compareTo(atual) != 0;
     }
 
     private void atualizarGabarito(Produto produto, GabaritoProdutoRequestDTO gabarito, Usuario gestor) {
@@ -193,6 +205,7 @@ public class ProdutoService {
                 .categoriaNome(produto.getCategoria() == null ? null : produto.getCategoria().getNome())
                 .unidadeMedida(produto.getUnidadeMedida())
                 .precoVenda(produto.getPrecoVenda())
+                .custoAtual(produto.getCustoAtual())
                 .estoqueAtual(produto.getEstoqueAtual())
                 .ativo(produto.getAtivo())
                 .gabarito(toGabaritoResponse(produto))

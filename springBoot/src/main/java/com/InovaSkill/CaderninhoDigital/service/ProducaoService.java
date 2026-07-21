@@ -4,6 +4,7 @@ import com.InovaSkill.CaderninhoDigital.dto.request.InsumoProducaoRequestDTO;
 import com.InovaSkill.CaderninhoDigital.dto.request.ProducaoRequestDTO;
 import com.InovaSkill.CaderninhoDigital.dto.response.InsumoProducaoResponseDTO;
 import com.InovaSkill.CaderninhoDigital.dto.response.ProducaoResponseDTO;
+import com.InovaSkill.CaderninhoDigital.dto.response.ResumoProducaoProdutoDTO;
 import com.InovaSkill.CaderninhoDigital.entity.ItemProducaoMateriaPrima;
 import com.InovaSkill.CaderninhoDigital.entity.MateriaPrima;
 import com.InovaSkill.CaderninhoDigital.entity.Producao;
@@ -44,6 +45,8 @@ public class ProducaoService {
     private final MateriaPrimaRepository materiaPrimaRepository;
     private final UsuarioAcessoService usuarioAcessoService;
     private final MovimentacaoEstoqueService movimentacaoEstoqueService;
+    private final HistoricoValorService historicoValorService;
+    private final AuditoriaService auditoriaService;
 
     @Transactional
     public ProducaoResponseDTO criar(Long usuarioId, ProducaoRequestDTO dto) {
@@ -70,7 +73,13 @@ public class ProducaoService {
                 TipoMovimentacaoEstoque.ENTRADA, OrigemMovimentacaoEstoque.PRODUCAO,
                 dto.getObservacao());
         producao.setCustoEstimado(custoEstimado);
-        return toResponse(producaoRepository.save(producao));
+        BigDecimal custoAnterior = produto.getCustoAtual();
+        produto.setCustoAtual(custoEstimado.divide(dto.getQuantidadeProduzida(), 2, RoundingMode.HALF_UP));
+        Producao salva = producaoRepository.save(producao);
+        historicoValorService.registrarCustoProduto(produto, gestor, custoAnterior, "Custo apurado na produção " + salva.getId(), "PRODUCAO");
+        auditoriaService.registrar(gestor, "PRODUCAO", salva.getId(), "CRIACAO", null, salva.getQuantidadeProduzida(), dto.getObservacao(), "PRODUCAO");
+        if (valoresDiferentes(custoAnterior, produto.getCustoAtual())) auditoriaService.registrar(gestor, "PRODUTO", produto.getId(), "ALTERACAO_CUSTO", custoAnterior, produto.getCustoAtual(), "Custo apurado na produção", "PRODUCAO");
+        return toResponse(salva);
     }
 
     public List<ProducaoResponseDTO> listar(Long usuarioId, Long produtoId) {
@@ -84,6 +93,9 @@ public class ProducaoService {
         }
         return producaoRepository.findAllByOrderByDataProducaoDesc().stream().map(this::toResponse).toList();
     }
+
+    public List<ResumoProducaoProdutoDTO> resumir(Long usuarioId) { usuarioAcessoService.buscarGestor(usuarioId); return producaoRepository.resumirPorProduto(); }
+    public long proximoLote(Long usuarioId) { usuarioAcessoService.buscarGestor(usuarioId); return 101 + producaoRepository.maiorId(); }
 
     @Transactional(readOnly = true)
     public Page<ProducaoResponseDTO> listarPaginado(
@@ -147,6 +159,11 @@ public class ProducaoService {
 
     private boolean possuiInsumosManuais(ProducaoRequestDTO dto) {
         return dto.getInsumos() != null && !dto.getInsumos().isEmpty();
+    }
+
+    private boolean valoresDiferentes(BigDecimal anterior, BigDecimal atual) {
+        if (anterior == null || atual == null) return anterior != atual;
+        return anterior.compareTo(atual) != 0;
     }
 
     private BigDecimal adicionarInsumosManuais(

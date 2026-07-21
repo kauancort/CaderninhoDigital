@@ -2,6 +2,8 @@ package com.InovaSkill.CaderninhoDigital.controller;
 
 import com.InovaSkill.CaderninhoDigital.dto.response.MovimentacaoEstoqueResponseDTO;
 import com.InovaSkill.CaderninhoDigital.dto.response.MovimentacaoUsuarioFiltroResponseDTO;
+import com.InovaSkill.CaderninhoDigital.dto.response.ResumoMovimentacaoEstoqueDTO;
+import com.InovaSkill.CaderninhoDigital.enums.OrigemMovimentacaoEstoque;
 import com.InovaSkill.CaderninhoDigital.enums.TipoItemEstoque;
 import com.InovaSkill.CaderninhoDigital.enums.TipoMovimentacaoEstoque;
 import com.InovaSkill.CaderninhoDigital.service.MovimentacaoEstoqueService;
@@ -39,6 +41,7 @@ public class MovimentacaoEstoqueController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fim,
             @RequestParam(required = false) Long usuarioId,
             @RequestParam(required = false) TipoMovimentacaoEstoque tipo,
+            @RequestParam(required = false) OrigemMovimentacaoEstoque origem,
             @RequestParam(required = false) TipoItemEstoque tipoItem,
             @RequestParam(required = false) Long itemId,
             @RequestParam(defaultValue = "0") int pagina,
@@ -46,6 +49,21 @@ public class MovimentacaoEstoqueController {
             @RequestParam(defaultValue = "DESC") Sort.Direction ordem
     ) {
         return ResponseEntity.ok(service.listar(
-                usuarioSolicitanteId, inicio, fim, usuarioId, tipo, tipoItem, itemId, pagina, tamanho, ordem));
+                usuarioSolicitanteId, inicio, fim, usuarioId, tipo, origem, tipoItem, itemId, pagina, tamanho, ordem));
+    }
+
+    @GetMapping("/resumo")
+    public ResponseEntity<ResumoMovimentacaoEstoqueDTO> resumir(
+            @RequestHeader("X-Usuario-Id") Long usuarioId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate inicio,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fim,
+            @RequestParam(required = false) Long responsavelId,
+            @RequestParam(required = false) TipoMovimentacaoEstoque tipo,
+            @RequestParam(required = false) OrigemMovimentacaoEstoque origem,
+            @RequestParam(required = false) TipoItemEstoque tipoItem,
+            @RequestParam(required = false) Long itemId
+    ) {
+        return ResponseEntity.ok(
+                service.resumir(usuarioId, inicio, fim, responsavelId, tipo, origem, tipoItem, itemId));
     }
 }

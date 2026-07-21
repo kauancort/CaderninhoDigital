@@ -2,6 +2,7 @@ package com.InovaSkill.CaderninhoDigital.service;
 
 import com.InovaSkill.CaderninhoDigital.dto.response.MovimentacaoEstoqueResponseDTO;
 import com.InovaSkill.CaderninhoDigital.dto.response.MovimentacaoUsuarioFiltroResponseDTO;
+import com.InovaSkill.CaderninhoDigital.dto.response.ResumoMovimentacaoEstoqueDTO;
 import com.InovaSkill.CaderninhoDigital.entity.MateriaPrima;
 import com.InovaSkill.CaderninhoDigital.entity.MovimentacaoEstoque;
 import com.InovaSkill.CaderninhoDigital.entity.Produto;
@@ -13,9 +14,14 @@ import com.InovaSkill.CaderninhoDigital.repository.MovimentacaoEstoqueRepository
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.List;
 import java.util.ArrayList;
+import java.util.List;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
+import jakarta.persistence.Tuple;
+import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.Predicate;
+import jakarta.persistence.criteria.Root;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -30,6 +36,8 @@ public class MovimentacaoEstoqueService {
 
     private final MovimentacaoEstoqueRepository repository;
     private final UsuarioAcessoService usuarioAcessoService;
+    @PersistenceContext
+    private EntityManager entityManager;
 
     @Transactional
     public void registrarProduto(
@@ -103,6 +111,7 @@ public class MovimentacaoEstoqueService {
             LocalDate fim,
             Long usuarioId,
             TipoMovimentacaoEstoque tipo,
+            OrigemMovimentacaoEstoque origem,
             TipoItemEstoque tipoItem,
             Long itemId,
             int pagina,
@@ -111,37 +120,71 @@ public class MovimentacaoEstoqueService {
     ) {
         usuarioAcessoService.buscarGestor(usuarioSolicitanteId);
         int tamanhoSeguro = Math.min(Math.max(tamanho, 1), 100);
-        LocalDateTime inicioDataHora = inicio != null ? inicio.atStartOfDay() : null;
-        LocalDateTime fimExclusivo = fim != null ? fim.plusDays(1).atStartOfDay() : null;
         Specification<MovimentacaoEstoque> filtros = (root, query, builder) -> {
-            List<Predicate> predicates = new ArrayList<>();
-            if (inicioDataHora != null) {
-                predicates.add(builder.greaterThanOrEqualTo(root.get("ocorridoEm"), inicioDataHora));
-            }
-            if (fimExclusivo != null) {
-                predicates.add(builder.lessThan(root.get("ocorridoEm"), fimExclusivo));
-            }
-            if (usuarioId != null) {
-                predicates.add(builder.equal(root.get("usuario").get("id"), usuarioId));
-            }
-            if (tipo != null) {
-                predicates.add(builder.equal(root.get("tipoMovimentacao"), tipo));
-            }
-            if (tipoItem != null) {
-                predicates.add(builder.equal(root.get("tipoItem"), tipoItem));
-            }
-            if (itemId != null && tipoItem == TipoItemEstoque.PRODUTO) {
-                predicates.add(builder.equal(root.get("produto").get("id"), itemId));
-            }
-            if (itemId != null && tipoItem == TipoItemEstoque.MATERIA_PRIMA) {
-                predicates.add(builder.equal(root.get("materiaPrima").get("id"), itemId));
-            }
+            List<Predicate> predicates = criarPredicados(
+                    root, builder, inicio, fim, usuarioId, tipo, origem, tipoItem, itemId);
             return builder.and(predicates.toArray(Predicate[]::new));
         };
         return repository.findAll(
                         filtros,
                         PageRequest.of(Math.max(pagina, 0), tamanhoSeguro, Sort.by(direcao, "ocorridoEm")))
                 .map(this::toResponse);
+    }
+
+    @Transactional(readOnly = true)
+    public ResumoMovimentacaoEstoqueDTO resumir(Long solicitante, LocalDate inicio, LocalDate fim, Long usuarioId,
+            TipoMovimentacaoEstoque tipo, OrigemMovimentacaoEstoque origem, TipoItemEstoque tipoItem, Long itemId) {
+        usuarioAcessoService.buscarGestor(solicitante);
+        var cb = entityManager.getCriteriaBuilder();
+        var cq = cb.createTupleQuery();
+        var root = cq.from(MovimentacaoEstoque.class);
+        List<Predicate> predicados = criarPredicados(
+                root, cb, inicio, fim, usuarioId, tipo, origem, tipoItem, itemId);
+        cq.multiselect(root.get("tipoMovimentacao"), cb.count(root))
+                .where(predicados.toArray(Predicate[]::new))
+                .groupBy(root.get("tipoMovimentacao"));
+        List<Tuple> linhas = entityManager.createQuery(cq).getResultList();
+        long entradas = 0;
+        long saidas = 0;
+        long ajustes = 0;
+        for (Tuple linha : linhas) {
+            TipoMovimentacaoEstoque tipoMovimentacao = linha.get(0, TipoMovimentacaoEstoque.class);
+            long contagem = linha.get(1, Long.class);
+            if (tipoMovimentacao == TipoMovimentacaoEstoque.ENTRADA) entradas += contagem;
+            else if (tipoMovimentacao == TipoMovimentacaoEstoque.SAIDA) saidas += contagem;
+            else ajustes += contagem;
+        }
+        return new ResumoMovimentacaoEstoqueDTO(
+                entradas + saidas + ajustes, entradas, saidas, ajustes);
+    }
+
+    private List<Predicate> criarPredicados(
+            Root<MovimentacaoEstoque> root,
+            CriteriaBuilder builder,
+            LocalDate inicio,
+            LocalDate fim,
+            Long usuarioId,
+            TipoMovimentacaoEstoque tipo,
+            OrigemMovimentacaoEstoque origem,
+            TipoItemEstoque tipoItem,
+            Long itemId
+    ) {
+        List<Predicate> predicados = new ArrayList<>();
+        LocalDateTime inicioDataHora = inicio != null ? inicio.atStartOfDay() : null;
+        LocalDateTime fimExclusivo = fim != null ? fim.plusDays(1).atStartOfDay() : null;
+        if (inicioDataHora != null) predicados.add(builder.greaterThanOrEqualTo(root.get("ocorridoEm"), inicioDataHora));
+        if (fimExclusivo != null) predicados.add(builder.lessThan(root.get("ocorridoEm"), fimExclusivo));
+        if (usuarioId != null) predicados.add(builder.equal(root.get("usuario").get("id"), usuarioId));
+        if (tipo != null) predicados.add(builder.equal(root.get("tipoMovimentacao"), tipo));
+        if (origem != null) predicados.add(builder.equal(root.get("origem"), origem));
+        if (tipoItem != null) predicados.add(builder.equal(root.get("tipoItem"), tipoItem));
+        if (itemId != null && tipoItem == TipoItemEstoque.PRODUTO) {
+            predicados.add(builder.equal(root.get("produto").get("id"), itemId));
+        }
+        if (itemId != null && tipoItem == TipoItemEstoque.MATERIA_PRIMA) {
+            predicados.add(builder.equal(root.get("materiaPrima").get("id"), itemId));
+        }
+        return predicados;
     }
 
     private MovimentacaoEstoqueResponseDTO toResponse(MovimentacaoEstoque movimento) {

@@ -52,6 +52,9 @@ public class Produto {
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal precoVenda;
 
+    @Column(precision = 12, scale = 2)
+    private BigDecimal custoAtual;
+
     @Column(nullable = false, precision = 12, scale = 3)
     private BigDecimal estoqueAtual;
 

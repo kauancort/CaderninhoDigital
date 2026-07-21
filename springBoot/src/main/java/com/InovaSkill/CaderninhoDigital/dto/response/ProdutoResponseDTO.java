@@ -15,6 +15,7 @@ public class ProdutoResponseDTO {
     private String categoriaNome;
     private String unidadeMedida;
     private BigDecimal precoVenda;
+    private BigDecimal custoAtual;
     private BigDecimal estoqueAtual;
     private Boolean ativo;
     private GabaritoProdutoResponseDTO gabarito;

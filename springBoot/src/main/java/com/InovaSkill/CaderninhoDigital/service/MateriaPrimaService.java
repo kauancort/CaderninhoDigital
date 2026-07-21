@@ -2,6 +2,7 @@ package com.InovaSkill.CaderninhoDigital.service;
 
 import com.InovaSkill.CaderninhoDigital.dto.request.MateriaPrimaRequestDTO;
 import com.InovaSkill.CaderninhoDigital.dto.response.MateriaPrimaResponseDTO;
+import com.InovaSkill.CaderninhoDigital.dto.response.ResumoMateriaPrimaEstoqueDTO;
 import com.InovaSkill.CaderninhoDigital.entity.MateriaPrima;
 import com.InovaSkill.CaderninhoDigital.entity.Usuario;
 import com.InovaSkill.CaderninhoDigital.enums.OrigemMovimentacaoEstoque;
@@ -44,7 +45,8 @@ public class MateriaPrimaService {
                 .gestor(gestor)
                 .build();
         MateriaPrima salva = materiaPrimaRepository.save(materiaPrima);
-        historicoValorService.registrarCusto(salva, gestor, null, "Custo inicial da matéria-prima");
+        historicoValorService.registrarCusto(
+                salva, gestor, null, "Custo inicial da matéria-prima", "CADASTRO_MATERIA_PRIMA");
         movimentacaoEstoqueService.registrarMateriaPrima(
                 salva, gestor, BigDecimal.ZERO, salva.getEstoqueAtual(),
                 TipoMovimentacaoEstoque.ENTRADA, OrigemMovimentacaoEstoque.CADASTRO,
@@ -57,7 +59,8 @@ public class MateriaPrimaService {
         return materiaPrimaRepository.findAllByOrderByNomeAsc().stream().map(this::toResponse).toList();
     }
 
-    public Page<MateriaPrimaResponseDTO> pesquisar(Long usuarioId, String busca, int pagina, int tamanho, Boolean ativo) {
+    public Page<MateriaPrimaResponseDTO> pesquisar(
+            Long usuarioId, String busca, int pagina, int tamanho, Boolean ativo, Boolean emAlerta) {
         usuarioAcessoService.buscarGestor(usuarioId);
         String termo = busca == null ? "" : busca.trim().toLowerCase(Locale.ROOT);
         Specification<MateriaPrima> filtro = (root, query, cb) -> {
@@ -67,10 +70,24 @@ public class MateriaPrimaService {
                 p = cb.and(p, cb.or(cb.like(cb.lower(root.get("nome")), like), cb.like(cb.lower(root.get("descricao")), like)));
             }
             if (ativo != null) p = cb.and(p, cb.equal(root.get("ativo"), ativo));
+            if (Boolean.TRUE.equals(emAlerta)) {
+                p = cb.and(p, cb.lessThanOrEqualTo(root.get("estoqueAtual"), root.get("estoqueMinimo")));
+            }
             return p;
         };
         return materiaPrimaRepository.findAll(filtro, PageRequest.of(Math.max(0, pagina), Math.min(100, Math.max(1, tamanho)), Sort.by("nome")))
                 .map(this::toResponse);
+    }
+
+    @Transactional(readOnly = true)
+    public ResumoMateriaPrimaEstoqueDTO resumirEstoque(Long usuarioId, String busca, Boolean ativo) {
+        usuarioAcessoService.buscarGestor(usuarioId);
+        String termo = busca == null ? "" : busca.trim().toLowerCase(Locale.ROOT);
+        Object[] valores = materiaPrimaRepository.resumirEstoque("%" + termo + "%", ativo);
+        long totalItens = valores[0] == null ? 0 : ((Number) valores[0]).longValue();
+        long itensEmAlerta = valores[1] == null ? 0 : ((Number) valores[1]).longValue();
+        BigDecimal valorEstoque = valores[2] == null ? BigDecimal.ZERO : (BigDecimal) valores[2];
+        return new ResumoMateriaPrimaEstoqueDTO(totalItens, itensEmAlerta, valorEstoque);
     }
 
     public MateriaPrimaResponseDTO buscar(Long usuarioId, Long id) {
@@ -93,7 +110,8 @@ public class MateriaPrimaService {
         materiaPrima.setCustoMedio(dto.getCustoMedio() != null ? dto.getCustoMedio() : materiaPrima.getCustoMedio());
         materiaPrima.setAtivo(dto.getAtivo() != null ? dto.getAtivo() : materiaPrima.getAtivo());
         MateriaPrima salva = materiaPrimaRepository.save(materiaPrima);
-        historicoValorService.registrarCusto(salva, gestor, custoAnterior, "Custo alterado na edição da matéria-prima");
+        historicoValorService.registrarCusto(
+                salva, gestor, custoAnterior, "Custo alterado na edição da matéria-prima", "CADASTRO_MATERIA_PRIMA");
         if (custoAnterior.compareTo(salva.getCustoMedio()) != 0) auditoriaService.registrar(gestor, "MATERIA_PRIMA", salva.getId(), "ALTERACAO_CUSTO", custoAnterior, salva.getCustoMedio(), "Edição da matéria-prima", "CADASTRO_MATERIA_PRIMA");
         if (salva.getEstoqueAtual().compareTo(estoqueAnterior) != 0) {
             auditoriaService.registrar(gestor, "MATERIA_PRIMA", salva.getId(), "AJUSTE_ESTOQUE", estoqueAnterior, salva.getEstoqueAtual(), "Estoque alterado na edição", "AJUSTE_MANUAL");

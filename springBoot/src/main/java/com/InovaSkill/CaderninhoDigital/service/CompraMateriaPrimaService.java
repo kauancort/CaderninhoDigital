@@ -34,6 +34,8 @@ public class CompraMateriaPrimaService {
     private final MateriaPrimaRepository materiaPrimaRepository;
     private final UsuarioAcessoService usuarioAcessoService;
     private final MovimentacaoEstoqueService movimentacaoEstoqueService;
+    private final HistoricoValorService historicoValorService;
+    private final AuditoriaService auditoriaService;
 
     @Transactional
     public CompraMateriaPrimaResponseDTO criar(Long usuarioId, CompraMateriaPrimaRequestDTO dto) {
@@ -54,8 +56,12 @@ public class CompraMateriaPrimaService {
         for (ItemCompraMateriaPrimaRequestDTO itemDto : dto.getItens()) {
             MateriaPrima materiaPrima = buscarMateriaPrimaDoGestor(itemDto.getMateriaPrimaId(), gestor);
             BigDecimal estoqueAnterior = materiaPrima.getEstoqueAtual();
+            BigDecimal custoAnterior = materiaPrima.getCustoMedio();
             BigDecimal valorTotal = itemDto.getValorUnitario().multiply(itemDto.getQuantidade());
             atualizarEstoqueECusto(materiaPrima, itemDto.getQuantidade(), itemDto.getValorUnitario());
+            historicoValorService.registrarCusto(
+                    materiaPrima, gestor, custoAnterior, "Custo médio recalculado pela compra", "COMPRA");
+            if (custoAnterior.compareTo(materiaPrima.getCustoMedio()) != 0) auditoriaService.registrar(gestor, "MATERIA_PRIMA", materiaPrima.getId(), "ALTERACAO_CUSTO", custoAnterior, materiaPrima.getCustoMedio(), "Compra de matéria-prima", "COMPRA");
             movimentacaoEstoqueService.registrarMateriaPrima(
                     materiaPrima, gestor, estoqueAnterior, materiaPrima.getEstoqueAtual(),
                     TipoMovimentacaoEstoque.ENTRADA, OrigemMovimentacaoEstoque.COMPRA,
@@ -72,7 +78,9 @@ public class CompraMateriaPrimaService {
         }
 
         compra.setValorTotal(total);
-        return toResponse(compraRepository.save(compra));
+        CompraMateriaPrima salva = compraRepository.save(compra);
+        auditoriaService.registrar(gestor, "COMPRA", salva.getId(), "CRIACAO", null, salva.getValorTotal(), dto.getObservacao(), "COMPRA");
+        return toResponse(salva);
     }
 
     public List<CompraMateriaPrimaResponseDTO> listar(Long usuarioId) {

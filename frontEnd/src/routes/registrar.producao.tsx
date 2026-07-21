@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useApiFn } from "@/lib/api-function";
 import { ArrowLeft, Check, Cookie, Plus, Trash2 } from "lucide-react";
 import {
@@ -11,7 +11,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { AppShell } from "@/components/AppShell";
-import { listarProdutos, listarMateriaPrima } from "@/lib/catalogo.functions";
+import {
+  obterMateriaPrima,
+  obterProduto,
+  pesquisarMateriasPrimas,
+  pesquisarProdutos,
+} from "@/lib/catalogo.functions";
 import { registrarProducao, proximoLote } from "@/lib/producoes.functions";
 import { consumePrefill, type PrefillProducao } from "@/lib/voz-prefill";
 import { hojeISO } from "@/lib/format";
@@ -31,13 +36,29 @@ function RegistrarProducao() {
   const qc = useQueryClient();
   const fn = useApiFn(registrarProducao);
 
-  const { data: produtos = [] } = useQuery({
-    queryKey: ["produtos"],
-    queryFn: () => listarProdutos(),
+  const [buscaProduto, setBuscaProduto] = useState("");
+  const [buscaMateria, setBuscaMateria] = useState("");
+  const [buscaProdutoDebounced, setBuscaProdutoDebounced] = useState("");
+  const [buscaMateriaDebounced, setBuscaMateriaDebounced] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setBuscaProdutoDebounced(buscaProduto), 300);
+    return () => clearTimeout(t);
+  }, [buscaProduto]);
+  useEffect(() => {
+    const t = setTimeout(() => setBuscaMateriaDebounced(buscaMateria), 300);
+    return () => clearTimeout(t);
+  }, [buscaMateria]);
+  const { data: paginaProdutos, isFetching: buscandoProdutos } = useQuery({
+    queryKey: ["produtos", "pesquisa", buscaProdutoDebounced],
+    queryFn: () =>
+      pesquisarProdutos({ data: { busca: buscaProdutoDebounced, pagina: 0, tamanho: 20 } }),
+    placeholderData: (a) => a,
   });
-  const { data: mps = [] } = useQuery({
-    queryKey: ["materia_prima"],
-    queryFn: () => listarMateriaPrima(),
+  const { data: paginaMps, isFetching: buscandoMps } = useQuery({
+    queryKey: ["materia_prima", "pesquisa", buscaMateriaDebounced],
+    queryFn: () =>
+      pesquisarMateriasPrimas({ data: { busca: buscaMateriaDebounced, pagina: 0, tamanho: 20 } }),
+    placeholderData: (a) => a,
   });
   const { data: lote = 480 } = useQuery({
     queryKey: ["proximo_lote"],
@@ -52,6 +73,33 @@ function RegistrarProducao() {
   const [ingredientes, setIngredientes] = useState<IngForm[]>([]);
   const [erro, setErro] = useState<string | null>(null);
   const [ok, setOk] = useState(false);
+
+  const produtosEncontrados = paginaProdutos?.registros ?? [];
+  const produtoJaCarregado = produtosEncontrados.some((item: any) => item.id === produtoId);
+  const { data: produtoSelecionado } = useQuery({
+    queryKey: ["produto", produtoId],
+    queryFn: () => obterProduto({ data: { id: produtoId } }),
+    enabled: Boolean(produtoId) && !produtoJaCarregado,
+  });
+  const idsMateriasSelecionadas = [
+    ...new Set(ingredientes.map((item) => item.materia_prima_id).filter(Boolean)),
+  ];
+  const materiasEncontradas = paginaMps?.registros ?? [];
+  const idsMateriasAusentes = idsMateriasSelecionadas.filter(
+    (id) => !materiasEncontradas.some((item: any) => item.id === id),
+  );
+  const consultasMateriasSelecionadas = useQueries({
+    queries: idsMateriasAusentes.map((id) => ({
+      queryKey: ["materia_prima", id],
+      queryFn: () => obterMateriaPrima({ data: { id } }),
+      staleTime: 60_000,
+    })),
+  });
+  const produtos = unirPorId(produtoSelecionado ? [produtoSelecionado] : [], produtosEncontrados);
+  const mps = unirPorId(
+    consultasMateriasSelecionadas.flatMap((consulta) => (consulta.data ? [consulta.data] : [])),
+    materiasEncontradas,
+  );
 
   useEffect(() => {
     const pre = consumePrefill<PrefillProducao>("producao");
@@ -127,12 +175,19 @@ function RegistrarProducao() {
         <div className="bg-card border border-border rounded-2xl p-6 space-y-5 shadow-warm-sm">
           <div>
             <label className="text-sm font-semibold text-foreground mb-2 block">Produto *</label>
+            <input
+              className="ds-input mb-2"
+              value={buscaProduto}
+              onChange={(e) => setBuscaProduto(e.target.value)}
+              placeholder="Buscar por nome ou SKU..."
+            />
             <select
               className="ds-input"
               value={produtoId}
               onChange={(e) => setProdutoId(e.target.value)}
             >
               <option value="">Escolha...</option>
+              {buscandoProdutos && <option disabled>Pesquisando...</option>}
               {produtos.map((p: any) => (
                 <option key={p.id} value={p.id}>
                   {p.nome}
@@ -205,6 +260,17 @@ function RegistrarProducao() {
               </div>
             ) : (
               <div className="space-y-2">
+                <input
+                  className="ds-input"
+                  value={buscaMateria}
+                  onChange={(e) => setBuscaMateria(e.target.value)}
+                  placeholder="Buscar matéria-prima..."
+                />
+                {buscandoMps && (
+                  <div className="text-xs text-muted-foreground">
+                    Pesquisando matérias-primas...
+                  </div>
+                )}
                 {ingredientes.map((ing, idx) => (
                   <div key={idx} className="grid grid-cols-[1fr_90px_auto] gap-2">
                     <select
@@ -309,4 +375,8 @@ function RegistrarProducao() {
       </form>
     </div>
   );
+}
+
+function unirPorId<T extends { id: string }>(fixos: T[], resultados: T[]): T[] {
+  return [...fixos, ...resultados.filter((item) => !fixos.some((fixo) => fixo.id === item.id))];
 }

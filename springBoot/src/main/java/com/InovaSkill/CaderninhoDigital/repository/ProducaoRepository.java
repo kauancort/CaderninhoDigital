@@ -10,6 +10,7 @@ import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import com.InovaSkill.CaderninhoDigital.dto.response.ResumoProducaoProdutoDTO;
 
 public interface ProducaoRepository extends JpaRepository<Producao, Long>, JpaSpecificationExecutor<Producao> {
     List<Producao> findByGestorOrderByDataProducaoDesc(Usuario gestor);
@@ -24,4 +25,10 @@ public interface ProducaoRepository extends JpaRepository<Producao, Long>, JpaSp
     @EntityGraph(attributePaths = {"produto", "gestor", "insumos", "insumos.materiaPrima"})
     @Query("SELECT DISTINCT p FROM Producao p WHERE p.id IN :ids")
     List<Producao> buscarDetalhesPorIds(@Param("ids") List<Long> ids);
+
+    @Query("SELECT new com.InovaSkill.CaderninhoDigital.dto.response.ResumoProducaoProdutoDTO(p.produto.id, p.produto.nome, COUNT(p), SUM(p.quantidadeProduzida)) FROM Producao p GROUP BY p.produto.id, p.produto.nome ORDER BY p.produto.nome")
+    List<ResumoProducaoProdutoDTO> resumirPorProduto();
+
+    @Query("SELECT COALESCE(MAX(p.id), 0) FROM Producao p")
+    Long maiorId();
 }

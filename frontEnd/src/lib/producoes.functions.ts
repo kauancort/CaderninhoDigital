@@ -4,7 +4,7 @@ import { z } from "zod";
 function mapProducao(p: any) {
   return {
     id: String(p.id),
-    numero_lote: p.id + 100, // Simulate batch count
+    numero_lote: p.id + 100,
     produto_final_id: String(p.produtoId),
     quantidade_produzida: p.quantidadeProduzida,
     potes: p.quantidadeProduzida,
@@ -37,15 +37,22 @@ export const listarProducoes = createApiFn({ method: "GET" }).handler(async ({ c
 });
 
 export const listarProducoesPaginado = createApiFn({ method: "GET" })
-  .inputValidator((d) => z.object({
-    pagina: z.number().int().min(0).default(0),
-    tamanho: z.number().int().min(1).max(100).default(20),
-    inicio: z.string().date().optional(),
-    fim: z.string().date().optional(),
-    produtoId: z.union([z.string(), z.number()]).optional(),
-  }).parse(d))
+  .inputValidator((d) =>
+    z
+      .object({
+        pagina: z.number().int().min(0).default(0),
+        tamanho: z.number().int().min(1).max(100).default(20),
+        inicio: z.string().date().optional(),
+        fim: z.string().date().optional(),
+        produtoId: z.union([z.string(), z.number()]).optional(),
+      })
+      .parse(d),
+  )
   .handler(async ({ data, context }) => {
-    const params = new URLSearchParams({ pagina: String(data.pagina), tamanho: String(data.tamanho) });
+    const params = new URLSearchParams({
+      pagina: String(data.pagina),
+      tamanho: String(data.tamanho),
+    });
     if (data.inicio) params.set("inicio", data.inicio);
     if (data.fim) params.set("fim", data.fim);
     if (data.produtoId) params.set("produtoId", String(data.produtoId));
@@ -69,12 +76,19 @@ export const obterProducao = createApiFn({ method: "GET" })
   });
 
 export const proximoLote = createApiFn({ method: "GET" }).handler(async ({ context }) => {
-  const res = await fetch(`${BASE_URL}/producoes`, {
+  const res = await fetch(`${BASE_URL}/producoes/proximo-lote`, {
     headers: { "X-Usuario-Id": String(context.userId) },
   });
   if (!res.ok) return 101;
-  const list = await res.json();
-  return 100 + list.length + 1;
+  return await res.json();
+});
+
+export const resumirProducoes = createApiFn({ method: "GET" }).handler(async ({ context }) => {
+  const res = await fetch(`${BASE_URL}/producoes/resumo`, {
+    headers: { "X-Usuario-Id": String(context.userId) },
+  });
+  if (!res.ok) throw new Error("Erro ao resumir produções");
+  return res.json();
 });
 
 export const registrarProducao = createApiFn({ method: "POST" })

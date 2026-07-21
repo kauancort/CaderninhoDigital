@@ -35,6 +35,7 @@ export type FiltrosMovimentacao = {
   fim?: string;
   usuarioId?: string;
   tipo?: TipoMovimentacaoEstoque | "";
+  origem?: string;
   tipoItem?: TipoItemEstoque | "";
   itemId?: string;
   pagina: number;
@@ -51,9 +52,28 @@ export function listarMovimentacoes(filtros: FiltrosMovimentacao) {
   if (filtros.fim) params.set("fim", filtros.fim);
   if (filtros.usuarioId) params.set("usuarioId", filtros.usuarioId);
   if (filtros.tipo) params.set("tipo", filtros.tipo);
+  if (filtros.origem) params.set("origem", filtros.origem);
   if (filtros.tipoItem) params.set("tipoItem", filtros.tipoItem);
   if (filtros.itemId) params.set("itemId", filtros.itemId);
   return apiRequest<PaginaMovimentacoes>(`/estoque/movimentacoes?${params}`);
+}
+
+export type ResumoMovimentacoes = {
+  quantidadeMovimentacoes: number;
+  entradas: number;
+  saidas: number;
+  ajustes: number;
+};
+export function resumirMovimentacoes(filtros: Omit<FiltrosMovimentacao, "pagina" | "ordem">) {
+  const params = new URLSearchParams();
+  if (filtros.inicio) params.set("inicio", filtros.inicio);
+  if (filtros.fim) params.set("fim", filtros.fim);
+  if (filtros.usuarioId) params.set("responsavelId", filtros.usuarioId);
+  if (filtros.tipo) params.set("tipo", filtros.tipo);
+  if (filtros.origem) params.set("origem", filtros.origem);
+  if (filtros.tipoItem) params.set("tipoItem", filtros.tipoItem);
+  if (filtros.itemId) params.set("itemId", filtros.itemId);
+  return apiRequest<ResumoMovimentacoes>(`/estoque/movimentacoes/resumo?${params}`);
 }
 
 export function listarUsuariosMovimentacao() {

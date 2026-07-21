@@ -21,6 +21,8 @@ public class ProdutoRequestDTO {
     @NotNull(message = "O preço de venda é obrigatório")
     @DecimalMin(value = "0.0", inclusive = false, message = "O preço de venda deve ser maior que zero")
     private BigDecimal precoVenda;
+    @DecimalMin(value = "0.0", message = "O custo atual não pode ser negativo")
+    private BigDecimal custoAtual;
     private BigDecimal estoqueAtual;
     private Boolean ativo;
     @Valid

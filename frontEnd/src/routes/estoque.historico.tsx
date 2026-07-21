@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ArrowDownToLine,
   ArrowLeft,
@@ -14,10 +14,11 @@ import {
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { PageHeader } from "@/components/DesignSystem";
-import { listarMateriaPrima, listarProdutos } from "@/lib/catalogo.functions";
+import { pesquisarMateriasPrimas, pesquisarProdutos } from "@/lib/catalogo.functions";
 import {
   listarMovimentacoes,
   listarUsuariosMovimentacao,
+  resumirMovimentacoes,
   type TipoItemEstoque,
   type TipoMovimentacaoEstoque,
 } from "@/lib/estoque.functions";
@@ -35,15 +36,27 @@ type Filtros = {
   fim: string;
   usuarioId: string;
   tipo: TipoMovimentacaoEstoque | "";
+  origem: string;
   item: string;
 };
 
-const filtrosIniciais: Filtros = { inicio: "", fim: "", usuarioId: "", tipo: "", item: "" };
+const filtrosIniciais: Filtros = {
+  inicio: "",
+  fim: "",
+  usuarioId: "",
+  tipo: "",
+  origem: "",
+  item: "",
+};
 
 function HistoricoEstoque() {
   const [filtros, setFiltros] = useState<Filtros>(filtrosIniciais);
   const [pagina, setPagina] = useState(0);
   const [ordem, setOrdem] = useState<"ASC" | "DESC">("DESC");
+  const [buscaItem, setBuscaItem] = useState("");
+  const [buscaDebounced, setBuscaDebounced] = useState("");
+  const [grupoItem, setGrupoItem] = useState<TipoItemEstoque>("PRODUTO");
+  const [itemSelecionado, setItemSelecionado] = useState<any | null>(null);
   const [tipoItem, itemId] = filtros.item.split(":") as [TipoItemEstoque | "", string?];
 
   const parametros = {
@@ -53,37 +66,42 @@ function HistoricoEstoque() {
     pagina,
     ordem,
   };
+  const parametrosResumo = {
+    inicio: filtros.inicio,
+    fim: filtros.fim,
+    usuarioId: filtros.usuarioId,
+    tipo: filtros.tipo,
+    origem: filtros.origem,
+    tipoItem,
+    itemId: itemId ?? "",
+  };
   const { data, isLoading, isFetching, error } = useQuery({
     queryKey: ["movimentacoes_estoque", parametros],
     queryFn: () => listarMovimentacoes(parametros),
     placeholderData: (anterior) => anterior,
+  });
+  const { data: resumo } = useQuery({
+    queryKey: ["movimentacoes_estoque_resumo", parametrosResumo],
+    queryFn: () => resumirMovimentacoes(parametrosResumo),
   });
   const { data: usuarios = [] } = useQuery({
     queryKey: ["movimentacoes_estoque_usuarios"],
     queryFn: listarUsuariosMovimentacao,
     staleTime: 300_000,
   });
-  const { data: produtos = [] } = useQuery({
-    queryKey: ["produtos"],
-    queryFn: () => listarProdutos(),
-    staleTime: 60_000,
+  useEffect(() => {
+    const t = window.setTimeout(() => setBuscaDebounced(buscaItem.trim()), 300);
+    return () => clearTimeout(t);
+  }, [buscaItem]);
+  const { data: paginaItens, isFetching: buscandoItens } = useQuery({
+    queryKey: ["catalogo", "movimentacao", grupoItem, buscaDebounced],
+    queryFn: () =>
+      grupoItem === "PRODUTO"
+        ? pesquisarProdutos({ data: { busca: buscaDebounced, pagina: 0, tamanho: 20 } })
+        : pesquisarMateriasPrimas({ data: { busca: buscaDebounced, pagina: 0, tamanho: 20 } }),
+    enabled: buscaDebounced.length >= 2,
+    placeholderData: (anterior) => anterior,
   });
-  const { data: materias = [] } = useQuery({
-    queryKey: ["materia_prima"],
-    queryFn: () => listarMateriaPrima(),
-    staleTime: 60_000,
-  });
-
-  const itens = useMemo(
-    () => [
-      ...produtos.map((item: any) => ({ value: `PRODUTO:${item.id}`, label: item.nome })),
-      ...materias.map((item: any) => ({
-        value: `MATERIA_PRIMA:${item.id}`,
-        label: item.nome,
-      })),
-    ],
-    [produtos, materias],
-  );
 
   function alterar<K extends keyof Filtros>(campo: K, valor: Filtros[K]) {
     setFiltros((atuais) => ({ ...atuais, [campo]: valor }));
@@ -94,6 +112,8 @@ function HistoricoEstoque() {
     setFiltros(filtrosIniciais);
     setPagina(0);
     setOrdem("DESC");
+    setBuscaItem("");
+    setItemSelecionado(null);
   }
 
   return (
@@ -112,11 +132,22 @@ function HistoricoEstoque() {
         />
       </div>
 
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <ResumoCard
+          label="Movimentações"
+          valor={resumo?.quantidadeMovimentacoes ?? 0}
+          tone="text-primary"
+        />
+        <ResumoCard label="Entradas" valor={resumo?.entradas ?? 0} tone="text-success" />
+        <ResumoCard label="Saídas" valor={resumo?.saidas ?? 0} tone="text-error" />
+        <ResumoCard label="Ajustes" valor={resumo?.ajustes ?? 0} tone="text-gold-dark" />
+      </div>
+
       <section className="rounded-2xl border border-border bg-card p-4 shadow-warm-sm md:p-5">
         <div className="mb-4 flex items-center gap-2 text-sm font-bold text-foreground">
           <SlidersHorizontal size={16} /> Filtros
         </div>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <Campo label="Data inicial">
             <input
               type="date"
@@ -134,18 +165,63 @@ function HistoricoEstoque() {
             />
           </Campo>
           <Campo label="Produto ou insumo">
-            <select
-              className="ds-input"
-              value={filtros.item}
-              onChange={(event) => alterar("item", event.target.value)}
-            >
-              <option value="">Todos</option>
-              {itens.map((item) => (
-                <option key={item.value} value={item.value}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
+            <div className="space-y-2">
+              <div className="flex gap-1">
+                {(["PRODUTO", "MATERIA_PRIMA"] as const).map((g) => (
+                  <button
+                    key={g}
+                    type="button"
+                    onClick={() => {
+                      setGrupoItem(g);
+                      setBuscaItem("");
+                      setItemSelecionado(null);
+                      alterar("item", "");
+                    }}
+                    className={`rounded-full px-2 py-1 text-[10px] font-bold ${grupoItem === g ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground"}`}
+                  >
+                    {g === "PRODUTO" ? "Produtos finais" : "Matérias-primas"}
+                  </button>
+                ))}
+              </div>
+              <input
+                className="ds-input"
+                value={buscaItem}
+                onChange={(e) => setBuscaItem(e.target.value)}
+                placeholder="Nome ou SKU..."
+              />
+              {(buscaDebounced.length >= 2 || itemSelecionado) && (
+                <select
+                  className="ds-input"
+                  value={filtros.item}
+                  onChange={(e) => {
+                    const valor = e.target.value;
+                    alterar("item", valor);
+                    const id = valor.split(":")[1];
+                    setItemSelecionado(
+                      (paginaItens?.registros ?? []).find((item: any) => String(item.id) === id) ??
+                        null,
+                    );
+                  }}
+                >
+                  <option value="">{buscandoItens ? "Pesquisando..." : "Todos"}</option>
+                  {itemSelecionado &&
+                    !(paginaItens?.registros ?? []).some(
+                      (item: any) => String(item.id) === String(itemSelecionado.id),
+                    ) && (
+                      <option value={`${grupoItem}:${itemSelecionado.id}`}>
+                        {itemSelecionado.nome}
+                        {itemSelecionado.sku ? ` · ${itemSelecionado.sku}` : ""}
+                      </option>
+                    )}
+                  {(paginaItens?.registros ?? []).map((item: any) => (
+                    <option key={item.id} value={`${grupoItem}:${item.id}`}>
+                      {item.nome}
+                      {item.sku ? ` · ${item.sku}` : ""}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
           </Campo>
           <Campo label="Usuário">
             <select
@@ -171,6 +247,20 @@ function HistoricoEstoque() {
               <option value="ENTRADA">Entrada</option>
               <option value="SAIDA">Saída</option>
               <option value="AJUSTE">Ajuste</option>
+            </select>
+          </Campo>
+          <Campo label="Origem">
+            <select
+              className="ds-input"
+              value={filtros.origem}
+              onChange={(e) => alterar("origem", e.target.value)}
+            >
+              <option value="">Todas</option>
+              <option value="CADASTRO">Cadastro</option>
+              <option value="COMPRA">Compra</option>
+              <option value="PRODUCAO">Produção</option>
+              <option value="VENDA">Venda</option>
+              <option value="AJUSTE_MANUAL">Ajuste manual</option>
             </select>
           </Campo>
         </div>
@@ -296,6 +386,17 @@ function Campo({ label, children }: { label: string; children: React.ReactNode }
       <span>{label}</span>
       {children}
     </label>
+  );
+}
+
+function ResumoCard({ label, valor, tone }: { label: string; valor: number; tone: string }) {
+  return (
+    <div className="rounded-2xl border border-border bg-card p-4 shadow-warm-sm">
+      <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+        {label}
+      </div>
+      <div className={`mt-1 font-display text-2xl font-bold ${tone}`}>{valor}</div>
+    </div>
   );
 }
 

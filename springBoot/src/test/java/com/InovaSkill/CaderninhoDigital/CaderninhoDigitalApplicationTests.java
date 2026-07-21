@@ -31,7 +31,26 @@ class CaderninhoDigitalApplicationTests {
 
 	@Test
 	void contextLoads() {
-		assertThat(flyway.info().applied()).hasSize(7);
+		assertThat(flyway.info().applied()).hasSize(10);
+	}
+
+	@Test
+	void criaEstruturaDeCustosESnapshots() {
+		assertThat(jdbcTemplate.queryForObject("""
+				SELECT COUNT(*)
+				  FROM information_schema.columns
+				 WHERE table_name = 'produtos' AND column_name = 'custo_atual'
+				""", Integer.class)).isEqualTo(1);
+		assertThat(jdbcTemplate.queryForObject("""
+				SELECT COUNT(*)
+				  FROM information_schema.tables
+				 WHERE table_name = 'historico_custos_produto'
+				""", Integer.class)).isEqualTo(1);
+		assertThat(jdbcTemplate.queryForObject("""
+				SELECT COUNT(*)
+				  FROM information_schema.columns
+				 WHERE table_name = 'itens_venda' AND column_name = 'custo_considerado'
+				""", Integer.class)).isEqualTo(1);
 	}
 
 	@Test

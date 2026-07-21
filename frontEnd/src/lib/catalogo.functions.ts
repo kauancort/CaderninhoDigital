@@ -11,7 +11,11 @@ export const listarProdutos = createApiFn({ method: "GET" }).handler(async ({ co
     id: String(p.id),
     nome: p.nome,
     preco_venda: p.precoVenda,
-    custo_estimado: p.precoVenda * 0.3, // Mock estimated cost as 30% of price
+    custo_atual: p.custoAtual ?? null,
+    sku: p.sku || "",
+    categoria_id: p.categoriaId ? String(p.categoriaId) : "",
+    categoria: p.categoriaNome || "",
+    custo_estimado: p.custoAtual ?? 0,
     imagem: p.descricao || null,
     quantidade_estoque: p.estoqueAtual || 0,
     gabarito: p.gabarito
@@ -32,13 +36,56 @@ export const listarProdutos = createApiFn({ method: "GET" }).handler(async ({ co
 });
 
 export const pesquisarProdutos = createApiFn({ method: "GET" })
-  .inputValidator((d) => z.object({ busca: z.string().default(""), pagina: z.number().int().min(0).default(0), tamanho: z.number().int().min(1).max(100).default(20) }).parse(d))
+  .inputValidator((d) =>
+    z
+      .object({
+        busca: z.string().default(""),
+        pagina: z.number().int().min(0).default(0),
+        tamanho: z.number().int().min(1).max(100).default(20),
+      })
+      .parse(d),
+  )
   .handler(async ({ data, context }) => {
-    const params = new URLSearchParams({ busca: data.busca, pagina: String(data.pagina), tamanho: String(data.tamanho), ativo: "true" });
-    const res = await fetch(`${BASE_URL}/produtos/pagina?${params}`, { headers: { "X-Usuario-Id": String(context.userId) } });
+    const params = new URLSearchParams({
+      busca: data.busca,
+      pagina: String(data.pagina),
+      tamanho: String(data.tamanho),
+      ativo: "true",
+    });
+    const res = await fetch(`${BASE_URL}/produtos/pagina?${params}`, {
+      headers: { "X-Usuario-Id": String(context.userId) },
+    });
     if (!res.ok) throw new Error("Erro ao pesquisar produtos");
     const pagina = await res.json();
-    return { ...pagina, registros: pagina.registros.map((p: any) => ({ id: String(p.id), nome: p.nome, sku: p.sku || "", categoria: p.categoria || "", preco_venda: p.precoVenda, quantidade_estoque: p.estoqueAtual || 0 })) };
+    return {
+      ...pagina,
+      registros: pagina.registros.map((p: any) => ({
+        id: String(p.id),
+        nome: p.nome,
+        sku: p.sku || "",
+        categoria: p.categoria || "",
+        preco_venda: p.precoVenda,
+        quantidade_estoque: p.estoqueAtual || 0,
+      })),
+    };
+  });
+
+export const obterProduto = createApiFn({ method: "GET" })
+  .inputValidator((d) => z.object({ id: z.union([z.string(), z.number()]) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const res = await fetch(`${BASE_URL}/produtos/${data.id}`, {
+      headers: { "X-Usuario-Id": String(context.userId) },
+    });
+    if (!res.ok) throw new Error("Erro ao carregar produto");
+    const produto = await res.json();
+    return {
+      id: String(produto.id),
+      nome: produto.nome,
+      sku: produto.sku || "",
+      preco_venda: produto.precoVenda,
+      custo_atual: produto.custoAtual ?? null,
+      quantidade_estoque: produto.estoqueAtual || 0,
+    };
   });
 
 export const criarProduto = createApiFn({ method: "POST" })
@@ -48,6 +95,9 @@ export const criarProduto = createApiFn({ method: "POST" })
         nome: z.string().min(1).max(120),
         preco_venda: z.number().positive(),
         custo_estimado: z.number().min(0).default(0),
+        custo_atual: z.number().min(0).optional().nullable(),
+        sku: z.string().max(60).optional().nullable(),
+        categoria_id: z.union([z.string(), z.number()]).optional().nullable(),
         imagem: z.enum(["pacoca", "biriba", "fondant"]).nullish(),
       })
       .parse(d),
@@ -64,6 +114,9 @@ export const criarProduto = createApiFn({ method: "POST" })
         descricao: data.imagem || "",
         unidadeMedida: "UN",
         precoVenda: data.preco_venda,
+        custoAtual: data.custo_atual ?? null,
+        sku: data.sku || null,
+        categoriaId: data.categoria_id ? Number(data.categoria_id) : null,
         estoqueAtual: 0,
         ativo: true,
       }),
@@ -90,6 +143,76 @@ export const listarMateriaPrima = createApiFn({ method: "GET" }).handler(async (
     custo_medio: mp.custoMedio || 0,
   }));
 });
+
+export const pesquisarMateriasPrimas = createApiFn({ method: "GET" })
+  .inputValidator((d) =>
+    z
+      .object({
+        busca: z.string().default(""),
+        pagina: z.number().int().min(0).default(0),
+        tamanho: z.number().int().min(1).max(100).default(20),
+        emAlerta: z.boolean().optional(),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const params = new URLSearchParams({
+      busca: data.busca,
+      pagina: String(data.pagina),
+      tamanho: String(data.tamanho),
+      ativo: "true",
+    });
+    if (data.emAlerta) params.set("emAlerta", "true");
+    const res = await fetch(`${BASE_URL}/materias-primas/pagina?${params}`, {
+      headers: { "X-Usuario-Id": String(context.userId) },
+    });
+    if (!res.ok) throw new Error("Erro ao pesquisar matérias-primas");
+    const pagina = await res.json();
+    return {
+      ...pagina,
+      registros: pagina.registros.map((mp: any) => ({
+        id: String(mp.id),
+        nome: mp.nome,
+        unidade: mp.unidadeMedida,
+        estoque_minimo: mp.estoqueMinimo || 0,
+        quantidade_estoque: mp.estoqueAtual || 0,
+        custo_medio: mp.custoMedio || 0,
+      })),
+    };
+  });
+
+export const obterMateriaPrima = createApiFn({ method: "GET" })
+  .inputValidator((d) => z.object({ id: z.union([z.string(), z.number()]) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const res = await fetch(`${BASE_URL}/materias-primas/${data.id}`, {
+      headers: { "X-Usuario-Id": String(context.userId) },
+    });
+    if (!res.ok) throw new Error("Erro ao carregar matéria-prima");
+    const materia = await res.json();
+    return {
+      id: String(materia.id),
+      nome: materia.nome,
+      unidade: materia.unidadeMedida,
+      estoque_minimo: materia.estoqueMinimo || 0,
+      quantidade_estoque: materia.estoqueAtual || 0,
+      custo_medio: materia.custoMedio || 0,
+    };
+  });
+
+export const resumirEstoqueMateriasPrimas = createApiFn({ method: "GET" })
+  .inputValidator((d) => z.object({ busca: z.string().default("") }).parse(d))
+  .handler(async ({ data, context }) => {
+    const params = new URLSearchParams({ busca: data.busca, ativo: "true" });
+    const res = await fetch(`${BASE_URL}/materias-primas/resumo-estoque?${params}`, {
+      headers: { "X-Usuario-Id": String(context.userId) },
+    });
+    if (!res.ok) throw new Error("Erro ao resumir estoque de matérias-primas");
+    return res.json() as Promise<{
+      totalItens: number;
+      itensEmAlerta: number;
+      valorEstoque: number;
+    }>;
+  });
 
 export const criarMateriaPrima = createApiFn({ method: "POST" })
   .inputValidator((d) =>

@@ -1,9 +1,21 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, AlertTriangle, Package, Cookie, Search } from "lucide-react";
+import {
+  ArrowLeft,
+  AlertTriangle,
+  ChevronLeft,
+  ChevronRight,
+  Package,
+  Cookie,
+  Search,
+} from "lucide-react";
 import { AppShell } from "@/components/AppShell";
-import { listarMateriaPrima, listarProdutos } from "@/lib/catalogo.functions";
+import {
+  pesquisarMateriasPrimas,
+  pesquisarProdutos,
+  resumirEstoqueMateriasPrimas,
+} from "@/lib/catalogo.functions";
 import { fmtBRL } from "@/lib/format";
 import { PageHeader } from "@/components/DesignSystem";
 
@@ -17,65 +29,57 @@ export const Route = createFileRoute("/estoque/consultar")({
 
 function Estoque() {
   const [aba, setAba] = useState<"mp" | "pf">("mp");
-  const { data: mps = [] } = useQuery({
-    queryKey: ["materia_prima"],
-    queryFn: () => listarMateriaPrima(),
+  const [busca, setBusca] = useState("");
+  const [buscaDebounced, setBuscaDebounced] = useState("");
+  const [pagina, setPagina] = useState(0);
+  const [soAlerta, setSoAlerta] = useState(false);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setBuscaDebounced(busca.trim());
+      setPagina(0);
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [busca]);
+
+  const { data: paginaMps, isLoading: carregandoMps } = useQuery({
+    queryKey: ["materia_prima", "consulta", buscaDebounced, pagina, soAlerta],
+    queryFn: () =>
+      pesquisarMateriasPrimas({
+        data: { busca: buscaDebounced, pagina, tamanho: 20, emAlerta: soAlerta },
+      }),
+    enabled: aba === "mp",
+    staleTime: 60_000,
+    placeholderData: (anterior) => anterior,
+  });
+  const { data: resumoMps } = useQuery({
+    queryKey: ["materia_prima", "resumo-estoque", buscaDebounced],
+    queryFn: () => resumirEstoqueMateriasPrimas({ data: { busca: buscaDebounced } }),
     enabled: aba === "mp",
     staleTime: 60_000,
   });
-  const { data: produtos = [] } = useQuery({
-    queryKey: ["produtos"],
-    queryFn: () => listarProdutos(),
+  const { data: paginaProdutos, isLoading: carregandoProdutos } = useQuery({
+    queryKey: ["produtos", "consulta", buscaDebounced, pagina],
+    queryFn: () => pesquisarProdutos({ data: { busca: buscaDebounced, pagina, tamanho: 20 } }),
     enabled: aba === "pf",
     staleTime: 60_000,
+    placeholderData: (anterior) => anterior,
   });
-  const [soAlerta, setSoAlerta] = useState(false);
-  const [busca, setBusca] = useState("");
-  const listaRef = useRef<HTMLDivElement>(null);
-  const itemRefs = useRef<Record<string, HTMLDivElement | null>>({});
-  const [destacado, setDestacado] = useState<string | null>(null);
-
-  const itensAlerta = useMemo(
-    () => mps.filter((i: any) => Number(i.quantidade_estoque) <= Number(i.estoque_minimo)),
-    [mps],
-  );
-  const baixos = itensAlerta.length;
+  const mps = paginaMps?.registros ?? [];
+  const produtos = paginaProdutos?.registros ?? [];
+  const baixos = resumoMps?.itensEmAlerta ?? 0;
+  const paginaAtiva = aba === "mp" ? paginaMps : paginaProdutos;
 
   function abrirAlertas() {
     if (baixos === 0) return;
-    setAba("mp");
     setSoAlerta((v) => !v);
-    setTimeout(() => listaRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+    setPagina(0);
   }
 
-  function irParaItem(id: string) {
-    setAba("mp");
-    setDestacado(id);
-    setTimeout(() => {
-      itemRefs.current[id]?.scrollIntoView({ behavior: "smooth", block: "center" });
-    }, 50);
+  function alterarAba(novaAba: "mp" | "pf") {
+    setAba(novaAba);
+    setPagina(0);
   }
-
-  useEffect(() => {
-    if (!destacado) return;
-    const t = setTimeout(() => setDestacado(null), 2000);
-    return () => clearTimeout(t);
-  }, [destacado]);
-
-  const termoBusca = busca.trim().toLocaleLowerCase("pt-BR");
-  const mpsExibidos = useMemo(() => {
-    const base = soAlerta ? itensAlerta : mps;
-    return termoBusca
-      ? base.filter((item: any) => item.nome.toLocaleLowerCase("pt-BR").includes(termoBusca))
-      : base;
-  }, [itensAlerta, mps, soAlerta, termoBusca]);
-  const produtosExibidos = useMemo(
-    () =>
-      termoBusca
-        ? produtos.filter((item: any) => item.nome.toLocaleLowerCase("pt-BR").includes(termoBusca))
-        : produtos,
-    [produtos, termoBusca],
-  );
 
   return (
     <div className="space-y-6 md:space-y-8">
@@ -92,7 +96,7 @@ function Estoque() {
 
       <div className="flex flex-wrap gap-2 bg-card border border-border rounded-2xl md:rounded-full p-1 shadow-warm-sm w-full md:w-fit">
         <button
-          onClick={() => setAba("mp")}
+          onClick={() => alterarAba("mp")}
           className={[
             "flex-1 md:flex-none px-3 md:px-4 py-1.5 rounded-full text-[11px] md:text-xs font-bold uppercase tracking-wider whitespace-nowrap",
             aba === "mp"
@@ -100,10 +104,10 @@ function Estoque() {
               : "text-muted-foreground",
           ].join(" ")}
         >
-          Matéria-prima · {mps.length}
+          Matéria-prima · {resumoMps?.totalItens ?? "—"}
         </button>
         <button
-          onClick={() => setAba("pf")}
+          onClick={() => alterarAba("pf")}
           className={[
             "flex-1 md:flex-none px-3 md:px-4 py-1.5 rounded-full text-[11px] md:text-xs font-bold uppercase tracking-wider whitespace-nowrap",
             aba === "pf"
@@ -111,7 +115,7 @@ function Estoque() {
               : "text-muted-foreground",
           ].join(" ")}
         >
-          Produtos finais · {produtos.length}
+          Produtos finais · {paginaProdutos?.totalRegistros ?? "—"}
         </button>
       </div>
 
@@ -134,8 +138,8 @@ function Estoque() {
             <Sum
               icon={<Package size={18} />}
               tone="primary"
-              label="Itens"
-              value={String(mps.length)}
+              label="Itens encontrados"
+              value={String(resumoMps?.totalItens ?? 0)}
             />
             <Sum
               icon={<AlertTriangle size={18} />}
@@ -149,63 +153,21 @@ function Estoque() {
             <Sum
               icon={<span>💰</span>}
               tone="gold"
-              label="Valor em despensa"
-              value={fmtBRL(
-                mps.reduce(
-                  (s: number, i: any) => s + Number(i.quantidade_estoque) * Number(i.custo_medio),
-                  0,
-                ),
-              )}
+              label="Valor em estoque"
+              value={fmtBRL(Number(resumoMps?.valorEstoque ?? 0))}
             />
           </div>
 
-          {baixos > 0 && (
-            <div className="bg-card border border-border rounded-2xl p-5 shadow-warm-sm">
-              <div className="flex items-center justify-between mb-3">
-                <div className="text-sm font-bold flex items-center gap-2 text-error">
-                  <AlertTriangle size={16} /> Produtos em alerta ({baixos})
-                </div>
-                {soAlerta && (
-                  <button
-                    onClick={() => setSoAlerta(false)}
-                    className="text-xs font-bold uppercase tracking-wider text-muted-foreground hover:text-foreground"
-                  >
-                    Mostrar todos
-                  </button>
-                )}
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {itensAlerta.map((i: any) => {
-                  const critico = Number(i.quantidade_estoque) <= Number(i.estoque_minimo) * 0.5;
-                  return (
-                    <button
-                      key={i.id}
-                      onClick={() => irParaItem(i.id)}
-                      className={`text-xs font-semibold px-3 py-1.5 rounded-full border transition ${critico ? "bg-error-bg text-error border-error/30 hover:bg-error/10" : "bg-warning-bg text-gold-dark border-warning/30 hover:bg-warning/10"}`}
-                    >
-                      {i.nome} · {Number(i.quantidade_estoque)}/{Number(i.estoque_minimo)}{" "}
-                      {i.unidade}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          <div ref={listaRef} className="space-y-3">
-            {mpsExibidos.length === 0 ? (
+          <div className="space-y-3">
+            {carregandoMps ? (
+              <Empty msg="Carregando matérias-primas..." />
+            ) : mps.length === 0 ? (
               <Empty
                 msg={soAlerta ? "Nenhum item em alerta. 🎉" : "Nenhum ingrediente. Use uma compra."}
               />
             ) : (
-              mpsExibidos.map((i: any) => (
-                <div
-                  key={i.id}
-                  ref={(el) => {
-                    itemRefs.current[i.id] = el;
-                  }}
-                  className={`rounded-2xl transition-all ${destacado === i.id ? "ring-2 ring-primary ring-offset-2 ring-offset-background" : ""}`}
-                >
+              mps.map((i: any) => (
+                <div key={i.id}>
                   <RowMP item={i} />
                 </div>
               ))
@@ -217,10 +179,12 @@ function Estoque() {
       {aba === "pf" && (
         <>
           <div className="space-y-3">
-            {produtosExibidos.length === 0 ? (
+            {carregandoProdutos ? (
+              <Empty msg="Carregando produtos..." />
+            ) : produtos.length === 0 ? (
               <Empty msg="Nenhum produto cadastrado." />
             ) : (
-              produtosExibidos.map((p: any) => (
+              produtos.map((p: any) => (
                 <div
                   key={p.id}
                   className="bg-card border border-border rounded-2xl p-5 shadow-warm-sm flex items-center justify-between"
@@ -244,6 +208,30 @@ function Estoque() {
             )}
           </div>
         </>
+      )}
+
+      {paginaAtiva && paginaAtiva.totalPaginas > 1 && (
+        <nav className="flex items-center justify-center gap-3" aria-label="Paginação do estoque">
+          <button
+            type="button"
+            className="ds-button-secondary px-3 py-2"
+            disabled={!paginaAtiva.temAnterior}
+            onClick={() => setPagina((atual) => Math.max(0, atual - 1))}
+          >
+            <ChevronLeft size={16} /> Anterior
+          </button>
+          <span className="text-sm text-muted-foreground">
+            Página {paginaAtiva.paginaAtual + 1} de {paginaAtiva.totalPaginas}
+          </span>
+          <button
+            type="button"
+            className="ds-button-secondary px-3 py-2"
+            disabled={!paginaAtiva.temProxima}
+            onClick={() => setPagina((atual) => atual + 1)}
+          >
+            Próxima <ChevronRight size={16} />
+          </button>
+        </nav>
       )}
     </div>
   );
