@@ -1,8 +1,8 @@
-import { createFileRoute, Link, Outlet, useMatchRoute } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { AppShell } from "@/components/AppShell";
-import { listarProducoes } from "@/lib/producoes.functions";
+import { resumirProducoes } from "@/lib/producoes.functions";
 import { listarProdutos } from "@/lib/catalogo.functions";
 import { ArrowRight, BookOpen, Cookie, History, NotebookPen, Scale } from "lucide-react";
 import { FAMILIAS, detectarFamilia, type FamiliaKey } from "@/lib/produto-familia";
@@ -19,8 +19,9 @@ export const Route = createFileRoute("/producao")({
 });
 
 function ProducaoRoute() {
-  const matchRoute = useMatchRoute();
-  const estaNaVisaoGeral = Boolean(matchRoute({ to: "/producao", fuzzy: false }));
+  const estaNaVisaoGeral = useRouterState({
+    select: (state) => state.location.pathname.replace(/\/$/, "") === "/producao",
+  });
 
   if (!estaNaVisaoGeral) return <Outlet />;
 
@@ -33,9 +34,9 @@ function ProducaoRoute() {
 
 function Producao() {
   const [receitaAberta, setReceitaAberta] = useState<any | null>(null);
-  const { data: lotes = [] } = useQuery({
-    queryKey: ["producoes"],
-    queryFn: () => listarProducoes(),
+  const { data: resumos = [], isError: erroResumos } = useQuery({
+    queryKey: ["producoes", "resumo"],
+    queryFn: () => resumirProducoes(),
   });
   const {
     data: produtos = [],
@@ -53,12 +54,16 @@ function Producao() {
   }
 
   // Agrupa lotes por família de produto
-  const porFamilia = new Map<FamiliaKey, any[]>();
-  for (const lote of lotes as any[]) {
-    const fam = detectarFamilia(lote.produtos_finais?.nome);
+  const porFamilia = new Map<FamiliaKey, any>();
+  for (const lote of resumos as any[]) {
+    const fam = detectarFamilia(lote.produtoNome);
     if (!fam) continue;
-    if (!porFamilia.has(fam)) porFamilia.set(fam, []);
-    porFamilia.get(fam)!.push(lote);
+    const atual = porFamilia.get(fam) ?? { lotes: 0, quantidadeProduzida: 0 };
+    porFamilia.set(fam, {
+      lotes: Number(atual.lotes) + Number(lote.lotes ?? 0),
+      quantidadeProduzida:
+        Number(atual.quantidadeProduzida) + Number(lote.quantidadeProduzida ?? 0),
+    });
   }
 
   return (
@@ -70,12 +75,12 @@ function Producao() {
         </p>
       </header>
 
-      {erroProdutos && (
+      {(erroProdutos || erroResumos) && (
         <div
           role="alert"
           className="rounded-xl border border-error/30 bg-error-bg px-4 py-3 text-sm text-error"
         >
-          Não foi possível carregar as receitas. Tente atualizar a página.
+          Não foi possível carregar os dados de produção. Tente atualizar a página.
         </div>
       )}
 
@@ -83,12 +88,9 @@ function Producao() {
         {FAMILIAS.map((fam) => {
           const produto = produtosPorFamilia.get(fam.key);
           const receita = produto?.gabarito;
-          const lotesFam = porFamilia.get(fam.key) ?? [];
-          const totalPotes = lotesFam.reduce((s, l) => s + Number(l.potes ?? 0), 0);
-          const totalUnidades = lotesFam.reduce(
-            (s, l) => s + Number(l.quantidade_produzida ?? 0),
-            0,
-          );
+          const resumo = porFamilia.get(fam.key);
+          const totalPotes = Number(resumo?.quantidadeProduzida ?? 0);
+          const totalUnidades = totalPotes;
 
           const ingredientes = receita?.ingredientes ?? [];
 
@@ -105,7 +107,7 @@ function Producao() {
                   className="w-full h-full object-cover"
                 />
                 <span className="absolute bottom-3 left-3 bg-gold text-foreground text-xs font-bold px-3 py-1 rounded-full shadow-warm-sm">
-                  {lotesFam.length} {lotesFam.length === 1 ? "lote" : "lotes"}
+                  {Number(resumo?.lotes ?? 0)} {Number(resumo?.lotes) === 1 ? "lote" : "lotes"}
                 </span>
               </div>
               <div className="p-5 flex-1 flex flex-col">

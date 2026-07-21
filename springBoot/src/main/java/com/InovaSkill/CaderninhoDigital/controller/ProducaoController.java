@@ -3,6 +3,7 @@ package com.InovaSkill.CaderninhoDigital.controller;
 import com.InovaSkill.CaderninhoDigital.dto.request.ProducaoRequestDTO;
 import com.InovaSkill.CaderninhoDigital.dto.response.PaginaResponseDTO;
 import com.InovaSkill.CaderninhoDigital.dto.response.ProducaoResponseDTO;
+import com.InovaSkill.CaderninhoDigital.dto.response.ResumoProducaoProdutoDTO;
 import com.InovaSkill.CaderninhoDigital.service.ProducaoService;
 import jakarta.validation.Valid;
 import java.time.LocalDate;
@@ -54,6 +55,18 @@ public class ProducaoController {
     ) {
         return ResponseEntity.ok(PaginaResponseDTO.de(producaoService.listarPaginado(
                 usuarioId, pagina, tamanho, ordenarPor, direcao, inicio, fim, produtoId)));
+    }
+
+    @GetMapping("/resumo")
+    public ResponseEntity<List<ResumoProducaoProdutoDTO>> resumir(
+            @RequestHeader("X-Usuario-Id") Long usuarioId
+    ) {
+        return ResponseEntity.ok(producaoService.resumir(usuarioId));
+    }
+
+    @GetMapping("/proximo-lote")
+    public ResponseEntity<Long> proximoLote(@RequestHeader("X-Usuario-Id") Long usuarioId) {
+        return ResponseEntity.ok(producaoService.proximoLote(usuarioId));
     }
 
     @GetMapping("/{id}")

@@ -45,4 +45,7 @@ public class ItemVenda {
 
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal valorTotal;
+
+    @Column(precision = 12, scale = 2)
+    private BigDecimal custoConsiderado;
 }

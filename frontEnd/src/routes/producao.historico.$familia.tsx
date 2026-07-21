@@ -20,7 +20,11 @@ function HistoricoFamilia() {
   const { user } = useAuth();
   const famKey = familia as FamiliaKey;
   const fam = FAMILIAS.find((f) => f.key === famKey);
-  const { data: lotes = [] } = useQuery({
+  const {
+    data: lotes = [],
+    isLoading,
+    isError,
+  } = useQuery({
     queryKey: ["producoes"],
     queryFn: () => listarProducoes(),
   });
@@ -56,7 +60,18 @@ function HistoricoFamilia() {
         <p className="font-body text-sm md:text-base text-muted-foreground mt-1">{fam.nome}</p>
       </header>
 
-      {lotesFam.length === 0 ? (
+      {isLoading ? (
+        <div className="py-12 text-center text-sm text-muted-foreground">
+          Carregando histórico...
+        </div>
+      ) : isError ? (
+        <div
+          role="alert"
+          className="rounded-xl border border-error/30 bg-error-bg px-4 py-3 text-sm text-error"
+        >
+          Não foi possível carregar o histórico. Tente atualizar a página.
+        </div>
+      ) : lotesFam.length === 0 ? (
         <div className="text-center py-12 px-6 bg-card border border-dashed border-border rounded-2xl">
           <Cookie className="mx-auto text-muted-foreground mb-3" size={36} />
           <h3 className="font-display text-xl text-foreground mb-1">Nenhum lote ainda</h3>

@@ -3,6 +3,7 @@ package com.InovaSkill.CaderninhoDigital.controller;
 import com.InovaSkill.CaderninhoDigital.dto.request.MateriaPrimaRequestDTO;
 import com.InovaSkill.CaderninhoDigital.dto.response.MateriaPrimaResponseDTO;
 import com.InovaSkill.CaderninhoDigital.dto.response.PaginaResponseDTO;
+import com.InovaSkill.CaderninhoDigital.dto.response.ResumoMateriaPrimaEstoqueDTO;
 import com.InovaSkill.CaderninhoDigital.service.MateriaPrimaService;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -41,8 +42,19 @@ public class MateriaPrimaController {
     public ResponseEntity<PaginaResponseDTO<MateriaPrimaResponseDTO>> pesquisar(
             @RequestHeader("X-Usuario-Id") Long usuarioId, @RequestParam(required = false) String busca,
             @RequestParam(defaultValue = "0") int pagina, @RequestParam(defaultValue = "20") int tamanho,
-            @RequestParam(required = false) Boolean ativo) {
-        return ResponseEntity.ok(PaginaResponseDTO.de(materiaPrimaService.pesquisar(usuarioId, busca, pagina, tamanho, ativo)));
+            @RequestParam(required = false) Boolean ativo,
+            @RequestParam(required = false) Boolean emAlerta) {
+        return ResponseEntity.ok(PaginaResponseDTO.de(
+                materiaPrimaService.pesquisar(usuarioId, busca, pagina, tamanho, ativo, emAlerta)));
+    }
+
+    @GetMapping("/resumo-estoque")
+    public ResponseEntity<ResumoMateriaPrimaEstoqueDTO> resumirEstoque(
+            @RequestHeader("X-Usuario-Id") Long usuarioId,
+            @RequestParam(required = false) String busca,
+            @RequestParam(required = false) Boolean ativo
+    ) {
+        return ResponseEntity.ok(materiaPrimaService.resumirEstoque(usuarioId, busca, ativo));
     }
 
     @GetMapping("/{id}")

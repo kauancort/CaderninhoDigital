@@ -52,6 +52,7 @@ public class VendaService {
     private final UsuarioAcessoService usuarioAcessoService;
     private final ObjectMapper objectMapper;
     private final MovimentacaoEstoqueService movimentacaoEstoqueService;
+    private final AuditoriaService auditoriaService;
 
     @Transactional
     public VendaResponseDTO criar(Long usuarioId, VendaRequestDTO dto) {
@@ -92,13 +93,17 @@ public class VendaService {
                     .quantidade(itemDto.getQuantidade())
                     .valorUnitario(valorUnitario)
                     .valorTotal(valorTotal)
+                    .custoConsiderado(produto.getCustoAtual())
                     .build();
             venda.getItens().add(item);
             total = total.add(valorTotal);
         }
 
         venda.setValorTotal(total);
-        return toResponse(vendaRepository.save(venda));
+        Venda salva = vendaRepository.save(venda);
+        // A auditoria registra o fato sensível sem serializar dados pessoais do cliente.
+        auditoriaService.registrar(gestor, "VENDA", salva.getId(), "CRIACAO", null, salva.getValorTotal(), dto.getObservacao(), "VENDA");
+        return toResponse(salva);
     }
 
     private void validarRegrasNegocio(VendaRequestDTO dto, StatusPagamento status) {
@@ -274,6 +279,7 @@ public class VendaService {
                 .quantidade(item.getQuantidade())
                 .valorUnitario(item.getValorUnitario())
                 .valorTotal(item.getValorTotal())
+                .custoConsiderado(item.getCustoConsiderado())
                 .build();
     }
 }

@@ -13,4 +13,5 @@ public class ItemVendaResponseDTO {
     private BigDecimal quantidade;
     private BigDecimal valorUnitario;
     private BigDecimal valorTotal;
+    private BigDecimal custoConsiderado;
 }
