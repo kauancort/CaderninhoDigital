@@ -7,7 +7,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -19,13 +18,13 @@ public class InsightController {
     private final InsightService insightService;
 
     @GetMapping
-    public ResponseEntity<List<InsightResponseDTO>> listar(@RequestHeader("X-Usuario-Id") Long usuarioId) {
+    public ResponseEntity<List<InsightResponseDTO>> listar(@UsuarioIdAutenticado Long usuarioId) {
         List<InsightResponseDTO> response = insightService.listar(usuarioId);
         return ResponseEntity.ok(response);
     }
 
     @PostMapping("/gerar")
-    public ResponseEntity<List<InsightResponseDTO>> gerar(@RequestHeader("X-Usuario-Id") Long usuarioId) {
+    public ResponseEntity<List<InsightResponseDTO>> gerar(@UsuarioIdAutenticado Long usuarioId) {
         List<InsightResponseDTO> response = insightService.gerar(usuarioId);
         return ResponseEntity.ok(response);
     }

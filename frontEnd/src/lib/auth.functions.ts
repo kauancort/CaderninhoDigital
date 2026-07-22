@@ -1,34 +1,54 @@
 import { z } from "zod";
 import { apiRequest } from "./api-client";
-import type { User } from "@/hooks/use-auth";
+import type { UserSession, User } from "./user-session";
 
 const credenciaisSchema = z.object({
   email: z.string().trim().email(),
-  senha: z.string().regex(/^\d{3}$/, "A senha deve conter exatamente 3 dígitos."),
+  senha: z.string().min(1).max(72),
 });
 
-const cadastroSchema = credenciaisSchema.extend({
-  nome: z.string().trim().min(1).max(120),
-  cargoFuncao: z.string().trim().min(1).max(80),
-  perfil: z.enum(["GESTOR", "FUNCIONARIO"]),
+const primeiroAcessoSchema = z.object({
+  email: z.string().trim().email(),
+  senhaAtual: z.string().min(1).max(72),
+  novaSenha: z
+    .string()
+    .min(6, "A nova senha deve ter ao menos 6 caracteres.")
+    .max(72)
+    .regex(/[A-Za-z]/, "A nova senha deve conter uma letra.")
+    .regex(/\d/, "A nova senha deve conter um número."),
 });
 
-export async function login({ data }: { data: unknown }): Promise<User> {
-  return apiRequest<User>(
+export type LoginResult = UserSession | { requiresPasswordChange: true; email: string };
+
+export async function login({ data }: { data: unknown }): Promise<LoginResult> {
+  return apiRequest<LoginResult>(
     "/auth/login",
     { method: "POST", body: JSON.stringify(credenciaisSchema.parse(data)) },
     { public: true },
   );
 }
 
-export async function cadastro({ data }: { data: unknown }): Promise<void> {
-  await apiRequest(
-    "/auth/cadastro",
-    { method: "POST", body: JSON.stringify(cadastroSchema.parse(data)) },
+export async function primeiroAcesso({ data }: { data: unknown }): Promise<UserSession> {
+  return apiRequest<UserSession>(
+    "/auth/primeiro-acesso",
+    { method: "POST", body: JSON.stringify(primeiroAcessoSchema.parse(data)) },
     { public: true },
   );
 }
 
-export async function logout(): Promise<void> {
-  await apiRequest("/auth/logout", { method: "POST" }).catch(() => undefined);
+export async function obterBootstrapStatus(): Promise<{ available: boolean }> {
+  return apiRequest("/auth/bootstrap-status", {}, { public: true });
+}
+
+export async function listarUsuarios(): Promise<User[]> {
+  return apiRequest("/usuarios");
+}
+
+export async function criarUsuario(data: {
+  nome: string;
+  email: string;
+  cargoFuncao: string;
+  perfil: "GESTOR" | "FUNCIONARIO";
+}): Promise<{ usuario: User; senhaTemporaria: string }> {
+  return apiRequest("/usuarios", { method: "POST", body: JSON.stringify(data) });
 }

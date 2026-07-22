@@ -15,7 +15,6 @@ import org.springframework.data.domain.Sort;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -29,14 +28,14 @@ public class MovimentacaoEstoqueController {
 
     @GetMapping("/usuarios")
     public ResponseEntity<List<MovimentacaoUsuarioFiltroResponseDTO>> listarUsuarios(
-            @RequestHeader("X-Usuario-Id") Long usuarioSolicitanteId
+            @UsuarioIdAutenticado Long usuarioSolicitanteId
     ) {
         return ResponseEntity.ok(service.listarUsuarios(usuarioSolicitanteId));
     }
 
     @GetMapping
     public ResponseEntity<Page<MovimentacaoEstoqueResponseDTO>> listar(
-            @RequestHeader("X-Usuario-Id") Long usuarioSolicitanteId,
+            @UsuarioIdAutenticado Long usuarioSolicitanteId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate inicio,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fim,
             @RequestParam(required = false) Long usuarioId,
@@ -54,7 +53,7 @@ public class MovimentacaoEstoqueController {
 
     @GetMapping("/resumo")
     public ResponseEntity<ResumoMovimentacaoEstoqueDTO> resumir(
-            @RequestHeader("X-Usuario-Id") Long usuarioId,
+            @UsuarioIdAutenticado Long usuarioId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate inicio,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fim,
             @RequestParam(required = false) Long responsavelId,

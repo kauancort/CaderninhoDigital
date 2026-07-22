@@ -171,8 +171,11 @@ Os testes usam Testcontainers com PostgreSQL 16 real. Docker deve estar ativo ao
 Autenticação:
 
 ```txt
-POST /api/v1/auth/cadastro
 POST /api/v1/auth/login
+POST /api/v1/auth/primeiro-acesso
+GET  /api/v1/auth/bootstrap-status
+GET  /api/v1/usuarios
+POST /api/v1/usuarios
 ```
 
 Cadastros:
@@ -201,20 +204,16 @@ GET  /api/v1/insights
 POST /api/v1/insights/gerar
 ```
 
-## Autenticação Temporária
+## Autenticação JWT
 
-Nesta versão ainda não há JWT. Após login, o frontend deve usar o `usuarioId` retornado e enviar nas requisições protegidas:
-
-```txt
-X-Usuario-Id: 1
-```
-
-Exemplo:
+O login retorna um JWT Bearer válido por 24 horas. Requisições protegidas usam:
 
 ```bash
 curl http://localhost:8080/api/v1/produtos \
-  -H "X-Usuario-Id: 1"
+  -H "Authorization: Bearer $TOKEN"
 ```
+
+A API é stateless e não utiliza sessão HTTP ou `X-Usuario-Id`. O usuário é obtido exclusivamente do `SecurityContext`. Configure `JWT_SECRET` com pelo menos 32 bytes; alterar o segredo invalida tokens emitidos anteriormente.
 
 ## Fluxo Básico Para Testar
 
@@ -244,6 +243,7 @@ SPRING_DATASOURCE_USERNAME
 SPRING_DATASOURCE_PASSWORD
 SPRING_JPA_HIBERNATE_DDL_AUTO=validate
 SPRING_FLYWAY_ENABLED=true
+JWT_SECRET=um-segredo-persistente-com-pelo-menos-32-bytes
 ```
 
 O `docker-compose.yml` é apenas para desenvolvimento local.

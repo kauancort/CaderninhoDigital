@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController @RequestMapping("/api/v1/categorias-produto") @RequiredArgsConstructor
 public class CategoriaProdutoController {
     private final CategoriaProdutoService service;
-    @GetMapping public List<CategoriaProdutoResponseDTO> listar(@RequestHeader("X-Usuario-Id") Long usuarioId) { return service.listar(usuarioId); }
-    @PostMapping public ResponseEntity<CategoriaProdutoResponseDTO> criar(@RequestHeader("X-Usuario-Id") Long usuarioId, @Valid @RequestBody CategoriaProdutoRequestDTO dto) { return ResponseEntity.status(HttpStatus.CREATED).body(service.criar(usuarioId, dto)); }
-    @PutMapping("/{id}") public CategoriaProdutoResponseDTO atualizar(@RequestHeader("X-Usuario-Id") Long usuarioId, @PathVariable Long id, @Valid @RequestBody CategoriaProdutoRequestDTO dto) { return service.atualizar(usuarioId, id, dto); }
+    @GetMapping public List<CategoriaProdutoResponseDTO> listar(@UsuarioIdAutenticado Long usuarioId) { return service.listar(usuarioId); }
+    @PostMapping public ResponseEntity<CategoriaProdutoResponseDTO> criar(@UsuarioIdAutenticado Long usuarioId, @Valid @RequestBody CategoriaProdutoRequestDTO dto) { return ResponseEntity.status(HttpStatus.CREATED).body(service.criar(usuarioId, dto)); }
+    @PutMapping("/{id}") public CategoriaProdutoResponseDTO atualizar(@UsuarioIdAutenticado Long usuarioId, @PathVariable Long id, @Valid @RequestBody CategoriaProdutoRequestDTO dto) { return service.atualizar(usuarioId, id, dto); }
 }

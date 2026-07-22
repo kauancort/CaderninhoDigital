@@ -1,10 +1,8 @@
 import { createApiFn } from "@/lib/api-function";
 import { API_URL as BASE_URL, apiFetch as fetch } from "@/lib/api-client";
 import { z } from "zod";
-export const listarGastos = createApiFn({ method: "GET" }).handler(async ({ context }) => {
-  const res = await fetch(`${BASE_URL}/lancamentos?tipo=GASTO_GERAL`, {
-    headers: { "X-Usuario-Id": String(context.userId) },
-  });
+export const listarGastos = createApiFn({ method: "GET" }).handler(async () => {
+  const res = await fetch(`${BASE_URL}/lancamentos?tipo=GASTO_GERAL`, {});
   if (!res.ok) throw new Error("Erro ao listar gastos");
   const data = await res.json();
   return data.map((g: any) => {
@@ -41,12 +39,11 @@ export const registrarGasto = createApiFn({ method: "POST" })
       })
       .parse(d),
   )
-  .handler(async ({ data, context }) => {
+  .handler(async ({ data }) => {
     const res = await fetch(`${BASE_URL}/lancamentos`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-Usuario-Id": String(context.userId),
       },
       body: JSON.stringify({
         tipo: "GASTO_GERAL",

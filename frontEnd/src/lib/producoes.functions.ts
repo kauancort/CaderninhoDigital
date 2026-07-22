@@ -27,10 +27,8 @@ function mapProducao(p: any) {
   };
 }
 
-export const listarProducoes = createApiFn({ method: "GET" }).handler(async ({ context }) => {
-  const res = await fetch(`${BASE_URL}/producoes`, {
-    headers: { "X-Usuario-Id": String(context.userId) },
-  });
+export const listarProducoes = createApiFn({ method: "GET" }).handler(async () => {
+  const res = await fetch(`${BASE_URL}/producoes`, {});
   if (!res.ok) throw new Error("Erro ao listar produções");
   const data = await res.json();
   return data.map(mapProducao);
@@ -48,7 +46,7 @@ export const listarProducoesPaginado = createApiFn({ method: "GET" })
       })
       .parse(d),
   )
-  .handler(async ({ data, context }) => {
+  .handler(async ({ data }) => {
     const params = new URLSearchParams({
       pagina: String(data.pagina),
       tamanho: String(data.tamanho),
@@ -56,9 +54,7 @@ export const listarProducoesPaginado = createApiFn({ method: "GET" })
     if (data.inicio) params.set("inicio", data.inicio);
     if (data.fim) params.set("fim", data.fim);
     if (data.produtoId) params.set("produtoId", String(data.produtoId));
-    const res = await fetch(`${BASE_URL}/producoes/pagina?${params}`, {
-      headers: { "X-Usuario-Id": String(context.userId) },
-    });
+    const res = await fetch(`${BASE_URL}/producoes/pagina?${params}`, {});
     if (!res.ok) throw new Error("Erro ao listar produções");
     const pagina = await res.json();
     return { ...pagina, registros: pagina.registros.map(mapProducao) };
@@ -66,27 +62,21 @@ export const listarProducoesPaginado = createApiFn({ method: "GET" })
 
 export const obterProducao = createApiFn({ method: "GET" })
   .inputValidator((d) => z.object({ id: z.union([z.string(), z.number()]) }).parse(d))
-  .handler(async ({ data, context }) => {
-    const res = await fetch(`${BASE_URL}/producoes/${data.id}`, {
-      headers: { "X-Usuario-Id": String(context.userId) },
-    });
+  .handler(async ({ data }) => {
+    const res = await fetch(`${BASE_URL}/producoes/${data.id}`, {});
     if (!res.ok) throw new Error("Erro ao carregar produção");
     const p = await res.json();
     return mapProducao(p);
   });
 
-export const proximoLote = createApiFn({ method: "GET" }).handler(async ({ context }) => {
-  const res = await fetch(`${BASE_URL}/producoes/proximo-lote`, {
-    headers: { "X-Usuario-Id": String(context.userId) },
-  });
+export const proximoLote = createApiFn({ method: "GET" }).handler(async () => {
+  const res = await fetch(`${BASE_URL}/producoes/proximo-lote`, {});
   if (!res.ok) return 101;
   return await res.json();
 });
 
-export const resumirProducoes = createApiFn({ method: "GET" }).handler(async ({ context }) => {
-  const res = await fetch(`${BASE_URL}/producoes/resumo`, {
-    headers: { "X-Usuario-Id": String(context.userId) },
-  });
+export const resumirProducoes = createApiFn({ method: "GET" }).handler(async () => {
+  const res = await fetch(`${BASE_URL}/producoes/resumo`, {});
   if (!res.ok) throw new Error("Erro ao resumir produções");
   return res.json();
 });
@@ -112,7 +102,7 @@ export const registrarProducao = createApiFn({ method: "POST" })
       })
       .parse(d),
   )
-  .handler(async ({ data, context }) => {
+  .handler(async ({ data }) => {
     const payload: any = {
       produtoId: Number(data.produto_final_id),
       dataProducao: data.data_producao,
@@ -131,7 +121,6 @@ export const registrarProducao = createApiFn({ method: "POST" })
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-Usuario-Id": String(context.userId),
       },
       body: JSON.stringify(payload),
     });

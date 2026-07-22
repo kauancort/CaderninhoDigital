@@ -19,7 +19,6 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -32,18 +31,18 @@ public class VendaController {
     private final VendaService vendaService;
 
     @PostMapping
-    public ResponseEntity<VendaResponseDTO> criar(@RequestHeader("X-Usuario-Id") Long usuarioId, @RequestBody @Valid VendaRequestDTO dto) {
+    public ResponseEntity<VendaResponseDTO> criar(@UsuarioIdAutenticado Long usuarioId, @RequestBody @Valid VendaRequestDTO dto) {
         return ResponseEntity.status(HttpStatus.CREATED).body(vendaService.criar(usuarioId, dto));
     }
 
     @GetMapping
-    public ResponseEntity<List<VendaResponseDTO>> listar(@RequestHeader("X-Usuario-Id") Long usuarioId) {
+    public ResponseEntity<List<VendaResponseDTO>> listar(@UsuarioIdAutenticado Long usuarioId) {
         return ResponseEntity.ok(vendaService.listar(usuarioId));
     }
 
     @GetMapping("/pagina")
     public ResponseEntity<PaginaResponseDTO<VendaResponseDTO>> listarPaginado(
-            @RequestHeader("X-Usuario-Id") Long usuarioId,
+            @UsuarioIdAutenticado Long usuarioId,
             @RequestParam(defaultValue = "0") int pagina,
             @RequestParam(defaultValue = "20") int tamanho,
             @RequestParam(defaultValue = "dataVenda") String ordenarPor,
@@ -58,17 +57,17 @@ public class VendaController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<VendaResponseDTO> buscar(@RequestHeader("X-Usuario-Id") Long usuarioId, @PathVariable Long id) {
+    public ResponseEntity<VendaResponseDTO> buscar(@UsuarioIdAutenticado Long usuarioId, @PathVariable Long id) {
         return ResponseEntity.ok(vendaService.buscar(usuarioId, id));
     }
 
     @GetMapping("/{id}/duplicacao")
-    public ResponseEntity<VendaDuplicacaoResponseDTO> prepararDuplicacao(@RequestHeader("X-Usuario-Id") Long usuarioId, @PathVariable Long id) {
+    public ResponseEntity<VendaDuplicacaoResponseDTO> prepararDuplicacao(@UsuarioIdAutenticado Long usuarioId, @PathVariable Long id) {
         return ResponseEntity.ok(vendaService.prepararDuplicacao(usuarioId, id));
     }
 
     @PostMapping("/{id}/contatos")
-    public ResponseEntity<VendaResponseDTO> adicionarContato(@RequestHeader("X-Usuario-Id") Long usuarioId, @PathVariable Long id, @RequestBody @Valid ContatoRequestDTO dto) {
+    public ResponseEntity<VendaResponseDTO> adicionarContato(@UsuarioIdAutenticado Long usuarioId, @PathVariable Long id, @RequestBody @Valid ContatoRequestDTO dto) {
         return ResponseEntity.ok(vendaService.adicionarContato(usuarioId, id, dto));
     }
 }

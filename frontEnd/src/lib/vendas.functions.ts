@@ -30,10 +30,8 @@ function mapVenda(v: any) {
   };
 }
 
-export const listarVendas = createApiFn({ method: "GET" }).handler(async ({ context }) => {
-  const res = await fetch(`${BASE_URL}/vendas`, {
-    headers: { "X-Usuario-Id": String(context.userId) },
-  });
+export const listarVendas = createApiFn({ method: "GET" }).handler(async () => {
+  const res = await fetch(`${BASE_URL}/vendas`, {});
 
   if (!res.ok) throw new Error("Erro ao listar vendas");
 
@@ -43,23 +41,28 @@ export const listarVendas = createApiFn({ method: "GET" }).handler(async ({ cont
 });
 
 export const listarVendasPaginado = createApiFn({ method: "GET" })
-  .inputValidator((d) => z.object({
-    pagina: z.number().int().min(0).default(0),
-    tamanho: z.number().int().min(1).max(100).default(20),
-    inicio: z.string().date().optional(),
-    fim: z.string().date().optional(),
-    status: z.enum(["PAGO", "PENDENTE", "ATRASADO", "NAO_SE_APLICA"]).optional(),
-    clienteId: z.union([z.string(), z.number()]).optional(),
-  }).parse(d))
-  .handler(async ({ data, context }) => {
-    const params = new URLSearchParams({ pagina: String(data.pagina), tamanho: String(data.tamanho) });
+  .inputValidator((d) =>
+    z
+      .object({
+        pagina: z.number().int().min(0).default(0),
+        tamanho: z.number().int().min(1).max(100).default(20),
+        inicio: z.string().date().optional(),
+        fim: z.string().date().optional(),
+        status: z.enum(["PAGO", "PENDENTE", "ATRASADO", "NAO_SE_APLICA"]).optional(),
+        clienteId: z.union([z.string(), z.number()]).optional(),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data }) => {
+    const params = new URLSearchParams({
+      pagina: String(data.pagina),
+      tamanho: String(data.tamanho),
+    });
     if (data.inicio) params.set("inicio", data.inicio);
     if (data.fim) params.set("fim", data.fim);
     if (data.status) params.set("status", data.status);
     if (data.clienteId) params.set("clienteId", String(data.clienteId));
-    const res = await fetch(`${BASE_URL}/vendas/pagina?${params}`, {
-      headers: { "X-Usuario-Id": String(context.userId) },
-    });
+    const res = await fetch(`${BASE_URL}/vendas/pagina?${params}`, {});
     if (!res.ok) throw new Error("Erro ao listar vendas");
     const pagina = await res.json();
     return { ...pagina, registros: pagina.registros.map(mapVenda) };
@@ -67,8 +70,8 @@ export const listarVendasPaginado = createApiFn({ method: "GET" })
 
 export const prepararDuplicacaoVenda = createApiFn({ method: "GET" })
   .inputValidator((d) => z.object({ id: z.union([z.string(), z.number()]) }).parse(d))
-  .handler(async ({ data, context }) => {
-    const res = await fetch(`${BASE_URL}/vendas/${data.id}/duplicacao`, { headers: { "X-Usuario-Id": String(context.userId) } });
+  .handler(async ({ data }) => {
+    const res = await fetch(`${BASE_URL}/vendas/${data.id}/duplicacao`, {});
     if (!res.ok) throw new Error("Erro ao preparar duplicação da venda");
     return res.json();
   });
@@ -98,7 +101,7 @@ export const registrarVenda = createApiFn({ method: "POST" })
       })
       .parse(d),
   )
-  .handler(async ({ data, context }) => {
+  .handler(async ({ data }) => {
     const payload = {
       clienteId: Number(data.cliente_id),
       dataVenda: data.data_venda,
@@ -119,7 +122,6 @@ export const registrarVenda = createApiFn({ method: "POST" })
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-Usuario-Id": String(context.userId),
       },
       body: JSON.stringify(payload),
     });
@@ -149,12 +151,11 @@ export const adicionarContatoVenda = createApiFn({ method: "POST" })
       })
       .parse(d),
   )
-  .handler(async ({ data, context }) => {
+  .handler(async ({ data }) => {
     const res = await fetch(`${BASE_URL}/vendas/${data.venda_id}/contatos`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-Usuario-Id": String(context.userId),
       },
       body: JSON.stringify({
         tipo: data.tipo,

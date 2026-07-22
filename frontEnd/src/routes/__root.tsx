@@ -1,7 +1,14 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Outlet, Link, createRootRouteWithContext, useRouter } from "@tanstack/react-router";
+import {
+  Outlet,
+  Link,
+  createRootRouteWithContext,
+  redirect,
+  useRouter,
+} from "@tanstack/react-router";
 import { AlertTriangle, Home, RefreshCw } from "lucide-react";
 import voCidaImg from "@/assets/vo-cida.png";
+import { getUserSession } from "@/lib/user-session";
 
 function SystemPage({ children }: { children: React.ReactNode }) {
   return (
@@ -78,6 +85,11 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
 }
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
+  beforeLoad: ({ location }) => {
+    const session = getUserSession();
+    if (location.pathname !== "/login" && !session) throw redirect({ to: "/login" });
+    if (location.pathname === "/login" && session) throw redirect({ to: "/" });
+  },
   component: RootComponent,
   notFoundComponent: NotFoundComponent,
   errorComponent: ErrorComponent,

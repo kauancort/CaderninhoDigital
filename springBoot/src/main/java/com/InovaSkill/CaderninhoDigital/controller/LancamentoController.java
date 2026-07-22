@@ -17,7 +17,6 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -31,7 +30,7 @@ public class LancamentoController {
 
     @PostMapping
     public ResponseEntity<LancamentoResponseDTO> criar(
-            @RequestHeader("X-Usuario-Id") Long usuarioId,
+            @UsuarioIdAutenticado Long usuarioId,
             @RequestBody @Valid LancamentoRequestDTO dto
     ) {
         LancamentoResponseDTO response = lancamentoService.criar(usuarioId, dto);
@@ -40,7 +39,7 @@ public class LancamentoController {
 
     @GetMapping
     public ResponseEntity<List<LancamentoResponseDTO>> listar(
-            @RequestHeader("X-Usuario-Id") Long usuarioId,
+            @UsuarioIdAutenticado Long usuarioId,
             @RequestParam(required = false) TipoLancamento tipo,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate inicio,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fim
@@ -51,7 +50,7 @@ public class LancamentoController {
 
     @GetMapping("/{id}")
     public ResponseEntity<LancamentoResponseDTO> buscarPorId(
-            @RequestHeader("X-Usuario-Id") Long usuarioId,
+            @UsuarioIdAutenticado Long usuarioId,
             @PathVariable Long id
     ) {
         LancamentoResponseDTO response = lancamentoService.buscarPorId(usuarioId, id);
@@ -60,7 +59,7 @@ public class LancamentoController {
 
     @PutMapping("/{id}")
     public ResponseEntity<LancamentoResponseDTO> atualizar(
-            @RequestHeader("X-Usuario-Id") Long usuarioId,
+            @UsuarioIdAutenticado Long usuarioId,
             @PathVariable Long id,
             @RequestBody @Valid LancamentoRequestDTO dto
     ) {
@@ -70,7 +69,7 @@ public class LancamentoController {
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deletar(
-            @RequestHeader("X-Usuario-Id") Long usuarioId,
+            @UsuarioIdAutenticado Long usuarioId,
             @PathVariable Long id
     ) {
         lancamentoService.deletar(usuarioId, id);

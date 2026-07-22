@@ -1,19 +1,15 @@
 import { createApiFn } from "@/lib/api-function";
 import { API_URL as BASE_URL, apiFetch as fetch } from "@/lib/api-client";
 
-export const obterDashboard = createApiFn({ method: "GET" }).handler(async ({ context }) => {
+export const obterDashboard = createApiFn({ method: "GET" }).handler(async () => {
   const hoje = new Date();
   const todayStr = hoje.toISOString().split("T")[0];
   const firstDayStr = new Date(hoje.getFullYear(), hoje.getMonth(), 1).toISOString().split("T")[0];
 
   // 1. Fetch dashboard summaries
   const [resumoHojeRes, resumoMesRes] = await Promise.all([
-    fetch(`${BASE_URL}/dashboard/resumo?inicio=${todayStr}&fim=${todayStr}`, {
-      headers: { "X-Usuario-Id": String(context.userId) },
-    }),
-    fetch(`${BASE_URL}/dashboard/resumo?inicio=${firstDayStr}&fim=${todayStr}`, {
-      headers: { "X-Usuario-Id": String(context.userId) },
-    }),
+    fetch(`${BASE_URL}/dashboard/resumo?inicio=${todayStr}&fim=${todayStr}`, {}),
+    fetch(`${BASE_URL}/dashboard/resumo?inicio=${firstDayStr}&fim=${todayStr}`, {}),
   ]);
 
   let totalHoje = 0;
@@ -32,9 +28,7 @@ export const obterDashboard = createApiFn({ method: "GET" }).handler(async ({ co
   }
 
   // 2. Fetch raw materials to check stock levels
-  const mpRes = await fetch(`${BASE_URL}/materias-primas`, {
-    headers: { "X-Usuario-Id": String(context.userId) },
-  });
+  const mpRes = await fetch(`${BASE_URL}/materias-primas`, {});
   let estoqueAlerta = null;
   let qtdBaixos = 0;
 
@@ -59,9 +53,7 @@ export const obterDashboard = createApiFn({ method: "GET" }).handler(async ({ co
   }
 
   // 3. Fetch sales to construct weekly chart and list latest sales
-  const salesRes = await fetch(`${BASE_URL}/vendas`, {
-    headers: { "X-Usuario-Id": String(context.userId) },
-  });
+  const salesRes = await fetch(`${BASE_URL}/vendas`, {});
 
   let ultimasVendas: any[] = [];
   let salesList: any[] = [];
