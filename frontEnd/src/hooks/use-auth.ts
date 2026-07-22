@@ -1,49 +1,40 @@
 import { useEffect, useState } from "react";
+import { clearUserSession, getUserSession, type User } from "@/lib/user-session";
 
-export type User = {
-  usuarioId: number;
-  nome: string;
-  email: string;
-  cargoFuncao: string;
-  perfil: "GESTOR" | "FUNCIONARIO";
-};
-
-export type AuthState = {
-  user: User | null;
-  loading: boolean;
-};
-
-const authListeners = new Set<() => void>();
+export type { User } from "@/lib/user-session";
+export type AuthState = { user: User | null; loading: boolean };
 
 export function notifyAuthChange() {
-  authListeners.forEach((l) => l());
-  window.dispatchEvent(new Event("vovo:auth-change"));
+  window.dispatchEvent(new Event("user-session-changed"));
 }
 
 export function useAuth(): AuthState {
   const [state, setState] = useState<AuthState>({ user: null, loading: true });
 
   useEffect(() => {
+    let expirationTimer: number | undefined;
     function check() {
-      const stored = localStorage.getItem("vovo_user");
-      if (stored) {
-        try {
-          setState({ user: JSON.parse(stored), loading: false });
-          return;
-        } catch {
-          localStorage.removeItem("vovo_user");
-        }
+      if (expirationTimer) window.clearTimeout(expirationTimer);
+      const session = getUserSession();
+      setState({ user: session?.user ?? null, loading: false });
+      if (session) {
+        const remaining = Date.parse(session.expiresAt) - Date.now();
+        expirationTimer = window.setTimeout(
+          () => {
+            clearUserSession();
+            if (window.location.pathname !== "/login") window.location.assign("/login");
+          },
+          Math.min(remaining, 2_147_483_647),
+        );
       }
-      setState({ user: null, loading: false });
     }
     check();
-    authListeners.add(check);
     window.addEventListener("storage", check);
-    window.addEventListener("vovo:auth-change", check);
+    window.addEventListener("user-session-changed", check);
     return () => {
-      authListeners.delete(check);
+      if (expirationTimer) window.clearTimeout(expirationTimer);
       window.removeEventListener("storage", check);
-      window.removeEventListener("vovo:auth-change", check);
+      window.removeEventListener("user-session-changed", check);
     };
   }, []);
 

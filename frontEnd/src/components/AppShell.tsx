@@ -11,13 +11,14 @@ import {
   LogOut,
   MoreHorizontal,
   HandCoins,
+  UserCog,
 } from "lucide-react";
 
 import { useEffect, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { listarMateriaPrima } from "@/lib/catalogo.functions";
-import { logout } from "@/lib/auth.functions";
+import { clearUserSession } from "@/lib/user-session";
 import { AssistenteVoz } from "@/components/AssistenteVoz";
 import { AssistenteChat } from "@/components/AssistenteChat";
 import voCidaImg from "@/assets/vo-cida.png";
@@ -38,7 +39,8 @@ type Item = {
     | "/estoque"
     | "/producao"
     | "/gastos"
-    | "/clientes";
+    | "/clientes"
+    | "/usuarios";
 
   icon: typeof LayoutDashboard;
   label: string;
@@ -49,6 +51,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, loading } = useAuth();
+  const queryClient = useQueryClient();
   const [chatAberto, setChatAberto] = useState(false);
   const [vozAberta, setVozAberta] = useState(false);
   const [maisAberto, setMaisAberto] = useState(false);
@@ -73,6 +76,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     { to: "/vendas", icon: ReceiptText, label: "Vendas" },
     { to: "/a-receber", icon: HandCoins, label: "A receber" },
     { to: "/clientes", icon: Users, label: "Clientes" },
+    { to: "/usuarios", icon: UserCog, label: "Usuários" },
     { to: "/estoque", icon: Package, label: "Estoque", badge: baixos || undefined },
     { to: "/producao", icon: Cookie, label: "Produção" },
     { to: "/gastos", icon: Wallet, label: "Gastos" },
@@ -82,7 +86,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     ["/", "/registrar", "/estoque", "/producao"].includes(i.to),
   );
   const moreItems = items.filter((i) =>
-    ["/vendas", "/a-receber", "/clientes", "/gastos"].includes(i.to),
+    ["/vendas", "/a-receber", "/clientes", "/gastos", "/usuarios"].includes(i.to),
   );
 
   function itemAtivo(to: Item["to"]) {
@@ -92,9 +96,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   const moreActive = moreItems.some((item) => itemAtivo(item.to));
 
-  async function sair() {
-    await logout();
-    localStorage.removeItem("vovo_user");
+  function sair() {
+    queryClient.clear();
+    clearUserSession();
     navigate({ to: "/login" });
   }
 

@@ -66,7 +66,6 @@ As variáveis locais ficam no arquivo `frontEnd/.env`, que não é versionado. O
 
 ```env
 VITE_API_URL="http://localhost:8080/api/v1"
-VITE_ENABLE_TEST_LOGIN="false"
 ```
 
 Em builds de produção, o frontend usa por padrão `https://caderninho-digital-api.onrender.com/api/v1`. A variável `VITE_API_URL` pode sobrescrever esse endereço em qualquer ambiente.
@@ -80,6 +79,7 @@ cd springBoot
 export SPRING_DATASOURCE_URL='jdbc:postgresql://localhost:5432/caderninho_digital'
 export SPRING_DATASOURCE_USERNAME='caderninho_user'
 export SPRING_DATASOURCE_PASSWORD='caderninho_pass'
+export JWT_SECRET='desenvolvimento-local-com-no-minimo-32-bytes'
 ./mvnw spring-boot:run
 ```
 
@@ -116,6 +116,8 @@ As migrations pendentes serão aplicadas automaticamente no banco existente.
 ## Deploy no Render
 
 O arquivo `render.yaml` da raiz cria a API Docker e um PostgreSQL 16 na mesma região. Importe o repositório como Blueprint no Render; as credenciais são injetadas pelo próprio Render e o health check usa `/actuator/health`.
+
+O Blueprint também gera `JWT_SECRET`. Esse valor deve permanecer estável: alterá-lo invalida todas as sessões ativas. Em uma instalação vazia, use a conta inicial `adm@gmail.com` / `123` e defina imediatamente uma senha forte.
 
 Os planos gratuitos são apropriados para homologação. Faça upgrade do banco antes de armazenar dados reais que precisem de persistência e backups.
 

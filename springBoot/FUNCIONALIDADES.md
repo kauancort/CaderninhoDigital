@@ -19,18 +19,17 @@ O backend controla a rotina operacional e financeira de uma pequena produção d
 
 ## Autenticação Atual
 
-Ainda não existe JWT nem Spring Security.
+A API usa Spring Security com JWT Bearer stateless e validade de 24 horas.
 
 Fluxo atual:
 
-1. O usuário faz cadastro.
-2. Todos os gestores acessam a mesma base operacional da empresa; o gestor associado a um registro identifica apenas quem realizou o cadastro.
-2. O usuário faz login com e-mail e senha.
-3. O backend retorna `usuarioId`.
-4. As rotas protegidas recebem o header:
+1. Um gestor cria a conta e entrega a senha temporária.
+2. O usuário define uma senha forte no primeiro acesso.
+3. O backend retorna o token JWT.
+4. As rotas protegidas recebem:
 
 ```txt
-X-Usuario-Id: 1
+Authorization: Bearer <token>
 ```
 
 Nesta versão, apenas usuários com perfil `GESTOR` podem usar as funcionalidades principais.
@@ -464,20 +463,11 @@ Qualquer alteração estrutural futura deve ser feita por nova migration.
 
 ## Situação Atual Da Segurança
 
-Nesta versão:
-
-- não há JWT;
-- não há Spring Security;
-- a senha ainda está em texto puro;
-- o usuário é identificado pelo header `X-Usuario-Id`.
-
-Próximos passos recomendados:
-
-- implementar Spring Security;
-- usar BCrypt para senhas;
-- implementar JWT;
-- remover o header temporário `X-Usuario-Id`;
-- criar permissões reais para funcionários.
+- JWT HS256 com segredo externo e sessão stateless;
+- senhas armazenadas com BCrypt;
+- identidade obtida do `SecurityContext`;
+- apenas gestores acessam as funcionalidades atuais;
+- erros de autenticação e autorização usam, respectivamente, HTTP 401 e 403.
 
 ## Resumo
 

@@ -1,10 +1,8 @@
 import { createApiFn } from "@/lib/api-function";
 import { API_URL as BASE_URL, apiFetch as fetch } from "@/lib/api-client";
 import { z } from "zod";
-export const listarProdutos = createApiFn({ method: "GET" }).handler(async ({ context }) => {
-  const res = await fetch(`${BASE_URL}/produtos`, {
-    headers: { "X-Usuario-Id": String(context.userId) },
-  });
+export const listarProdutos = createApiFn({ method: "GET" }).handler(async () => {
+  const res = await fetch(`${BASE_URL}/produtos`, {});
   if (!res.ok) throw new Error("Erro ao listar produtos");
   const data = await res.json();
   return data.map((p: any) => ({
@@ -45,16 +43,14 @@ export const pesquisarProdutos = createApiFn({ method: "GET" })
       })
       .parse(d),
   )
-  .handler(async ({ data, context }) => {
+  .handler(async ({ data }) => {
     const params = new URLSearchParams({
       busca: data.busca,
       pagina: String(data.pagina),
       tamanho: String(data.tamanho),
       ativo: "true",
     });
-    const res = await fetch(`${BASE_URL}/produtos/pagina?${params}`, {
-      headers: { "X-Usuario-Id": String(context.userId) },
-    });
+    const res = await fetch(`${BASE_URL}/produtos/pagina?${params}`, {});
     if (!res.ok) throw new Error("Erro ao pesquisar produtos");
     const pagina = await res.json();
     return {
@@ -72,10 +68,8 @@ export const pesquisarProdutos = createApiFn({ method: "GET" })
 
 export const obterProduto = createApiFn({ method: "GET" })
   .inputValidator((d) => z.object({ id: z.union([z.string(), z.number()]) }).parse(d))
-  .handler(async ({ data, context }) => {
-    const res = await fetch(`${BASE_URL}/produtos/${data.id}`, {
-      headers: { "X-Usuario-Id": String(context.userId) },
-    });
+  .handler(async ({ data }) => {
+    const res = await fetch(`${BASE_URL}/produtos/${data.id}`, {});
     if (!res.ok) throw new Error("Erro ao carregar produto");
     const produto = await res.json();
     return {
@@ -102,12 +96,11 @@ export const criarProduto = createApiFn({ method: "POST" })
       })
       .parse(d),
   )
-  .handler(async ({ data, context }) => {
+  .handler(async ({ data }) => {
     const res = await fetch(`${BASE_URL}/produtos`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-Usuario-Id": String(context.userId),
       },
       body: JSON.stringify({
         nome: data.nome,
@@ -128,10 +121,8 @@ export const criarProduto = createApiFn({ method: "POST" })
     return { ok: true };
   });
 
-export const listarMateriaPrima = createApiFn({ method: "GET" }).handler(async ({ context }) => {
-  const res = await fetch(`${BASE_URL}/materias-primas`, {
-    headers: { "X-Usuario-Id": String(context.userId) },
-  });
+export const listarMateriaPrima = createApiFn({ method: "GET" }).handler(async () => {
+  const res = await fetch(`${BASE_URL}/materias-primas`, {});
   if (!res.ok) throw new Error("Erro ao listar matérias-primas");
   const data = await res.json();
   return data.map((mp: any) => ({
@@ -155,7 +146,7 @@ export const pesquisarMateriasPrimas = createApiFn({ method: "GET" })
       })
       .parse(d),
   )
-  .handler(async ({ data, context }) => {
+  .handler(async ({ data }) => {
     const params = new URLSearchParams({
       busca: data.busca,
       pagina: String(data.pagina),
@@ -163,9 +154,7 @@ export const pesquisarMateriasPrimas = createApiFn({ method: "GET" })
       ativo: "true",
     });
     if (data.emAlerta) params.set("emAlerta", "true");
-    const res = await fetch(`${BASE_URL}/materias-primas/pagina?${params}`, {
-      headers: { "X-Usuario-Id": String(context.userId) },
-    });
+    const res = await fetch(`${BASE_URL}/materias-primas/pagina?${params}`, {});
     if (!res.ok) throw new Error("Erro ao pesquisar matérias-primas");
     const pagina = await res.json();
     return {
@@ -183,10 +172,8 @@ export const pesquisarMateriasPrimas = createApiFn({ method: "GET" })
 
 export const obterMateriaPrima = createApiFn({ method: "GET" })
   .inputValidator((d) => z.object({ id: z.union([z.string(), z.number()]) }).parse(d))
-  .handler(async ({ data, context }) => {
-    const res = await fetch(`${BASE_URL}/materias-primas/${data.id}`, {
-      headers: { "X-Usuario-Id": String(context.userId) },
-    });
+  .handler(async ({ data }) => {
+    const res = await fetch(`${BASE_URL}/materias-primas/${data.id}`, {});
     if (!res.ok) throw new Error("Erro ao carregar matéria-prima");
     const materia = await res.json();
     return {
@@ -201,11 +188,9 @@ export const obterMateriaPrima = createApiFn({ method: "GET" })
 
 export const resumirEstoqueMateriasPrimas = createApiFn({ method: "GET" })
   .inputValidator((d) => z.object({ busca: z.string().default("") }).parse(d))
-  .handler(async ({ data, context }) => {
+  .handler(async ({ data }) => {
     const params = new URLSearchParams({ busca: data.busca, ativo: "true" });
-    const res = await fetch(`${BASE_URL}/materias-primas/resumo-estoque?${params}`, {
-      headers: { "X-Usuario-Id": String(context.userId) },
-    });
+    const res = await fetch(`${BASE_URL}/materias-primas/resumo-estoque?${params}`, {});
     if (!res.ok) throw new Error("Erro ao resumir estoque de matérias-primas");
     return res.json() as Promise<{
       totalItens: number;
@@ -224,12 +209,11 @@ export const criarMateriaPrima = createApiFn({ method: "POST" })
       })
       .parse(d),
   )
-  .handler(async ({ data, context }) => {
+  .handler(async ({ data }) => {
     const res = await fetch(`${BASE_URL}/materias-primas`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-Usuario-Id": String(context.userId),
       },
       body: JSON.stringify({
         nome: data.nome,
@@ -260,11 +244,9 @@ export const ajustarEstoqueMP = createApiFn({ method: "POST" })
   .inputValidator((d) =>
     z.object({ id: z.union([z.string(), z.number()]), delta: z.number() }).parse(d),
   )
-  .handler(async ({ data, context }) => {
+  .handler(async ({ data }) => {
     // 1. Fetch current materia-prima
-    const getRes = await fetch(`${BASE_URL}/materias-primas/${data.id}`, {
-      headers: { "X-Usuario-Id": String(context.userId) },
-    });
+    const getRes = await fetch(`${BASE_URL}/materias-primas/${data.id}`, {});
     if (!getRes.ok) throw new Error("Erro ao carregar matéria-prima");
     const mp = await getRes.json();
 
@@ -276,7 +258,6 @@ export const ajustarEstoqueMP = createApiFn({ method: "POST" })
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
-        "X-Usuario-Id": String(context.userId),
       },
       body: JSON.stringify({
         nome: mp.nome,

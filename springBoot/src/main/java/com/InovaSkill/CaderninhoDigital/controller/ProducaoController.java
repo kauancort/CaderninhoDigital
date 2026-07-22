@@ -17,7 +17,6 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -30,13 +29,13 @@ public class ProducaoController {
     private final ProducaoService producaoService;
 
     @PostMapping
-    public ResponseEntity<ProducaoResponseDTO> criar(@RequestHeader("X-Usuario-Id") Long usuarioId, @RequestBody @Valid ProducaoRequestDTO dto) {
+    public ResponseEntity<ProducaoResponseDTO> criar(@UsuarioIdAutenticado Long usuarioId, @RequestBody @Valid ProducaoRequestDTO dto) {
         return ResponseEntity.status(HttpStatus.CREATED).body(producaoService.criar(usuarioId, dto));
     }
 
     @GetMapping
     public ResponseEntity<List<ProducaoResponseDTO>> listar(
-            @RequestHeader("X-Usuario-Id") Long usuarioId,
+            @UsuarioIdAutenticado Long usuarioId,
             @RequestParam(required = false) Long produtoId
     ) {
         return ResponseEntity.ok(producaoService.listar(usuarioId, produtoId));
@@ -44,7 +43,7 @@ public class ProducaoController {
 
     @GetMapping("/pagina")
     public ResponseEntity<PaginaResponseDTO<ProducaoResponseDTO>> listarPaginado(
-            @RequestHeader("X-Usuario-Id") Long usuarioId,
+            @UsuarioIdAutenticado Long usuarioId,
             @RequestParam(defaultValue = "0") int pagina,
             @RequestParam(defaultValue = "20") int tamanho,
             @RequestParam(defaultValue = "dataProducao") String ordenarPor,
@@ -59,18 +58,18 @@ public class ProducaoController {
 
     @GetMapping("/resumo")
     public ResponseEntity<List<ResumoProducaoProdutoDTO>> resumir(
-            @RequestHeader("X-Usuario-Id") Long usuarioId
+            @UsuarioIdAutenticado Long usuarioId
     ) {
         return ResponseEntity.ok(producaoService.resumir(usuarioId));
     }
 
     @GetMapping("/proximo-lote")
-    public ResponseEntity<Long> proximoLote(@RequestHeader("X-Usuario-Id") Long usuarioId) {
+    public ResponseEntity<Long> proximoLote(@UsuarioIdAutenticado Long usuarioId) {
         return ResponseEntity.ok(producaoService.proximoLote(usuarioId));
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<ProducaoResponseDTO> buscar(@RequestHeader("X-Usuario-Id") Long usuarioId, @PathVariable Long id) {
+    public ResponseEntity<ProducaoResponseDTO> buscar(@UsuarioIdAutenticado Long usuarioId, @PathVariable Long id) {
         return ResponseEntity.ok(producaoService.buscar(usuarioId, id));
     }
 }

@@ -9,10 +9,8 @@ const clienteSchema = z.object({
   documento: z.string().max(40).optional().default(""),
 });
 
-export const listarClientes = createApiFn({ method: "GET" }).handler(async ({ context }) => {
-  const res = await fetch(`${BASE_URL}/clientes`, {
-    headers: { "X-Usuario-Id": String(context.userId) },
-  });
+export const listarClientes = createApiFn({ method: "GET" }).handler(async () => {
+  const res = await fetch(`${BASE_URL}/clientes`, {});
   if (!res.ok) throw new Error("Erro ao listar clientes");
   const data = await res.json();
   return data.map((c: any) => ({
@@ -26,23 +24,45 @@ export const listarClientes = createApiFn({ method: "GET" }).handler(async ({ co
 });
 
 export const pesquisarClientes = createApiFn({ method: "GET" })
-  .inputValidator((d) => z.object({ busca: z.string().default(""), pagina: z.number().int().min(0).default(0), tamanho: z.number().int().min(1).max(100).default(20) }).parse(d))
-  .handler(async ({ data, context }) => {
-    const params = new URLSearchParams({ busca: data.busca, pagina: String(data.pagina), tamanho: String(data.tamanho), ativo: "true" });
-    const res = await fetch(`${BASE_URL}/clientes/pagina?${params}`, { headers: { "X-Usuario-Id": String(context.userId) } });
+  .inputValidator((d) =>
+    z
+      .object({
+        busca: z.string().default(""),
+        pagina: z.number().int().min(0).default(0),
+        tamanho: z.number().int().min(1).max(100).default(20),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data }) => {
+    const params = new URLSearchParams({
+      busca: data.busca,
+      pagina: String(data.pagina),
+      tamanho: String(data.tamanho),
+      ativo: "true",
+    });
+    const res = await fetch(`${BASE_URL}/clientes/pagina?${params}`, {});
     if (!res.ok) throw new Error("Erro ao pesquisar clientes");
     const pagina = await res.json();
-    return { ...pagina, registros: pagina.registros.map((c: any) => ({ id: String(c.id), nome: c.nome, telefone: c.telefone || "", email: c.email || "", endereco: c.endereco || "", documento: c.documento || "" })) };
+    return {
+      ...pagina,
+      registros: pagina.registros.map((c: any) => ({
+        id: String(c.id),
+        nome: c.nome,
+        telefone: c.telefone || "",
+        email: c.email || "",
+        endereco: c.endereco || "",
+        documento: c.documento || "",
+      })),
+    };
   });
 
 export const criarCliente = createApiFn({ method: "POST" })
   .inputValidator((d) => clienteSchema.parse(d))
-  .handler(async ({ data, context }) => {
+  .handler(async ({ data }) => {
     const res = await fetch(`${BASE_URL}/clientes`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-Usuario-Id": String(context.userId),
       },
       body: JSON.stringify({
         nome: data.nome,
@@ -70,13 +90,12 @@ export const criarCliente = createApiFn({ method: "POST" })
 
 export const atualizarCliente = createApiFn({ method: "POST" })
   .inputValidator((d) => clienteSchema.extend({ id: z.union([z.string(), z.number()]) }).parse(d))
-  .handler(async ({ data, context }) => {
+  .handler(async ({ data }) => {
     const { id, ...rest } = data;
     const res = await fetch(`${BASE_URL}/clientes/${id}`, {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
-        "X-Usuario-Id": String(context.userId),
       },
       body: JSON.stringify({
         nome: rest.nome,
@@ -96,10 +115,9 @@ export const atualizarCliente = createApiFn({ method: "POST" })
 
 export const excluirCliente = createApiFn({ method: "POST" })
   .inputValidator((d) => z.object({ id: z.union([z.string(), z.number()]) }).parse(d))
-  .handler(async ({ data, context }) => {
+  .handler(async ({ data }) => {
     const res = await fetch(`${BASE_URL}/clientes/${data.id}`, {
       method: "DELETE",
-      headers: { "X-Usuario-Id": String(context.userId) },
     });
     if (!res.ok) throw new Error("Erro ao excluir cliente");
     return { ok: true };

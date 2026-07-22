@@ -21,8 +21,7 @@ function AReceber() {
   // Só o que ainda não foi pago
   const pendentes = vendas.filter((v: any) => v.status_pagamento === "PENDENTE");
 
-  const filtradas =
-    filtro === "atrasadas" ? pendentes.filter((v: any) => v.em_atraso) : pendentes;
+  const filtradas = filtro === "atrasadas" ? pendentes.filter((v: any) => v.em_atraso) : pendentes;
 
   // Ordena: atrasadas primeiro, depois por data de vencimento mais próxima
   const ordenadas = [...filtradas].sort((a: any, b: any) => {

@@ -1,92 +1,92 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Cookie, Sparkles, Eye, EyeOff } from "lucide-react";
-import { useApiFn } from "@/lib/api-function";
-import { login, cadastro } from "@/lib/auth.functions";
-import { notifyAuthChange } from "@/hooks/use-auth";
+import { Cookie, Eye, EyeOff, KeyRound } from "lucide-react";
+import { login, obterBootstrapStatus, primeiroAcesso } from "@/lib/auth.functions";
+import { getUserSession, saveUserSession } from "@/lib/user-session";
 import voCidaImg from "@/assets/vo-cida.png";
 
-export const Route = createFileRoute("/login")({
-  component: LoginPage,
-});
+export const Route = createFileRoute("/login")({ component: LoginPage });
 
 function LoginPage() {
-  const permitirPularLogin =
-    import.meta.env.DEV || import.meta.env.VITE_ENABLE_TEST_LOGIN === "true";
   const navigate = useNavigate();
-  const [modo, setModo] = useState<"login" | "cadastro">("login");
-  const [nome, setNome] = useState("");
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
-  const [cargoFuncao, setCargoFuncao] = useState("");
-  const [perfil, setPerfil] = useState<"GESTOR" | "FUNCIONARIO">("GESTOR");
+  const [novaSenha, setNovaSenha] = useState("");
+  const [confirmacao, setConfirmacao] = useState("");
+  const [emailPrimeiroAcesso, setEmailPrimeiroAcesso] = useState<string | null>(null);
+  const [senhaTemporaria, setSenhaTemporaria] = useState("");
+  const [bootstrapDisponivel, setBootstrapDisponivel] = useState(false);
   const [mostrarSenha, setMostrarSenha] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
-  const [sucesso, setSucesso] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const fnLogin = useApiFn(login);
-  const fnCadastro = useApiFn(cadastro);
-
   useEffect(() => {
-    const stored = localStorage.getItem("vovo_user");
-    if (stored) {
-      navigate({ to: "/" });
-    }
+    if (getUserSession()) navigate({ to: "/" });
+    obterBootstrapStatus()
+      .then((status) => setBootstrapDisponivel(status.available))
+      .catch(() => undefined);
   }, [navigate]);
 
-  async function submit(e: React.FormEvent) {
+  async function entrar(e: React.FormEvent) {
     e.preventDefault();
     setErro(null);
-    setSucesso(null);
     setLoading(true);
     try {
-      if (modo === "login") {
-        const res = await fnLogin({ data: { email, senha } });
-        localStorage.setItem("vovo_user", JSON.stringify(res));
-        notifyAuthChange();
-        navigate({ to: "/" });
-      } else {
-        await fnCadastro({
-          data: {
-            nome,
-            email,
-            senha,
-            cargoFuncao,
-            perfil,
-          },
-        });
-        if (perfil === "FUNCIONARIO") {
-          setSucesso("Conta de funcionário criada com sucesso.");
-          setModo("login");
-          return;
-        }
-        const loginRes = await fnLogin({ data: { email, senha } });
-        localStorage.setItem("vovo_user", JSON.stringify(loginRes));
-        notifyAuthChange();
-        navigate({ to: "/" });
+      const result = await login({ data: { email, senha } });
+      if ("requiresPasswordChange" in result && result.requiresPasswordChange) {
+        setEmailPrimeiroAcesso(result.email);
+        setSenhaTemporaria(senha);
+        return;
       }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Erro inesperado";
-      setErro(traduzir(msg));
+      saveUserSession(result);
+      navigate({ to: "/" });
+    } catch (error) {
+      setErro(error instanceof Error ? error.message : "Erro inesperado");
     } finally {
       setLoading(false);
     }
   }
 
-  function pularLogin() {
-    const devUser = {
-      usuarioId: 1,
-      nome: "Vó Cida (Desenvolvimento)",
-      email: "vocida.dev@email.com",
-      cargoFuncao: "Gestora",
-      perfil: "GESTOR" as const,
-    };
-    localStorage.setItem("vovo_user", JSON.stringify(devUser));
-    notifyAuthChange();
-    navigate({ to: "/" });
+  async function concluirPrimeiroAcesso(e: React.FormEvent) {
+    e.preventDefault();
+    setErro(null);
+    if (novaSenha !== confirmacao) return setErro("As senhas não coincidem.");
+    setLoading(true);
+    try {
+      const session = await primeiroAcesso({
+        data: { email: emailPrimeiroAcesso, senhaAtual: senhaTemporaria, novaSenha },
+      });
+      saveUserSession(session);
+      navigate({ to: "/" });
+    } catch (error) {
+      setErro(error instanceof Error ? error.message : "Erro inesperado");
+    } finally {
+      setLoading(false);
+    }
   }
 
+  async function usarContaInicial() {
+    setEmail("adm@gmail.com");
+    setSenha("123");
+    setErro(null);
+    setLoading(true);
+    try {
+      const result = await login({ data: { email: "adm@gmail.com", senha: "123" } });
+      if ("requiresPasswordChange" in result && result.requiresPasswordChange) {
+        setEmailPrimeiroAcesso(result.email);
+        setSenhaTemporaria("123");
+      } else {
+        saveUserSession(result);
+        navigate({ to: "/" });
+      }
+    } catch (error) {
+      setErro(error instanceof Error ? error.message : "Não foi possível usar a conta inicial.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const primeiroAcessoAtivo = emailPrimeiroAcesso !== null;
   return (
     <div className="min-h-screen flex items-center justify-center bg-background px-4 py-10">
       <div className="w-full max-w-md">
@@ -98,179 +98,146 @@ function LoginPage() {
           <div className="text-xs text-muted-foreground">Caderninho Digital</div>
         </div>
 
-        <div className="bg-card border border-border rounded-2xl shadow-warm-md overflow-hidden">
-          <div className="grid grid-cols-2 bg-secondary">
-            {(["login", "cadastro"] as const).map((m) => (
-              <button
-                key={m}
-                onClick={() => {
-                  setModo(m);
-                  setErro(null);
-                  setSucesso(null);
-                }}
-                className={[
-                  "py-3 text-sm font-bold uppercase tracking-wider transition-colors",
-                  modo === m
-                    ? "bg-card text-primary border-b-2 border-primary"
-                    : "text-muted-foreground hover:text-foreground",
-                ].join(" ")}
-              >
-                {m === "login" ? "Entrar" : "Criar conta"}
-              </button>
-            ))}
-          </div>
+        <div className="bg-card border border-border rounded-2xl shadow-warm-md overflow-hidden p-6">
+          <h1 className="font-display text-xl font-bold text-foreground">
+            {primeiroAcessoAtivo ? "Defina sua nova senha" : "Entrar no sistema"}
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {primeiroAcessoAtivo
+              ? "A senha temporária precisa ser substituída antes de continuar."
+              : "Use as credenciais fornecidas pelo administrador."}
+          </p>
 
-          <form onSubmit={submit} className="p-6 space-y-4">
-            {modo === "cadastro" && (
+          <form
+            onSubmit={primeiroAcessoAtivo ? concluirPrimeiroAcesso : entrar}
+            className="mt-6 space-y-4"
+          >
+            {!primeiroAcessoAtivo ? (
               <>
-                <div>
-                  <label className="text-sm font-semibold text-foreground mb-1.5 block">
-                    Nome completo
-                  </label>
+                <Campo label="E-mail">
                   <input
-                    type="text"
-                    autoComplete="name"
+                    type="email"
+                    autoComplete="email"
                     required
-                    maxLength={120}
-                    value={nome}
-                    onChange={(e) => setNome(e.target.value)}
-                    placeholder="Maria Silva"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
                     className="ds-input"
                   />
+                </Campo>
+                <Campo label="Senha">
+                  <SenhaInput
+                    value={senha}
+                    onChange={setSenha}
+                    mostrar={mostrarSenha}
+                    setMostrar={setMostrarSenha}
+                    autoComplete="current-password"
+                  />
+                </Campo>
+              </>
+            ) : (
+              <>
+                <div className="rounded-lg bg-secondary px-3 py-2 text-sm text-foreground">
+                  {emailPrimeiroAcesso}
                 </div>
-
-                <div>
-                  <label className="text-sm font-semibold text-foreground mb-1.5 block">
-                    Cargo ou função
-                  </label>
+                <Campo label="Nova senha">
+                  <SenhaInput
+                    value={novaSenha}
+                    onChange={setNovaSenha}
+                    mostrar={mostrarSenha}
+                    setMostrar={setMostrarSenha}
+                    autoComplete="new-password"
+                  />
+                </Campo>
+                <Campo label="Confirmar nova senha">
                   <input
-                    type="text"
+                    type={mostrarSenha ? "text" : "password"}
                     required
-                    maxLength={80}
-                    value={cargoFuncao}
-                    onChange={(e) => setCargoFuncao(e.target.value)}
-                    placeholder="Ex.: Gestora, confeiteira"
+                    minLength={6}
+                    maxLength={72}
+                    value={confirmacao}
+                    onChange={(e) => setConfirmacao(e.target.value)}
+                    autoComplete="new-password"
                     className="ds-input"
                   />
-                </div>
-
-                <div>
-                  <label className="text-sm font-semibold text-foreground mb-1.5 block">
-                    Perfil de acesso
-                  </label>
-                  <select
-                    required
-                    value={perfil}
-                    onChange={(e) => setPerfil(e.target.value as "GESTOR" | "FUNCIONARIO")}
-                    className="ds-input"
-                  >
-                    <option value="GESTOR">Gestor</option>
-                    <option value="FUNCIONARIO">Funcionário</option>
-                  </select>
-                </div>
+                </Campo>
+                <p className="text-xs text-muted-foreground">
+                  Use de 6 a 72 caracteres, incluindo pelo menos uma letra e um número.
+                </p>
               </>
             )}
-
-            <div>
-              <label className="text-sm font-semibold text-foreground mb-1.5 block">E-mail</label>
-              <input
-                type="email"
-                autoComplete="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="vocida@email.com"
-                className="ds-input"
-              />
-            </div>
-            <div>
-              <label className="text-sm font-semibold text-foreground mb-1.5 block">Senha</label>
-              <div className="relative">
-                <input
-                  type={mostrarSenha ? "text" : "password"}
-                  autoComplete={modo === "login" ? "current-password" : "new-password"}
-                  required
-                  inputMode="numeric"
-                  pattern="[0-9]{3}"
-                  minLength={3}
-                  maxLength={3}
-                  value={senha}
-                  onChange={(e) => setSenha(e.target.value)}
-                  placeholder="••••••••"
-                  className="ds-input pr-10"
-                />
-                <button
-                  type="button"
-                  onClick={() => setMostrarSenha((v) => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                  aria-label={mostrarSenha ? "Ocultar senha" : "Mostrar senha"}
-                  aria-pressed={mostrarSenha}
-                >
-                  {mostrarSenha ? <EyeOff size={18} /> : <Eye size={18} />}
-                </button>
-              </div>
-            </div>
 
             {erro && (
               <div className="bg-error-bg border-l-4 border-error text-error rounded-md px-4 py-3 text-sm font-medium">
                 {erro}
               </div>
             )}
-
-            {sucesso && (
-              <div className="bg-success-bg border-l-4 border-success text-success rounded-md px-4 py-3 text-sm font-medium">
-                {sucesso}
-              </div>
-            )}
-
             <button
               type="submit"
               disabled={loading}
               className="w-full px-6 py-3 rounded-md font-semibold text-sm bg-primary text-primary-foreground hover:bg-primary-dark shadow-warm-sm inline-flex items-center justify-center gap-2 disabled:opacity-60"
             >
-              {loading ? (
-                <>Aguarde...</>
-              ) : modo === "login" ? (
-                <>
-                  <Cookie size={16} /> Entrar
-                </>
-              ) : (
-                <>
-                  <Sparkles size={16} /> Criar minha conta
-                </>
-              )}
+              {primeiroAcessoAtivo ? <KeyRound size={16} /> : <Cookie size={16} />}
+              {loading ? "Aguarde..." : primeiroAcessoAtivo ? "Salvar senha e entrar" : "Entrar"}
             </button>
-
-            {permitirPularLogin && (
-              <>
-                <button
-                  type="button"
-                  onClick={pularLogin}
-                  className="w-full mt-2 px-6 py-2.5 rounded-md font-semibold text-xs border border-dashed border-primary text-primary hover:bg-primary/5 inline-flex items-center justify-center gap-2"
-                >
-                  <Sparkles size={14} /> Pular login
-                </button>
-
-                <p className="-mt-2 text-center text-[11px] text-muted-foreground">
-                  Acesso temporário para testes, sem informar e-mail e senha.
-                </p>
-              </>
-            )}
-
-            <p className="text-xs text-center text-muted-foreground">
-              {modo === "login"
-                ? "Primeira vez? Clique em Criar conta acima."
-                : "Já tem conta? Clique em Entrar acima."}
-            </p>
           </form>
+
+          {bootstrapDisponivel && !primeiroAcessoAtivo && (
+            <button
+              type="button"
+              disabled={loading}
+              onClick={usarContaInicial}
+              className="w-full mt-3 px-6 py-2.5 rounded-md font-semibold text-xs border border-dashed border-primary text-primary hover:bg-primary/5"
+            >
+              Entrar com a primeira conta do sistema
+            </button>
+          )}
         </div>
       </div>
     </div>
   );
 }
 
-function traduzir(msg: string): string {
-  if (/invalid login credentials/i.test(msg)) return "E-mail ou senha incorretos.";
-  if (/user already registered/i.test(msg)) return "Esse e-mail já tem conta. Tente entrar.";
-  return msg;
+function Campo({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="block text-sm font-semibold text-foreground">
+      <span className="mb-1.5 block">{label}</span>
+      {children}
+    </label>
+  );
+}
+
+function SenhaInput({
+  value,
+  onChange,
+  mostrar,
+  setMostrar,
+  autoComplete,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  mostrar: boolean;
+  setMostrar: (value: boolean) => void;
+  autoComplete: string;
+}) {
+  return (
+    <div className="relative">
+      <input
+        type={mostrar ? "text" : "password"}
+        required
+        maxLength={72}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        autoComplete={autoComplete}
+        className="ds-input pr-10"
+      />
+      <button
+        type="button"
+        onClick={() => setMostrar(!mostrar)}
+        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+        aria-label={mostrar ? "Ocultar senha" : "Mostrar senha"}
+      >
+        {mostrar ? <EyeOff size={18} /> : <Eye size={18} />}
+      </button>
+    </div>
+  );
 }

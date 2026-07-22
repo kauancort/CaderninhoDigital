@@ -36,8 +36,11 @@ public class Usuario {
     @Column(nullable = false, unique = true, length = 160)
     private String email;
 
-    @Column(nullable = false, length = 20)
+    @Column(nullable = false, length = 255)
     private String senha;
+
+    @Column(nullable = false)
+    private Boolean trocaSenhaObrigatoria;
 
     @Column(nullable = false, length = 80)
     private String cargoFuncao;
@@ -52,5 +55,8 @@ public class Usuario {
     @PrePersist
     public void prePersist() {
         this.criadoEm = LocalDateTime.now();
+        if (this.trocaSenhaObrigatoria == null) {
+            this.trocaSenhaObrigatoria = true;
+        }
     }
 }

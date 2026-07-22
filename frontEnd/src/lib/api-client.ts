@@ -1,3 +1,5 @@
+import { clearUserSession, getUserSession } from "./user-session";
+
 const LOCAL_API_URL = "http://localhost:8080/api/v1";
 const RENDER_API_URL = "https://caderninho-digital-api.onrender.com/api/v1";
 const configuredApiUrl = import.meta.env.VITE_API_URL;
@@ -8,34 +10,43 @@ export const API_URL = (
   import.meta.env.PROD && isLocalApiUrl ? RENDER_API_URL : configuredApiUrl || DEFAULT_API_URL
 ).replace(/\/$/, "");
 
-type ApiErrorBody = {
-  message?: string;
-  mensagem?: string;
-  error?: string;
-};
+type ApiErrorBody = { message?: string; mensagem?: string; error?: string };
 
-export function getUsuarioId(): number {
-  const raw = localStorage.getItem("vovo_user");
-  if (!raw) throw new Error("Sessão expirada. Entre novamente.");
-
-  try {
-    const id = Number(JSON.parse(raw).usuarioId);
-    if (!Number.isInteger(id) || id <= 0) throw new Error();
-    return id;
-  } catch {
-    localStorage.removeItem("vovo_user");
-    throw new Error("Sessão inválida. Entre novamente.");
+function authHeaders(headers: Headers, publicRequest: boolean) {
+  headers.set("Accept", "application/json");
+  if (!publicRequest) {
+    const session = getUserSession();
+    if (!session) throw new Error("Sessão expirada. Entre novamente.");
+    headers.set("Authorization", `${session.tokenType} ${session.token}`);
   }
 }
 
-export function apiFetch(input: RequestInfo | URL, init: RequestInit = {}): Promise<Response> {
+async function handleAuthError(response: Response) {
+  if (response.status === 401) {
+    clearUserSession();
+    if (window.location.pathname !== "/login") window.location.assign("/login");
+    throw new Error("Sessão expirada. Entre novamente.");
+  }
+  if (response.status === 403) {
+    const body = (await response
+      .clone()
+      .json()
+      .catch(() => null)) as ApiErrorBody | null;
+    throw new Error(body?.message ?? "Você não possui permissão para esta operação.");
+  }
+}
+
+export async function apiFetch(
+  input: RequestInfo | URL,
+  init: RequestInit = {},
+): Promise<Response> {
   const headers = new Headers(init.headers);
-  headers.set("Accept", "application/json");
-  headers.set("X-Usuario-Id", String(getUsuarioId()));
+  authHeaders(headers, false);
   if (init.body && !(init.body instanceof FormData))
     headers.set("Content-Type", "application/json");
-
-  return fetch(input, { ...init, headers, credentials: "include" });
+  const response = await fetch(input, { ...init, headers });
+  await handleAuthError(response);
+  return response;
 }
 
 export async function apiRequest<T>(
@@ -44,33 +55,17 @@ export async function apiRequest<T>(
   options: { public?: boolean } = {},
 ): Promise<T> {
   const headers = new Headers(init.headers);
-  headers.set("Accept", "application/json");
-
-  if (init.body && !(init.body instanceof FormData)) {
+  authHeaders(headers, options.public === true);
+  if (init.body && !(init.body instanceof FormData))
     headers.set("Content-Type", "application/json");
-  }
-
-  // Compatibilidade temporária. O Spring Boot deve validar uma sessão/JWT e nunca
-  // confiar neste identificador como mecanismo de autorização.
-  if (!options.public) headers.set("X-Usuario-Id", String(getUsuarioId()));
 
   let response: Response;
   try {
-    response = await fetch(`${API_URL}${path}`, {
-      ...init,
-      headers,
-      credentials: "include",
-    });
+    response = await fetch(`${API_URL}${path}`, { ...init, headers });
   } catch {
     throw new Error("Não foi possível conectar ao servidor. Verifique se a API está ativa.");
   }
-
-  if (response.status === 401 || response.status === 403) {
-    localStorage.removeItem("vovo_user");
-    window.dispatchEvent(new Event("vovo:auth-change"));
-    throw new Error("Sessão expirada. Entre novamente.");
-  }
-
+  await handleAuthError(response);
   const body = response.status === 204 ? null : await response.json().catch(() => null);
   if (!response.ok) {
     const error = body as ApiErrorBody | null;
@@ -81,6 +76,5 @@ export async function apiRequest<T>(
         `Erro na requisição (${response.status}).`,
     );
   }
-
   return body as T;
 }

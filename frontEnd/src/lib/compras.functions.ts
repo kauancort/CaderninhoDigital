@@ -24,15 +24,13 @@ export const registrarCompra = createApiFn({ method: "POST" })
       })
       .parse(d),
   )
-  .handler(async ({ data, context }) => {
+  .handler(async ({ data }) => {
     let fornecedorId: number | null = null;
 
     if (data.fornecedor && data.fornecedor.trim().length > 0) {
       const fornecedorNome = data.fornecedor.trim();
       // Fetch suppliers to match fornecedor by name
-      const suppliersRes = await fetch(`${BASE_URL}/fornecedores`, {
-        headers: { "X-Usuario-Id": String(context.userId) },
-      });
+      const suppliersRes = await fetch(`${BASE_URL}/fornecedores`, {});
       if (suppliersRes.ok) {
         const suppliers = await suppliersRes.json();
         const matched = suppliers.find(
@@ -46,7 +44,6 @@ export const registrarCompra = createApiFn({ method: "POST" })
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              "X-Usuario-Id": String(context.userId),
             },
             body: JSON.stringify({
               nome: fornecedorNome,
@@ -83,7 +80,6 @@ export const registrarCompra = createApiFn({ method: "POST" })
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-Usuario-Id": String(context.userId),
       },
       body: JSON.stringify(payload),
     });

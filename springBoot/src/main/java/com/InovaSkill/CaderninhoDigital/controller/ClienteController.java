@@ -15,7 +15,6 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -28,35 +27,35 @@ public class ClienteController {
     private final ClienteService clienteService;
 
     @PostMapping
-    public ResponseEntity<ClienteResponseDTO> criar(@RequestHeader("X-Usuario-Id") Long usuarioId, @RequestBody @Valid ClienteRequestDTO dto) {
+    public ResponseEntity<ClienteResponseDTO> criar(@UsuarioIdAutenticado Long usuarioId, @RequestBody @Valid ClienteRequestDTO dto) {
         return ResponseEntity.status(HttpStatus.CREATED).body(clienteService.criar(usuarioId, dto));
     }
 
     @GetMapping
-    public ResponseEntity<List<ClienteResponseDTO>> listar(@RequestHeader("X-Usuario-Id") Long usuarioId) {
+    public ResponseEntity<List<ClienteResponseDTO>> listar(@UsuarioIdAutenticado Long usuarioId) {
         return ResponseEntity.ok(clienteService.listar(usuarioId));
     }
 
     @GetMapping("/pagina")
     public ResponseEntity<PaginaResponseDTO<ClienteResponseDTO>> pesquisar(
-            @RequestHeader("X-Usuario-Id") Long usuarioId, @RequestParam(required = false) String busca,
+            @UsuarioIdAutenticado Long usuarioId, @RequestParam(required = false) String busca,
             @RequestParam(defaultValue = "0") int pagina, @RequestParam(defaultValue = "20") int tamanho,
             @RequestParam(required = false) Boolean ativo) {
         return ResponseEntity.ok(PaginaResponseDTO.de(clienteService.pesquisar(usuarioId, busca, pagina, tamanho, ativo)));
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<ClienteResponseDTO> buscar(@RequestHeader("X-Usuario-Id") Long usuarioId, @PathVariable Long id) {
+    public ResponseEntity<ClienteResponseDTO> buscar(@UsuarioIdAutenticado Long usuarioId, @PathVariable Long id) {
         return ResponseEntity.ok(clienteService.buscar(usuarioId, id));
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<ClienteResponseDTO> atualizar(@RequestHeader("X-Usuario-Id") Long usuarioId, @PathVariable Long id, @RequestBody @Valid ClienteRequestDTO dto) {
+    public ResponseEntity<ClienteResponseDTO> atualizar(@UsuarioIdAutenticado Long usuarioId, @PathVariable Long id, @RequestBody @Valid ClienteRequestDTO dto) {
         return ResponseEntity.ok(clienteService.atualizar(usuarioId, id, dto));
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deletar(@RequestHeader("X-Usuario-Id") Long usuarioId, @PathVariable Long id) {
+    public ResponseEntity<Void> deletar(@UsuarioIdAutenticado Long usuarioId, @PathVariable Long id) {
         clienteService.deletar(usuarioId, id);
         return ResponseEntity.noContent().build();
     }

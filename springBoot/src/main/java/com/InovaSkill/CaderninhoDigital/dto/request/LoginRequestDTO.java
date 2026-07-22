@@ -2,7 +2,7 @@ package com.InovaSkill.CaderninhoDigital.dto.request;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -14,6 +14,7 @@ public class LoginRequestDTO {
     @NotBlank(message = "O e-mail é obrigatório")
     private String email;
 
-    @Pattern(regexp = "\\d{3}", message = "A senha deve conter exatamente 3 dígitos nesta versão")
+    @NotBlank(message = "A senha é obrigatória")
+    @Size(max = 72, message = "A senha deve ter no máximo 72 caracteres")
     private String senha;
 }

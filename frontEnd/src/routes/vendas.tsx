@@ -2,7 +2,11 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useApiFn } from "@/lib/api-function";
 import { AppShell } from "@/components/AppShell";
-import { listarVendasPaginado, adicionarContatoVenda, prepararDuplicacaoVenda } from "@/lib/vendas.functions";
+import {
+  listarVendasPaginado,
+  adicionarContatoVenda,
+  prepararDuplicacaoVenda,
+} from "@/lib/vendas.functions";
 import { setPrefill } from "@/lib/voz-prefill";
 import { fmtBRL, fmtDateTime, type FormaPagamento } from "@/lib/format";
 import { ChevronLeft, ChevronRight, Copy, ReceiptText, X, Phone, Send } from "lucide-react";
@@ -27,8 +31,17 @@ function Vendas() {
   const duplicar = useMutation({
     mutationFn: (id: string) => fnDuplicar({ data: { id } }),
     onSuccess: (dados: any) => {
-      setPrefill("venda", { comprador: dados.clienteNome, cliente_id: String(dados.clienteId), avisos: dados.avisos,
-        itens: dados.itens.map((i: any) => ({ produto_final_id: String(i.produtoId), quantidade: Number(i.quantidade), preco_unitario: Number(i.precoAtual), tipo: "pote" })) });
+      setPrefill("venda", {
+        comprador: dados.clienteNome,
+        cliente_id: String(dados.clienteId),
+        avisos: dados.avisos,
+        itens: dados.itens.map((i: any) => ({
+          produto_final_id: String(i.produtoId),
+          quantidade: Number(i.quantidade),
+          preco_unitario: Number(i.precoAtual),
+          tipo: "pote",
+        })),
+      });
       navigate({ to: "/registrar/venda" });
     },
   });
@@ -60,7 +73,10 @@ function Vendas() {
           {(["todas", "hoje", "semana"] as const).map((f) => (
             <button
               key={f}
-              onClick={() => { setFiltro(f); setPagina(0); }}
+              onClick={() => {
+                setFiltro(f);
+                setPagina(0);
+              }}
               className={[
                 "px-3 md:px-4 py-1.5 rounded-full text-[11px] md:text-xs font-bold uppercase tracking-wider transition",
                 filtro === f
@@ -111,7 +127,11 @@ function Vendas() {
                   <div className="text-xs text-muted-foreground mt-0.5 flex flex-wrap items-center gap-x-1 gap-y-1">
                     {v.comprador && <>{v.comprador} · </>}
                     {fmtDateTime(v.data_venda)}
-                    <PagamentoBadge tipo={v.forma_pagamento} tipoCartao={v.tipo_cartao} parcelas={v.parcelas} />
+                    <PagamentoBadge
+                      tipo={v.forma_pagamento}
+                      tipoCartao={v.tipo_cartao}
+                      parcelas={v.parcelas}
+                    />
                     <StatusPagamentoBadge status={v.status_pagamento} emAtraso={v.em_atraso} />
                   </div>
                   {v.em_atraso && (
@@ -119,8 +139,14 @@ function Vendas() {
                       Toque para ver/registrar contato com o cliente
                     </div>
                   )}
-                  <button type="button" onClick={(e) => { e.stopPropagation(); duplicar.mutate(v.id); }}
-                    className="mt-2 inline-flex items-center gap-1 text-[11px] font-bold text-primary hover:underline">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      duplicar.mutate(v.id);
+                    }}
+                    className="mt-2 inline-flex items-center gap-1 text-[11px] font-bold text-primary hover:underline"
+                  >
                     <Copy size={12} /> Duplicar venda
                   </button>
                 </div>
@@ -135,15 +161,21 @@ function Vendas() {
 
       {(data?.totalPaginas ?? 0) > 1 && (
         <div className="flex items-center justify-center gap-3">
-          <button className="ds-button-secondary px-3 py-2" disabled={!data?.temAnterior}
-            onClick={() => setPagina((p) => Math.max(0, p - 1))}>
+          <button
+            className="ds-button-secondary px-3 py-2"
+            disabled={!data?.temAnterior}
+            onClick={() => setPagina((p) => Math.max(0, p - 1))}
+          >
             <ChevronLeft size={16} /> Anterior
           </button>
           <span className="text-sm text-muted-foreground">
             Página {(data?.paginaAtual ?? 0) + 1} de {data?.totalPaginas}
           </span>
-          <button className="ds-button-secondary px-3 py-2" disabled={!data?.temProxima}
-            onClick={() => setPagina((p) => p + 1)}>
+          <button
+            className="ds-button-secondary px-3 py-2"
+            disabled={!data?.temProxima}
+            onClick={() => setPagina((p) => p + 1)}
+          >
             Próxima <ChevronRight size={16} />
           </button>
         </div>
@@ -221,7 +253,7 @@ function ModalContatos({ venda, onClose }: { venda: any; onClose: () => void }) 
             <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">
               Histórico de contatos
             </h3>
-            {(!venda.contatos || venda.contatos.length === 0) ? (
+            {!venda.contatos || venda.contatos.length === 0 ? (
               <p className="text-sm text-muted-foreground">Nenhum contato registrado ainda.</p>
             ) : (
               <ul className="space-y-2">
@@ -238,9 +270,7 @@ function ModalContatos({ venda, onClose }: { venda: any; onClose: () => void }) 
                           {fmtDateTime(c.data)}
                         </span>
                       </div>
-                      {c.resposta && (
-                        <p className="text-sm text-brown-mid mt-1">{c.resposta}</p>
-                      )}
+                      {c.resposta && <p className="text-sm text-brown-mid mt-1">{c.resposta}</p>}
                     </li>
                   ))}
               </ul>

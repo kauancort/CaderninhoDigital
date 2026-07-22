@@ -1,16 +1,17 @@
 package com.InovaSkill.CaderninhoDigital.dto.response;
 
-import com.InovaSkill.CaderninhoDigital.enums.PerfilUsuario;
-import lombok.Builder;
-import lombok.Getter;
+import java.time.Instant;
 
-@Getter
-@Builder
-public class LoginResponseDTO {
-    private Long usuarioId;
-    private String nome;
-    private String email;
-    private String cargoFuncao;
-    private PerfilUsuario perfil;
-    private String mensagem;
+public record LoginResponseDTO(
+        String token,
+        String tokenType,
+        long expiresIn,
+        Instant expiresAt,
+        UsuarioResponseDTO user,
+        boolean requiresPasswordChange,
+        String email
+) {
+    public static LoginResponseDTO trocaObrigatoria(String email) {
+        return new LoginResponseDTO(null, null, 0, null, null, true, email);
+    }
 }
