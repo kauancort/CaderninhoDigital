@@ -9,10 +9,9 @@ import {
   ChevronLeft,
   ChevronRight,
   ClipboardList,
-  RotateCcw,
-  SlidersHorizontal,
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
+import { FiltrosRecolhiveis } from "@/components/FiltrosRecolhiveis";
 import { PageHeader } from "@/components/DesignSystem";
 import { pesquisarMateriasPrimas, pesquisarProdutos } from "@/lib/catalogo.functions";
 import {
@@ -116,6 +115,9 @@ function HistoricoEstoque() {
     setItemSelecionado(null);
   }
 
+  const filtrosAtivos =
+    Object.values(filtros).some(Boolean) || buscaItem.trim().length > 0 || ordem !== "DESC";
+
   return (
     <div className="space-y-6 md:space-y-8">
       <div className="flex items-center gap-3">
@@ -143,10 +145,7 @@ function HistoricoEstoque() {
         <ResumoCard label="Ajustes" valor={resumo?.ajustes ?? 0} tone="text-gold-dark" />
       </div>
 
-      <section className="rounded-2xl border border-border bg-card p-4 shadow-warm-sm md:p-5">
-        <div className="mb-4 flex items-center gap-2 text-sm font-bold text-foreground">
-          <SlidersHorizontal size={16} /> Filtros
-        </div>
+      <FiltrosRecolhiveis titulo="Filtros do histórico" ativos={filtrosAtivos} onLimpar={limpar}>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <Campo label="Data inicial">
             <input
@@ -264,14 +263,7 @@ function HistoricoEstoque() {
             </select>
           </Campo>
         </div>
-        <button
-          type="button"
-          onClick={limpar}
-          className="mt-4 inline-flex items-center gap-2 text-xs font-bold text-primary hover:underline"
-        >
-          <RotateCcw size={14} /> Limpar filtros
-        </button>
-      </section>
+      </FiltrosRecolhiveis>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-muted-foreground">

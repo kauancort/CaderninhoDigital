@@ -31,7 +31,7 @@ class CaderninhoDigitalApplicationTests {
 
 	@Test
 	void contextLoads() {
-		assertThat(flyway.info().applied()).hasSize(12);
+		assertThat(flyway.info().applied()).hasSize(13);
 		assertThat(jdbcTemplate.queryForObject(
 				"SELECT senha LIKE '$2%' FROM usuarios WHERE email = 'adm@gmail.com'", Boolean.class)).isTrue();
 		assertThat(jdbcTemplate.queryForObject(

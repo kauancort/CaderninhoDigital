@@ -3,9 +3,16 @@ package com.InovaSkill.CaderninhoDigital.controller;
 import com.InovaSkill.CaderninhoDigital.dto.request.ContatoRequestDTO;
 import com.InovaSkill.CaderninhoDigital.dto.request.VendaRequestDTO;
 import com.InovaSkill.CaderninhoDigital.dto.response.PaginaResponseDTO;
+import com.InovaSkill.CaderninhoDigital.dto.response.CobrancaResponseDTO;
+import com.InovaSkill.CaderninhoDigital.dto.response.ResumoCobrancasResponseDTO;
+import com.InovaSkill.CaderninhoDigital.dto.response.ResumoHistoricoVendasResponseDTO;
+import com.InovaSkill.CaderninhoDigital.dto.response.VendaDetalhesResponseDTO;
+import com.InovaSkill.CaderninhoDigital.dto.response.VendaHistoricoItemResponseDTO;
 import com.InovaSkill.CaderninhoDigital.dto.response.VendaResponseDTO;
 import com.InovaSkill.CaderninhoDigital.dto.response.VendaDuplicacaoResponseDTO;
 import com.InovaSkill.CaderninhoDigital.enums.StatusPagamento;
+import com.InovaSkill.CaderninhoDigital.enums.SituacaoCobranca;
+import com.InovaSkill.CaderninhoDigital.enums.FormaPagamento;
 import com.InovaSkill.CaderninhoDigital.service.VendaService;
 import jakarta.validation.Valid;
 import java.time.LocalDate;
@@ -59,6 +66,95 @@ public class VendaController {
     @GetMapping("/{id}")
     public ResponseEntity<VendaResponseDTO> buscar(@UsuarioIdAutenticado Long usuarioId, @PathVariable Long id) {
         return ResponseEntity.ok(vendaService.buscar(usuarioId, id));
+    }
+
+    @GetMapping("/{id}/detalhes")
+    public ResponseEntity<VendaDetalhesResponseDTO> buscarDetalhes(
+            @UsuarioIdAutenticado Long usuarioId,
+            @PathVariable Long id
+    ) {
+        return ResponseEntity.ok(vendaService.buscarDetalhes(usuarioId, id));
+    }
+
+    @GetMapping("/historico")
+    public ResponseEntity<PaginaResponseDTO<VendaHistoricoItemResponseDTO>> listarHistorico(
+            @UsuarioIdAutenticado Long usuarioId,
+            @RequestParam(defaultValue = "0") int pagina,
+            @RequestParam(defaultValue = "20") int tamanho,
+            @RequestParam(defaultValue = "dataVenda") String ordenarPor,
+            @RequestParam(defaultValue = "DESC") Sort.Direction direcao,
+            @RequestParam(required = false) String busca,
+            @RequestParam(required = false) Long clienteId,
+            @RequestParam(required = false) Long produtoId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate inicio,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fim,
+            @RequestParam(required = false) StatusPagamento status,
+            @RequestParam(required = false) FormaPagamento forma,
+            @RequestParam(required = false) Boolean parcelada
+    ) {
+        return ResponseEntity.ok(PaginaResponseDTO.de(vendaService.listarHistorico(
+                usuarioId, pagina, tamanho, ordenarPor, direcao, busca, clienteId, produtoId,
+                inicio, fim, status, forma, parcelada)));
+    }
+
+    @GetMapping("/historico/resumo")
+    public ResponseEntity<ResumoHistoricoVendasResponseDTO> resumirHistorico(
+            @UsuarioIdAutenticado Long usuarioId,
+            @RequestParam(required = false) String busca,
+            @RequestParam(required = false) Long clienteId,
+            @RequestParam(required = false) Long produtoId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate inicio,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fim,
+            @RequestParam(required = false) StatusPagamento status,
+            @RequestParam(required = false) FormaPagamento forma,
+            @RequestParam(required = false) Boolean parcelada
+    ) {
+        return ResponseEntity.ok(vendaService.resumirHistorico(
+                usuarioId, busca, clienteId, produtoId, inicio, fim, status, forma, parcelada));
+    }
+
+    @GetMapping("/cobrancas")
+    public ResponseEntity<PaginaResponseDTO<CobrancaResponseDTO>> listarCobrancas(
+            @UsuarioIdAutenticado Long usuarioId,
+            @RequestParam(defaultValue = "0") int pagina,
+            @RequestParam(defaultValue = "20") int tamanho,
+            @RequestParam(defaultValue = "maiorAtraso") String ordenarPor,
+            @RequestParam(required = false) String busca,
+            @RequestParam(required = false) Long clienteId,
+            @RequestParam(required = false) Long produtoId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate inicio,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fim,
+            @RequestParam(required = false) SituacaoCobranca situacao,
+            @RequestParam(required = false) FormaPagamento forma,
+            @RequestParam(required = false) Boolean parcelada
+    ) {
+        return ResponseEntity.ok(PaginaResponseDTO.de(vendaService.listarCobrancas(
+                usuarioId, pagina, tamanho, ordenarPor, busca, clienteId, produtoId, inicio, fim,
+                situacao, forma, parcelada)));
+    }
+
+    @GetMapping("/cobrancas/resumo")
+    public ResponseEntity<ResumoCobrancasResponseDTO> resumirCobrancas(
+            @UsuarioIdAutenticado Long usuarioId,
+            @RequestParam(required = false) String busca,
+            @RequestParam(required = false) Long clienteId,
+            @RequestParam(required = false) Long produtoId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate inicio,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fim,
+            @RequestParam(required = false) SituacaoCobranca situacao,
+            @RequestParam(required = false) FormaPagamento forma,
+            @RequestParam(required = false) Boolean parcelada
+    ) {
+        return ResponseEntity.ok(vendaService.resumirCobrancas(
+                usuarioId, busca, clienteId, produtoId, inicio, fim, situacao, forma, parcelada));
+    }
+
+    @PostMapping("/{id}/confirmar-pagamento")
+    public ResponseEntity<VendaResponseDTO> confirmarPagamento(
+            @UsuarioIdAutenticado Long usuarioId,
+            @PathVariable Long id
+    ) {
+        return ResponseEntity.ok(vendaService.confirmarPagamento(usuarioId, id));
     }
 
     @GetMapping("/{id}/duplicacao")

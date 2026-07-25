@@ -10,7 +10,6 @@ import {
   Users,
   LogOut,
   MoreHorizontal,
-  HandCoins,
   UserCog,
 } from "lucide-react";
 
@@ -35,7 +34,6 @@ type Item = {
     | "/"
     | "/registrar"
     | "/vendas"
-    | "/a-receber"
     | "/estoque"
     | "/producao"
     | "/gastos"
@@ -45,6 +43,11 @@ type Item = {
   icon: typeof LayoutDashboard;
   label: string;
   badge?: number;
+};
+
+type GrupoMenu = {
+  label: string;
+  items: Item[];
 };
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -70,24 +73,41 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     (i: any) => Number(i.quantidade_estoque) <= Number(i.estoque_minimo),
   ).length;
 
-  const items: Item[] = [
-    { to: "/", icon: LayoutDashboard, label: "Painel" },
-    { to: "/registrar", icon: PlusCircle, label: "Registrar" },
-    { to: "/vendas", icon: ReceiptText, label: "Vendas" },
-    { to: "/a-receber", icon: HandCoins, label: "A receber" },
-    { to: "/clientes", icon: Users, label: "Clientes" },
-    { to: "/usuarios", icon: UserCog, label: "Usuários" },
-    { to: "/estoque", icon: Package, label: "Estoque", badge: baixos || undefined },
-    { to: "/producao", icon: Cookie, label: "Produção" },
-    { to: "/gastos", icon: Wallet, label: "Gastos" },
+  const grupos: GrupoMenu[] = [
+    {
+      label: "Visão geral",
+      items: [{ to: "/", icon: LayoutDashboard, label: "Painel" }],
+    },
+    {
+      label: "Operações",
+      items: [
+        { to: "/registrar", icon: PlusCircle, label: "Registrar" },
+        { to: "/vendas", icon: ReceiptText, label: "Vendas" },
+        { to: "/estoque", icon: Package, label: "Estoque", badge: baixos || undefined },
+        { to: "/producao", icon: Cookie, label: "Produção" },
+        { to: "/gastos", icon: Wallet, label: "Gastos" },
+      ],
+    },
+    {
+      label: "Cadastros e gestão",
+      items: [
+        { to: "/clientes", icon: Users, label: "Clientes" },
+        { to: "/usuarios", icon: UserCog, label: "Usuários" },
+      ],
+    },
   ];
+  const items = grupos.flatMap((grupo) => grupo.items);
 
   const mobileItems = items.filter((i) =>
-    ["/", "/registrar", "/estoque", "/producao"].includes(i.to),
+    ["/", "/registrar", "/vendas", "/estoque"].includes(i.to),
   );
-  const moreItems = items.filter((i) =>
-    ["/vendas", "/a-receber", "/clientes", "/gastos", "/usuarios"].includes(i.to),
-  );
+  const moreGroups = grupos
+    .map((grupo) => ({
+      ...grupo,
+      items: grupo.items.filter((item) => !mobileItems.some((mobile) => mobile.to === item.to)),
+    }))
+    .filter((grupo) => grupo.items.length > 0);
+  const moreItems = moreGroups.flatMap((grupo) => grupo.items);
 
   function itemAtivo(to: Item["to"]) {
     if (to === "/") return location.pathname === "/";
@@ -125,30 +145,48 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
 
         <nav className="flex-1 p-3 overflow-y-auto">
-          {items.map((it) => {
-            const active = itemAtivo(it.to);
-            const Icon = it.icon;
-            return (
-              <Link
-                key={it.to}
-                to={it.to}
-                className={[
-                  "flex items-center gap-3 px-3 py-2.5 rounded-md text-sm mb-1 transition-colors",
-                  active
-                    ? "bg-white text-primary font-semibold border border-border shadow-warm-sm"
-                    : "text-sidebar-foreground hover:bg-white/40 hover:text-foreground",
-                ].join(" ")}
+          {grupos.map((grupo, indice) => (
+            <section
+              key={grupo.label}
+              aria-labelledby={`menu-grupo-${indice}`}
+              className={indice === 0 ? "" : "mt-4 border-t border-sidebar-border/70 pt-4"}
+            >
+              <h2
+                id={`menu-grupo-${indice}`}
+                className="mb-1.5 px-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/80"
               >
-                <Icon size={18} />
-                <span>{it.label}</span>
-                {it.badge ? (
-                  <span className="ml-auto bg-primary text-primary-foreground text-[10px] font-bold px-1.5 py-0.5 rounded-full">
-                    {it.badge}
-                  </span>
-                ) : null}
-              </Link>
-            );
-          })}
+                {grupo.label}
+              </h2>
+              {grupo.items.map((it) => {
+                const active = itemAtivo(it.to);
+                const Icon = it.icon;
+                return (
+                  <Link
+                    key={it.to}
+                    to={it.to}
+                    aria-current={active ? "page" : undefined}
+                    className={[
+                      "mb-1 flex min-h-11 items-center gap-3 rounded-md border px-3 py-2.5 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+                      active
+                        ? "border-primary/20 bg-white font-semibold text-primary shadow-warm-sm"
+                        : "border-transparent text-sidebar-foreground hover:bg-white/40 hover:text-foreground",
+                    ].join(" ")}
+                  >
+                    <Icon size={18} aria-hidden="true" />
+                    <span>{it.label}</span>
+                    {it.badge ? (
+                      <span
+                        className="ml-auto rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-bold text-primary-foreground"
+                        aria-label={`${it.badge} itens com estoque baixo`}
+                      >
+                        {it.badge}
+                      </span>
+                    ) : null}
+                  </Link>
+                );
+              })}
+            </section>
+          ))}
         </nav>
 
         <div className="shrink-0 p-3 border-t border-sidebar-border space-y-2">
@@ -188,9 +226,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               key={it.to}
               to={it.to}
               className={[
-                "flex-1 flex flex-col items-center gap-1 py-2 text-[10px] font-medium",
-                active ? "text-primary" : "text-muted-foreground",
+                "flex-1 border-t-2 py-2 text-[10px] font-medium flex flex-col items-center gap-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary",
+                active
+                  ? "border-primary bg-card font-bold text-primary"
+                  : "border-transparent text-muted-foreground",
               ].join(" ")}
+              aria-current={active ? "page" : undefined}
             >
               <div className="relative">
                 <Icon size={18} />
@@ -261,25 +302,42 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <SheetDescription className="truncate">{user.email}</SheetDescription>
           </SheetHeader>
           <nav className="mt-5 grid gap-2" aria-label="Mais opções de navegação">
-            {moreItems.map((item) => {
-              const Icon = item.icon;
-              const active = itemAtivo(item.to);
-              return (
-                <Link
-                  key={item.to}
-                  to={item.to}
-                  onClick={() => setMaisAberto(false)}
-                  className={[
-                    "flex min-h-12 items-center gap-3 rounded-xl border px-4 text-sm font-semibold",
-                    active
-                      ? "border-primary/30 bg-card text-primary shadow-warm-sm"
-                      : "border-border bg-card/70 text-foreground",
-                  ].join(" ")}
+            {moreGroups.map((grupo, indice) => (
+              <section
+                key={grupo.label}
+                aria-labelledby={`mais-grupo-${indice}`}
+                className={`space-y-2 ${
+                  indice === 0 ? "" : "mt-2 border-t border-sidebar-border pt-4"
+                }`}
+              >
+                <h2
+                  id={`mais-grupo-${indice}`}
+                  className="px-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground"
                 >
-                  <Icon size={19} /> {item.label}
-                </Link>
-              );
-            })}
+                  {grupo.label}
+                </h2>
+                {grupo.items.map((item) => {
+                  const Icon = item.icon;
+                  const active = itemAtivo(item.to);
+                  return (
+                    <Link
+                      key={item.to}
+                      to={item.to}
+                      onClick={() => setMaisAberto(false)}
+                      className={[
+                        "flex min-h-12 items-center gap-3 rounded-xl border px-4 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+                        active
+                          ? "border-primary/30 bg-card text-primary shadow-warm-sm"
+                          : "border-border bg-card/70 text-foreground",
+                      ].join(" ")}
+                      aria-current={active ? "page" : undefined}
+                    >
+                      <Icon size={19} aria-hidden="true" /> {item.label}
+                    </Link>
+                  );
+                })}
+              </section>
+            ))}
             <button
               type="button"
               onClick={() => {
