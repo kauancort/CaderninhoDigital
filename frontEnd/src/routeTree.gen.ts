@@ -20,6 +20,7 @@ import { Route as ClientesRouteImport } from './routes/clientes'
 import { Route as AReceberRouteImport } from './routes/a-receber'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as RegistrarIndexRouteImport } from './routes/registrar.index'
+import { Route as VendasAReceberRouteImport } from './routes/vendas.a-receber'
 import { Route as RegistrarVendaRouteImport } from './routes/registrar.venda'
 import { Route as RegistrarProducaoRouteImport } from './routes/registrar.producao'
 import { Route as RegistrarGastosRouteImport } from './routes/registrar.gastos'
@@ -84,6 +85,11 @@ const RegistrarIndexRoute = RegistrarIndexRouteImport.update({
   path: '/',
   getParentRoute: () => RegistrarRoute,
 } as any)
+const VendasAReceberRoute = VendasAReceberRouteImport.update({
+  id: '/a-receber',
+  path: '/a-receber',
+  getParentRoute: () => VendasRoute,
+} as any)
 const RegistrarVendaRoute = RegistrarVendaRouteImport.update({
   id: '/venda',
   path: '/venda',
@@ -136,7 +142,7 @@ export interface FileRoutesByFullPath {
   '/producao': typeof ProducaoRouteWithChildren
   '/registrar': typeof RegistrarRouteWithChildren
   '/usuarios': typeof UsuariosRoute
-  '/vendas': typeof VendasRoute
+  '/vendas': typeof VendasRouteWithChildren
   '/estoque/consultar': typeof EstoqueConsultarRoute
   '/estoque/historico': typeof EstoqueHistoricoRoute
   '/producao/$id': typeof ProducaoIdRoute
@@ -144,6 +150,7 @@ export interface FileRoutesByFullPath {
   '/registrar/gastos': typeof RegistrarGastosRoute
   '/registrar/producao': typeof RegistrarProducaoRoute
   '/registrar/venda': typeof RegistrarVendaRoute
+  '/vendas/a-receber': typeof VendasAReceberRoute
   '/registrar/': typeof RegistrarIndexRoute
   '/producao/historico/$familia': typeof ProducaoHistoricoFamiliaRoute
 }
@@ -156,7 +163,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/producao': typeof ProducaoRouteWithChildren
   '/usuarios': typeof UsuariosRoute
-  '/vendas': typeof VendasRoute
+  '/vendas': typeof VendasRouteWithChildren
   '/estoque/consultar': typeof EstoqueConsultarRoute
   '/estoque/historico': typeof EstoqueHistoricoRoute
   '/producao/$id': typeof ProducaoIdRoute
@@ -164,6 +171,7 @@ export interface FileRoutesByTo {
   '/registrar/gastos': typeof RegistrarGastosRoute
   '/registrar/producao': typeof RegistrarProducaoRoute
   '/registrar/venda': typeof RegistrarVendaRoute
+  '/vendas/a-receber': typeof VendasAReceberRoute
   '/registrar': typeof RegistrarIndexRoute
   '/producao/historico/$familia': typeof ProducaoHistoricoFamiliaRoute
 }
@@ -178,7 +186,7 @@ export interface FileRoutesById {
   '/producao': typeof ProducaoRouteWithChildren
   '/registrar': typeof RegistrarRouteWithChildren
   '/usuarios': typeof UsuariosRoute
-  '/vendas': typeof VendasRoute
+  '/vendas': typeof VendasRouteWithChildren
   '/estoque/consultar': typeof EstoqueConsultarRoute
   '/estoque/historico': typeof EstoqueHistoricoRoute
   '/producao/$id': typeof ProducaoIdRoute
@@ -186,6 +194,7 @@ export interface FileRoutesById {
   '/registrar/gastos': typeof RegistrarGastosRoute
   '/registrar/producao': typeof RegistrarProducaoRoute
   '/registrar/venda': typeof RegistrarVendaRoute
+  '/vendas/a-receber': typeof VendasAReceberRoute
   '/registrar/': typeof RegistrarIndexRoute
   '/producao/historico/$familia': typeof ProducaoHistoricoFamiliaRoute
 }
@@ -209,6 +218,7 @@ export interface FileRouteTypes {
     | '/registrar/gastos'
     | '/registrar/producao'
     | '/registrar/venda'
+    | '/vendas/a-receber'
     | '/registrar/'
     | '/producao/historico/$familia'
   fileRoutesByTo: FileRoutesByTo
@@ -229,6 +239,7 @@ export interface FileRouteTypes {
     | '/registrar/gastos'
     | '/registrar/producao'
     | '/registrar/venda'
+    | '/vendas/a-receber'
     | '/registrar'
     | '/producao/historico/$familia'
   id:
@@ -250,6 +261,7 @@ export interface FileRouteTypes {
     | '/registrar/gastos'
     | '/registrar/producao'
     | '/registrar/venda'
+    | '/vendas/a-receber'
     | '/registrar/'
     | '/producao/historico/$familia'
   fileRoutesById: FileRoutesById
@@ -264,7 +276,7 @@ export interface RootRouteChildren {
   ProducaoRoute: typeof ProducaoRouteWithChildren
   RegistrarRoute: typeof RegistrarRouteWithChildren
   UsuariosRoute: typeof UsuariosRoute
-  VendasRoute: typeof VendasRoute
+  VendasRoute: typeof VendasRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
@@ -345,6 +357,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/registrar/'
       preLoaderRoute: typeof RegistrarIndexRouteImport
       parentRoute: typeof RegistrarRoute
+    }
+    '/vendas/a-receber': {
+      id: '/vendas/a-receber'
+      path: '/a-receber'
+      fullPath: '/vendas/a-receber'
+      preLoaderRoute: typeof VendasAReceberRouteImport
+      parentRoute: typeof VendasRoute
     }
     '/registrar/venda': {
       id: '/registrar/venda'
@@ -452,6 +471,17 @@ const RegistrarRouteWithChildren = RegistrarRoute._addFileChildren(
   RegistrarRouteChildren,
 )
 
+interface VendasRouteChildren {
+  VendasAReceberRoute: typeof VendasAReceberRoute
+}
+
+const VendasRouteChildren: VendasRouteChildren = {
+  VendasAReceberRoute: VendasAReceberRoute,
+}
+
+const VendasRouteWithChildren =
+  VendasRoute._addFileChildren(VendasRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AReceberRoute: AReceberRoute,
@@ -462,7 +492,7 @@ const rootRouteChildren: RootRouteChildren = {
   ProducaoRoute: ProducaoRouteWithChildren,
   RegistrarRoute: RegistrarRouteWithChildren,
   UsuariosRoute: UsuariosRoute,
-  VendasRoute: VendasRoute,
+  VendasRoute: VendasRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

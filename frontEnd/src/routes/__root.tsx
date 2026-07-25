@@ -9,6 +9,7 @@ import {
 import { AlertTriangle, Home, RefreshCw } from "lucide-react";
 import voCidaImg from "@/assets/vo-cida.png";
 import { getUserSession } from "@/lib/user-session";
+import { Toaster } from "@/components/ui/sonner";
 
 function SystemPage({ children }: { children: React.ReactNode }) {
   return (
@@ -101,6 +102,7 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <Outlet />
+      <Toaster richColors position="top-right" />
     </QueryClientProvider>
   );
 }

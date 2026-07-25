@@ -33,7 +33,7 @@ function LoginPage() {
     setLoading(true);
     try {
       const result = await login({ data: { email, senha } });
-      if ("requiresPasswordChange" in result && result.requiresPasswordChange) {
+      if ("requiresPasswordChange" in result) {
         setEmailPrimeiroAcesso(result.email);
         setSenhaTemporaria(senha);
         return;
@@ -72,7 +72,7 @@ function LoginPage() {
     setLoading(true);
     try {
       const result = await login({ data: { email: "adm@gmail.com", senha: "123" } });
-      if ("requiresPasswordChange" in result && result.requiresPasswordChange) {
+      if ("requiresPasswordChange" in result) {
         setEmailPrimeiroAcesso(result.email);
         setSenhaTemporaria("123");
       } else {
