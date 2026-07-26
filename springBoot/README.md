@@ -105,6 +105,10 @@ DB_PORT
 DB_NAME
 DB_USERNAME
 DB_PASSWORD
+SMTP_HOST
+SMTP_PORT
+SMTP_USER
+SMTP_PASS
 ```
 
 Valores locais padrão:
@@ -118,6 +122,18 @@ SPRING_JPA_HIBERNATE_DDL_AUTO=validate
 SPRING_JPA_SHOW_SQL=false
 SPRING_FLYWAY_ENABLED=true
 ```
+
+Para habilitar a recuperação de senha, configure uma conta Gmail com verificação
+em duas etapas e gere uma senha de aplicativo. Nunca use a senha normal da conta:
+
+```txt
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=seu-remetente@gmail.com
+SMTP_PASS=senha-de-aplicativo
+```
+
+Essas variáveis pertencem exclusivamente à API. Não as adicione ao frontend.
 
 Dentro do Docker Compose, a API usa `postgres` como host do banco:
 

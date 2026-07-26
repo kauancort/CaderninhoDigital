@@ -34,8 +34,8 @@ public interface VendaRepository extends JpaRepository<Venda, Long>, JpaSpecific
     List<Venda> buscarDetalhesPorIds(@Param("ids") List<Long> ids);
 
     @EntityGraph(attributePaths = {"cliente", "gestor", "itens", "itens.produto"})
-    @Query("SELECT DISTINCT v FROM Venda v WHERE v.id = :id AND v.gestor = :gestor")
-    Optional<Venda> buscarDetalhesPorId(@Param("id") Long id, @Param("gestor") Usuario gestor);
+    @Query("SELECT DISTINCT v FROM Venda v WHERE v.id = :id")
+    Optional<Venda> buscarDetalhesPorId(@Param("id") Long id);
 
     @Query("""
             SELECT i.venda.id, COALESCE(SUM(i.quantidade), 0)
@@ -51,8 +51,7 @@ public interface VendaRepository extends JpaRepository<Venda, Long>, JpaSpecific
                 COUNT(v) AS quantidadeVendas,
                 COALESCE(AVG(v.valorTotal), 0) AS ticketMedio
             FROM Venda v
-            WHERE v.gestor = :gestor
-              AND (:inicio IS NULL OR v.dataVenda >= :inicio)
+            WHERE (:inicio IS NULL OR v.dataVenda >= :inicio)
               AND (:fim IS NULL OR v.dataVenda <= :fim)
               AND (:clienteId IS NULL OR v.cliente.id = :clienteId)
               AND (:status IS NULL OR v.statusPagamento = :status)
@@ -71,7 +70,6 @@ public interface VendaRepository extends JpaRepository<Venda, Long>, JpaSpecific
                               AND LOWER(item.produto.nome) LIKE LOWER(CONCAT('%', :busca, '%'))))
             """)
     ResumoHistoricoVendasProjection resumirHistoricoVendas(
-            @Param("gestor") Usuario gestor,
             @Param("busca") String busca,
             @Param("clienteId") Long clienteId,
             @Param("produtoId") Long produtoId,
@@ -86,8 +84,7 @@ public interface VendaRepository extends JpaRepository<Venda, Long>, JpaSpecific
             SELECT COALESCE(SUM(i.quantidade), 0)
             FROM ItemVenda i
             JOIN i.venda v
-            WHERE v.gestor = :gestor
-              AND (:inicio IS NULL OR v.dataVenda >= :inicio)
+            WHERE (:inicio IS NULL OR v.dataVenda >= :inicio)
               AND (:fim IS NULL OR v.dataVenda <= :fim)
               AND (:clienteId IS NULL OR v.cliente.id = :clienteId)
               AND (:status IS NULL OR v.statusPagamento = :status)
@@ -106,7 +103,6 @@ public interface VendaRepository extends JpaRepository<Venda, Long>, JpaSpecific
                               AND LOWER(item.produto.nome) LIKE LOWER(CONCAT('%', :busca, '%'))))
             """)
     BigDecimal totalItensHistoricoVendas(
-            @Param("gestor") Usuario gestor,
             @Param("busca") String busca,
             @Param("clienteId") Long clienteId,
             @Param("produtoId") Long produtoId,
@@ -119,8 +115,8 @@ public interface VendaRepository extends JpaRepository<Venda, Long>, JpaSpecific
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @EntityGraph(attributePaths = {"cliente", "gestor", "itens", "itens.produto"})
-    @Query("SELECT v FROM Venda v WHERE v.id = :id AND v.gestor = :gestor")
-    Optional<Venda> buscarParaConfirmacao(@Param("id") Long id, @Param("gestor") Usuario gestor);
+    @Query("SELECT v FROM Venda v WHERE v.id = :id")
+    Optional<Venda> buscarParaConfirmacao(@Param("id") Long id);
 
     @Query("""
             SELECT
@@ -130,8 +126,7 @@ public interface VendaRepository extends JpaRepository<Venda, Long>, JpaSpecific
                 COALESCE(SUM(CASE WHEN v.dataVencimento < :hoje THEN 1 ELSE 0 END), 0) AS quantidadeAtrasadas,
                 COUNT(v) AS quantidadeCobrancas
             FROM Venda v
-            WHERE v.gestor = :gestor
-              AND v.statusPagamento = com.InovaSkill.CaderninhoDigital.enums.StatusPagamento.PENDENTE
+            WHERE v.statusPagamento = com.InovaSkill.CaderninhoDigital.enums.StatusPagamento.PENDENTE
               AND (:clienteId IS NULL OR v.cliente.id = :clienteId)
               AND (:inicio IS NULL OR v.dataVencimento >= :inicio)
               AND (:fim IS NULL OR v.dataVencimento <= :fim)
@@ -161,7 +156,6 @@ public interface VendaRepository extends JpaRepository<Venda, Long>, JpaSpecific
                         AND v.dataVencimento < :limiteMedio))
             """)
     ResumoCobrancasProjection resumirCobrancas(
-            @Param("gestor") Usuario gestor,
             @Param("hoje") LocalDate hoje,
             @Param("ontem") LocalDate ontem,
             @Param("limiteRecente") LocalDate limiteRecente,

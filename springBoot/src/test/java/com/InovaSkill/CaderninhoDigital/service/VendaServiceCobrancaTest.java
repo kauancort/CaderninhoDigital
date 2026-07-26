@@ -62,7 +62,7 @@ class VendaServiceCobrancaTest {
     @Test
     void confirmaPagamentoPendenteERegistraGestorNaAuditoria() {
         Venda venda = vendaPendente();
-        when(vendaRepository.buscarParaConfirmacao(10L, gestor)).thenReturn(Optional.of(venda));
+        when(vendaRepository.buscarParaConfirmacao(10L)).thenReturn(Optional.of(venda));
         when(vendaRepository.save(venda)).thenReturn(venda);
 
         var response = vendaService.confirmarPagamento(1L, 10L);
@@ -84,7 +84,7 @@ class VendaServiceCobrancaTest {
     void impedeSegundaConfirmacaoDaMesmaCobranca() {
         Venda venda = vendaPendente();
         venda.setStatusPagamento(StatusPagamento.PAGO);
-        when(vendaRepository.buscarParaConfirmacao(10L, gestor)).thenReturn(Optional.of(venda));
+        when(vendaRepository.buscarParaConfirmacao(10L)).thenReturn(Optional.of(venda));
 
         assertThatThrownBy(() -> vendaService.confirmarPagamento(1L, 10L))
                 .isInstanceOf(ConflictException.class)
@@ -93,7 +93,7 @@ class VendaServiceCobrancaTest {
 
     @Test
     void informaQuandoCobrancaNaoExiste() {
-        when(vendaRepository.buscarParaConfirmacao(99L, gestor)).thenReturn(Optional.empty());
+        when(vendaRepository.buscarParaConfirmacao(99L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> vendaService.confirmarPagamento(1L, 99L))
                 .isInstanceOf(ResourceNotFoundException.class)
@@ -101,14 +101,15 @@ class VendaServiceCobrancaTest {
     }
 
     @Test
-    void naoExibeDetalhesDeVendaForaDoGestorAutenticado() {
-        when(vendaRepository.buscarDetalhesPorId(10L, gestor)).thenReturn(Optional.empty());
+    void permiteVisualizarVendaCompartilhadaEntreGestores() {
+        Venda venda = vendaPendente();
+        when(classificadorCobrancaService.hoje()).thenReturn(LocalDate.of(2026, 7, 23));
+        when(vendaRepository.buscarDetalhesPorId(10L)).thenReturn(Optional.of(venda));
 
-        assertThatThrownBy(() -> vendaService.buscarDetalhes(1L, 10L))
-                .isInstanceOf(ResourceNotFoundException.class)
-                .hasMessage("Venda não encontrada");
+        var detalhes = vendaService.buscarDetalhes(1L, 10L);
 
-        verify(vendaRepository).buscarDetalhesPorId(10L, gestor);
+        assertThat(detalhes.getId()).isEqualTo(10L);
+        verify(vendaRepository).buscarDetalhesPorId(10L);
     }
 
     @Test
@@ -116,7 +117,6 @@ class VendaServiceCobrancaTest {
         LocalDate hoje = LocalDate.of(2026, 7, 23);
         when(classificadorCobrancaService.hoje()).thenReturn(hoje);
         when(vendaRepository.resumirCobrancas(
-                gestor,
                 hoje,
                 hoje.minusDays(1),
                 hoje.minusDays(7),

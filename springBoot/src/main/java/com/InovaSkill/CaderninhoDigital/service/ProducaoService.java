@@ -82,6 +82,7 @@ public class ProducaoService {
         return toResponse(salva);
     }
 
+    @Transactional(readOnly = true)
     public List<ProducaoResponseDTO> listar(Long usuarioId, Long produtoId) {
         Usuario gestor = usuarioAcessoService.buscarGestor(usuarioId);
         if (produtoId != null) {
@@ -131,9 +132,10 @@ public class ProducaoService {
         return new PageImpl<>(registros, pageable, paginaEntidades.getTotalElements());
     }
 
+    @Transactional(readOnly = true)
     public ProducaoResponseDTO buscar(Long usuarioId, Long id) {
-        Usuario gestor = usuarioAcessoService.buscarGestor(usuarioId);
-        Producao producao = producaoRepository.findById(id)
+        usuarioAcessoService.buscarGestor(usuarioId);
+        Producao producao = producaoRepository.buscarDetalhesPorId(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Produção não encontrada"));
         return toResponse(producao);
     }
@@ -224,6 +226,7 @@ public class ProducaoService {
                 .id(producao.getId())
                 .produtoId(producao.getProduto().getId())
                 .produtoNome(producao.getProduto().getNome())
+                .gestorNome(producao.getGestor() != null ? producao.getGestor().getNome() : null)
                 .dataProducao(producao.getDataProducao())
                 .quantidadeProduzida(producao.getQuantidadeProduzida())
                 .custoEstimado(producao.getCustoEstimado())

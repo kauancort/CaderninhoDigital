@@ -18,13 +18,20 @@ public interface ProducaoRepository extends JpaRepository<Producao, Long>, JpaSp
     List<Producao> findByGestorAndProdutoOrderByDataProducaoDesc(Usuario gestor, Produto produto);
 
     List<Producao> findByGestorAndDataProducaoBetweenOrderByDataProducaoDesc(Usuario gestor, LocalDate inicio, LocalDate fim);
+    @EntityGraph(attributePaths = {"produto", "gestor", "insumos", "insumos.materiaPrima"})
     List<Producao> findAllByOrderByDataProducaoDesc();
+
+    @EntityGraph(attributePaths = {"produto", "gestor", "insumos", "insumos.materiaPrima"})
     List<Producao> findByProdutoOrderByDataProducaoDesc(Produto produto);
     List<Producao> findByDataProducaoBetweenOrderByDataProducaoDesc(LocalDate inicio, LocalDate fim);
 
     @EntityGraph(attributePaths = {"produto", "gestor", "insumos", "insumos.materiaPrima"})
     @Query("SELECT DISTINCT p FROM Producao p WHERE p.id IN :ids")
     List<Producao> buscarDetalhesPorIds(@Param("ids") List<Long> ids);
+
+    @EntityGraph(attributePaths = {"produto", "gestor", "insumos", "insumos.materiaPrima"})
+    @Query("SELECT DISTINCT p FROM Producao p WHERE p.id = :id")
+    java.util.Optional<Producao> buscarDetalhesPorId(@Param("id") Long id);
 
     @Query("SELECT new com.InovaSkill.CaderninhoDigital.dto.response.ResumoProducaoProdutoDTO(p.produto.id, p.produto.nome, COUNT(p), SUM(p.quantidadeProduzida)) FROM Producao p GROUP BY p.produto.id, p.produto.nome ORDER BY p.produto.nome")
     List<ResumoProducaoProdutoDTO> resumirPorProduto();

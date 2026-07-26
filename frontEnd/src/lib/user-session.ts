@@ -49,6 +49,12 @@ export function saveUserSession(session: UserSession) {
   notify();
 }
 
+export function updateSessionUser(user: User) {
+  const session = getUserSession();
+  if (!session) return;
+  saveUserSession({ ...session, user });
+}
+
 export function clearUserSession() {
   localStorage.removeItem(USER_SESSION_KEY);
   localStorage.removeItem(LEGACY_SESSION_KEY);

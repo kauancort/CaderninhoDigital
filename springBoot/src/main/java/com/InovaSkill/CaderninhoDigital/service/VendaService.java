@@ -134,8 +134,8 @@ public class VendaService {
     }
 
     public List<VendaResponseDTO> listar(Long usuarioId) {
-        Usuario gestor = usuarioAcessoService.buscarGestor(usuarioId);
-        return vendaRepository.findByGestorOrderByDataVendaDesc(gestor).stream()
+        usuarioAcessoService.buscarGestor(usuarioId);
+        return vendaRepository.findAllByOrderByDataVendaDesc().stream()
                 .map(this::toResponse)
                 .toList();
     }
@@ -152,7 +152,7 @@ public class VendaService {
             Long clienteId,
             StatusPagamento status
     ) {
-        Usuario gestor = usuarioAcessoService.buscarGestor(usuarioId);
+        usuarioAcessoService.buscarGestor(usuarioId);
         int tamanhoSeguro = Math.min(Math.max(tamanho, 1), 100);
         String campoOrdenacao = switch (ordenarPor) {
             case "valorTotal", "criadoEm" -> ordenarPor;
@@ -160,7 +160,6 @@ public class VendaService {
         };
         Specification<Venda> filtros = (root, query, builder) -> {
             List<Predicate> predicates = new ArrayList<>();
-            predicates.add(builder.equal(root.get("gestor"), gestor));
             if (inicio != null) predicates.add(builder.greaterThanOrEqualTo(root.get("dataVenda"), inicio));
             if (fim != null) predicates.add(builder.lessThanOrEqualTo(root.get("dataVenda"), fim));
             if (clienteId != null) predicates.add(builder.equal(root.get("cliente").get("id"), clienteId));
@@ -181,15 +180,15 @@ public class VendaService {
     }
 
     public VendaResponseDTO buscar(Long usuarioId, Long id) {
-        Usuario gestor = usuarioAcessoService.buscarGestor(usuarioId);
-        Venda venda = buscarVenda(id, gestor);
+        usuarioAcessoService.buscarGestor(usuarioId);
+        Venda venda = buscarVenda(id);
         return toResponse(venda);
     }
 
     @Transactional(readOnly = true)
     public VendaDetalhesResponseDTO buscarDetalhes(Long usuarioId, Long id) {
-        Usuario gestor = usuarioAcessoService.buscarGestor(usuarioId);
-        Venda venda = vendaRepository.buscarDetalhesPorId(id, gestor)
+        usuarioAcessoService.buscarGestor(usuarioId);
+        Venda venda = vendaRepository.buscarDetalhesPorId(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Venda não encontrada"));
         return toDetalhesResponse(venda);
     }
@@ -210,13 +209,13 @@ public class VendaService {
             FormaPagamento forma,
             Boolean parcelada
     ) {
-        Usuario gestor = usuarioAcessoService.buscarGestor(usuarioId);
+        usuarioAcessoService.buscarGestor(usuarioId);
         PageRequest pageable = PageRequest.of(
                 Math.max(pagina, 0),
                 Math.min(Math.max(tamanho, 1), 100),
                 ordenacaoHistorico(ordenarPor, direcao));
         Page<Venda> paginaEntidades = vendaRepository.findAll(
-                filtrosHistorico(gestor, busca, clienteId, produtoId, inicio, fim, status, forma, parcelada),
+                filtrosHistorico(busca, clienteId, produtoId, inicio, fim, status, forma, parcelada),
                 pageable);
         if (paginaEntidades.isEmpty()) {
             return new PageImpl<>(List.of(), pageable, paginaEntidades.getTotalElements());
@@ -245,12 +244,12 @@ public class VendaService {
             FormaPagamento forma,
             Boolean parcelada
     ) {
-        Usuario gestor = usuarioAcessoService.buscarGestor(usuarioId);
+        usuarioAcessoService.buscarGestor(usuarioId);
         String termo = normalizarBuscaResumo(busca);
         ResumoHistoricoVendasProjection valores = vendaRepository.resumirHistoricoVendas(
-                gestor, termo, clienteId, produtoId, inicio, fim, status, forma, parcelada);
+                termo, clienteId, produtoId, inicio, fim, status, forma, parcelada);
         BigDecimal itens = vendaRepository.totalItensHistoricoVendas(
-                gestor, termo, clienteId, produtoId, inicio, fim, status, forma, parcelada);
+                termo, clienteId, produtoId, inicio, fim, status, forma, parcelada);
         return new ResumoHistoricoVendasResponseDTO(
                 decimal(valores.getFaturamento()),
                 numero(valores.getQuantidadeVendas()),
@@ -273,12 +272,12 @@ public class VendaService {
             FormaPagamento forma,
             Boolean parcelada
     ) {
-        Usuario gestor = usuarioAcessoService.buscarGestor(usuarioId);
+        usuarioAcessoService.buscarGestor(usuarioId);
         int tamanhoSeguro = Math.min(Math.max(tamanho, 1), 100);
         Sort ordenacao = ordenacaoCobrancas(ordenarPor);
         PageRequest pageable = PageRequest.of(Math.max(pagina, 0), tamanhoSeguro, ordenacao);
         Page<Venda> paginaEntidades = vendaRepository.findAll(
-                filtrosCobrancas(gestor, busca, clienteId, produtoId, inicio, fim, situacao, forma, parcelada), pageable);
+                filtrosCobrancas(busca, clienteId, produtoId, inicio, fim, situacao, forma, parcelada), pageable);
         if (paginaEntidades.isEmpty()) {
             return new PageImpl<>(List.of(), pageable, paginaEntidades.getTotalElements());
         }
@@ -304,11 +303,10 @@ public class VendaService {
             FormaPagamento forma,
             Boolean parcelada
     ) {
-        Usuario gestor = usuarioAcessoService.buscarGestor(usuarioId);
+        usuarioAcessoService.buscarGestor(usuarioId);
         LocalDate hoje = classificadorCobrancaService.hoje();
         String buscaNormalizada = normalizarBuscaResumo(busca);
         ResumoCobrancasProjection valores = vendaRepository.resumirCobrancas(
-                gestor,
                 hoje,
                 hoje.minusDays(1),
                 hoje.minusDays(ClassificadorCobrancaService.LIMITE_ATRASO_RECENTE_DIAS),
@@ -333,7 +331,7 @@ public class VendaService {
     @Transactional
     public VendaResponseDTO confirmarPagamento(Long usuarioId, Long vendaId) {
         Usuario gestor = usuarioAcessoService.buscarGestor(usuarioId);
-        Venda venda = vendaRepository.buscarParaConfirmacao(vendaId, gestor)
+        Venda venda = vendaRepository.buscarParaConfirmacao(vendaId)
                 .orElseThrow(() -> new ResourceNotFoundException("Cobrança não encontrada"));
         if (venda.getStatusPagamento() == StatusPagamento.PAGO) {
             throw new ConflictException("Esta cobrança já foi confirmada como paga");
@@ -359,8 +357,8 @@ public class VendaService {
 
     @Transactional(readOnly = true)
     public VendaDuplicacaoResponseDTO prepararDuplicacao(Long usuarioId, Long id) {
-        Usuario gestor = usuarioAcessoService.buscarGestor(usuarioId);
-        Venda venda = buscarVenda(id, gestor);
+        usuarioAcessoService.buscarGestor(usuarioId);
+        Venda venda = buscarVenda(id);
         List<String> avisos = new ArrayList<>();
         var itens = venda.getItens().stream().map(item -> {
             Produto produto = item.getProduto();
@@ -378,8 +376,8 @@ public class VendaService {
 
     @Transactional
     public VendaResponseDTO adicionarContato(Long usuarioId, Long vendaId, ContatoRequestDTO dto) {
-        Usuario gestor = usuarioAcessoService.buscarGestor(usuarioId);
-        Venda venda = buscarVenda(vendaId, gestor);
+        usuarioAcessoService.buscarGestor(usuarioId);
+        Venda venda = buscarVenda(vendaId);
         List<ContatoDTO> contatos = lerContatos(venda.getContatos());
         contatos.add(ContatoDTO.builder()
                 .data(LocalDateTime.now())
@@ -410,14 +408,12 @@ public class VendaService {
         produto.setEstoqueAtual(produto.getEstoqueAtual().subtract(quantidade));
     }
 
-    private Venda buscarVenda(Long id, Usuario gestor) {
+    private Venda buscarVenda(Long id) {
         return vendaRepository.findById(id)
-                .filter(venda -> venda.getGestor().getId().equals(gestor.getId()))
                 .orElseThrow(() -> new ResourceNotFoundException("Venda não encontrada"));
     }
 
     private Specification<Venda> filtrosCobrancas(
-            Usuario gestor,
             String busca,
             Long clienteId,
             Long produtoId,
@@ -431,7 +427,6 @@ public class VendaService {
         String termo = normalizarBusca(busca);
         return (root, query, builder) -> {
             List<Predicate> predicates = new ArrayList<>();
-            predicates.add(builder.equal(root.get("gestor"), gestor));
             predicates.add(builder.equal(root.get("statusPagamento"), StatusPagamento.PENDENTE));
             if (clienteId != null) {
                 predicates.add(builder.equal(root.get("cliente").get("id"), clienteId));
@@ -472,7 +467,6 @@ public class VendaService {
     }
 
     private Specification<Venda> filtrosHistorico(
-            Usuario gestor,
             String busca,
             Long clienteId,
             Long produtoId,
@@ -485,7 +479,6 @@ public class VendaService {
         String termo = normalizarBusca(busca);
         return (root, query, builder) -> {
             List<Predicate> predicates = new ArrayList<>();
-            predicates.add(builder.equal(root.get("gestor"), gestor));
             if (clienteId != null) {
                 predicates.add(builder.equal(root.get("cliente").get("id"), clienteId));
             }

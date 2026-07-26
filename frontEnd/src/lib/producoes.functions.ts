@@ -6,6 +6,7 @@ function mapProducao(p: any) {
     id: String(p.id),
     numero_lote: p.id + 100,
     produto_final_id: String(p.produtoId),
+    gestor_nome: p.gestorNome || null,
     quantidade_produzida: p.quantidadeProduzida,
     potes: p.quantidadeProduzida,
     unidade: 22,

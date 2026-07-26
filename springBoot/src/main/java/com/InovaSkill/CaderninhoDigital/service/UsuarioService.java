@@ -1,6 +1,7 @@
 package com.InovaSkill.CaderninhoDigital.service;
 
 import com.InovaSkill.CaderninhoDigital.dto.request.CriarUsuarioRequestDTO;
+import com.InovaSkill.CaderninhoDigital.dto.request.AtualizarPerfilRequestDTO;
 import com.InovaSkill.CaderninhoDigital.dto.response.CriarUsuarioResponseDTO;
 import com.InovaSkill.CaderninhoDigital.dto.response.UsuarioResponseDTO;
 import com.InovaSkill.CaderninhoDigital.entity.Usuario;
@@ -42,6 +43,30 @@ public class UsuarioService {
                 .trocaSenhaObrigatoria(true).build();
         Usuario salvo = usuarioRepository.save(usuario);
         return new CriarUsuarioResponseDTO(toResponse(salvo), senhaTemporaria);
+    }
+
+    @Transactional
+    public UsuarioResponseDTO atualizarPerfil(Long usuarioId, AtualizarPerfilRequestDTO dto) {
+        Usuario usuario = usuarioRepository.findById(usuarioId)
+                .orElseThrow(() -> new BusinessException("Usuário autenticado não encontrado"));
+        usuario.setNome(dto.getNome().trim());
+
+        if (dto.getNovaSenha() != null && !dto.getNovaSenha().isBlank()) {
+            if (dto.getSenhaAtual() == null
+                    || !passwordEncoder.matches(dto.getSenhaAtual(), usuario.getSenha())) {
+                throw new BusinessException("A senha atual está incorreta");
+            }
+            if (!dto.getNovaSenha().matches(".*[A-Za-z].*")
+                    || !dto.getNovaSenha().matches(".*\\d.*")) {
+                throw new BusinessException("A nova senha deve conter ao menos uma letra e um número");
+            }
+            if (passwordEncoder.matches(dto.getNovaSenha(), usuario.getSenha())) {
+                throw new BusinessException("A nova senha deve ser diferente da senha atual");
+            }
+            usuario.setSenha(passwordEncoder.encode(dto.getNovaSenha()));
+            usuario.setTrocaSenhaObrigatoria(false);
+        }
+        return toResponse(usuarioRepository.save(usuario));
     }
 
     private String gerarSenhaTemporaria() {

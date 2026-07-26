@@ -4,7 +4,6 @@ import { AppShell } from "@/components/AppShell";
 import { listarProducoes } from "@/lib/producoes.functions";
 import { ArrowLeft, ArrowRight, CalendarDays, Clock, Cookie, UserRound } from "lucide-react";
 import { FAMILIAS, detectarFamilia, type FamiliaKey } from "@/lib/produto-familia";
-import { useAuth } from "@/hooks/use-auth";
 
 export const Route = createFileRoute("/producao/historico/$familia")({
   component: () => (
@@ -17,7 +16,6 @@ export const Route = createFileRoute("/producao/historico/$familia")({
 function HistoricoFamilia() {
   const { familia } = Route.useParams();
   const navigate = useNavigate();
-  const { user } = useAuth();
   const famKey = familia as FamiliaKey;
   const fam = FAMILIAS.find((f) => f.key === famKey);
   const {
@@ -112,7 +110,7 @@ function HistoricoFamilia() {
                         <span className="inline-flex min-w-0 items-center gap-1.5">
                           <UserRound size={15} aria-hidden="true" />
                           <span className="truncate">
-                            {user?.nome ?? "Responsável não informado"}
+                            {lote.gestor_nome ?? "Responsável não informado"}
                           </span>
                         </span>
                       </div>

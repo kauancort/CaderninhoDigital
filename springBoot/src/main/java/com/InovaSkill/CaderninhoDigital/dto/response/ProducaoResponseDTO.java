@@ -13,6 +13,7 @@ public class ProducaoResponseDTO {
     private Long id;
     private Long produtoId;
     private String produtoNome;
+    private String gestorNome;
     private LocalDate dataProducao;
     private BigDecimal quantidadeProduzida;
     private BigDecimal custoEstimado;
