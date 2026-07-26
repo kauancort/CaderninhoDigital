@@ -10,6 +10,7 @@ import {
   Users,
   LogOut,
   MoreHorizontal,
+  Settings,
   UserCog,
 } from "lucide-react";
 
@@ -20,6 +21,7 @@ import { listarMateriaPrima } from "@/lib/catalogo.functions";
 import { clearUserSession } from "@/lib/user-session";
 import { AssistenteVoz } from "@/components/AssistenteVoz";
 import { AssistenteChat } from "@/components/AssistenteChat";
+import { ConfiguracoesDialog } from "@/components/ConfiguracoesDialog";
 import voCidaImg from "@/assets/vo-cida.png";
 import {
   Sheet,
@@ -58,6 +60,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [chatAberto, setChatAberto] = useState(false);
   const [vozAberta, setVozAberta] = useState(false);
   const [maisAberto, setMaisAberto] = useState(false);
+  const [configuracoesAbertas, setConfiguracoesAbertas] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) navigate({ to: "/login" });
@@ -207,12 +210,23 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
           </button>
 
-          <button
-            onClick={sair}
-            className="w-full flex items-center gap-2 px-3 py-2 rounded-md text-xs font-semibold text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
-          >
-            <LogOut size={14} /> Sair
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={sair}
+              className="flex min-h-10 flex-1 items-center gap-2 rounded-md px-3 py-2 text-xs font-semibold text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+            >
+              <LogOut size={14} /> Sair
+            </button>
+            <button
+              type="button"
+              onClick={() => setConfiguracoesAbertas(true)}
+              className="flex h-10 w-10 items-center justify-center rounded-md border border-border bg-card text-muted-foreground hover:bg-secondary hover:text-foreground"
+              aria-label="Abrir configurações"
+              title="Configurações"
+            >
+              <Settings size={16} />
+            </button>
+          </div>
         </div>
       </aside>
 
@@ -270,13 +284,23 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <div className="font-display font-bold text-sm text-primary">Doces da Vó Cida</div>
             <div className="text-[11px] text-muted-foreground truncate">{user.email}</div>
           </div>
-          <button
-            onClick={sair}
-            className="w-9 h-9 rounded-full bg-card border border-border flex items-center justify-center text-muted-foreground hover:text-foreground"
-            aria-label="Sair"
-          >
-            <LogOut size={15} />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={sair}
+              className="flex h-9 w-9 items-center justify-center rounded-full border border-border bg-card text-muted-foreground hover:text-foreground"
+              aria-label="Sair"
+            >
+              <LogOut size={15} />
+            </button>
+            <button
+              type="button"
+              onClick={() => setConfiguracoesAbertas(true)}
+              className="flex h-9 w-9 items-center justify-center rounded-full border border-border bg-card text-muted-foreground hover:text-foreground"
+              aria-label="Abrir configurações"
+            >
+              <Settings size={15} />
+            </button>
+          </div>
         </header>
 
         <div className="max-w-6xl mx-auto px-4 sm:px-5 md:px-10 py-5 md:py-10">{children}</div>
@@ -291,6 +315,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         }}
       />
       <AssistenteVoz open={vozAberta} onClose={() => setVozAberta(false)} />
+      <ConfiguracoesDialog
+        open={configuracoesAbertas}
+        onOpenChange={setConfiguracoesAbertas}
+        user={user}
+      />
 
       <Sheet open={maisAberto} onOpenChange={setMaisAberto}>
         <SheetContent

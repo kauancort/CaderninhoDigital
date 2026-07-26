@@ -38,6 +38,10 @@ services:
       SPRING_FLYWAY_ENABLED: "true"
       JWT_SECRET: local-development-jwt-secret-change-me-123456789
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
     ports:
       - "8080:8080"
     networks:

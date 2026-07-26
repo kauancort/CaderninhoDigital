@@ -2,9 +2,15 @@ package com.InovaSkill.CaderninhoDigital.controller;
 
 import com.InovaSkill.CaderninhoDigital.dto.request.LoginRequestDTO;
 import com.InovaSkill.CaderninhoDigital.dto.request.PrimeiroAcessoRequestDTO;
+import com.InovaSkill.CaderninhoDigital.dto.request.PasswordRecoveryRequestDTO;
+import com.InovaSkill.CaderninhoDigital.dto.request.PasswordRecoveryResetRequestDTO;
+import com.InovaSkill.CaderninhoDigital.dto.request.PasswordRecoveryVerifyRequestDTO;
 import com.InovaSkill.CaderninhoDigital.dto.response.BootstrapStatusResponseDTO;
 import com.InovaSkill.CaderninhoDigital.dto.response.LoginResponseDTO;
+import com.InovaSkill.CaderninhoDigital.dto.response.MessageResponseDTO;
+import com.InovaSkill.CaderninhoDigital.dto.response.PasswordRecoveryVerifyResponseDTO;
 import com.InovaSkill.CaderninhoDigital.service.AuthService;
+import com.InovaSkill.CaderninhoDigital.service.PasswordRecoveryService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -19,6 +25,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class AuthController {
     private final AuthService authService;
+    private final PasswordRecoveryService passwordRecoveryService;
 
     @PostMapping("/login")
     public ResponseEntity<LoginResponseDTO> login(@RequestBody @Valid LoginRequestDTO dto) {
@@ -33,5 +40,26 @@ public class AuthController {
     @GetMapping("/bootstrap-status")
     public ResponseEntity<BootstrapStatusResponseDTO> bootstrapStatus() {
         return ResponseEntity.ok(authService.bootstrapStatus());
+    }
+
+    @PostMapping("/password-recovery/request")
+    public ResponseEntity<MessageResponseDTO> solicitarRecuperacao(
+            @RequestBody @Valid PasswordRecoveryRequestDTO dto
+    ) {
+        return ResponseEntity.ok(passwordRecoveryService.solicitar(dto));
+    }
+
+    @PostMapping("/password-recovery/verify")
+    public ResponseEntity<PasswordRecoveryVerifyResponseDTO> verificarCodigo(
+            @RequestBody @Valid PasswordRecoveryVerifyRequestDTO dto
+    ) {
+        return ResponseEntity.ok(passwordRecoveryService.verificar(dto));
+    }
+
+    @PostMapping("/password-recovery/reset")
+    public ResponseEntity<MessageResponseDTO> redefinirSenha(
+            @RequestBody @Valid PasswordRecoveryResetRequestDTO dto
+    ) {
+        return ResponseEntity.ok(passwordRecoveryService.redefinir(dto));
     }
 }
