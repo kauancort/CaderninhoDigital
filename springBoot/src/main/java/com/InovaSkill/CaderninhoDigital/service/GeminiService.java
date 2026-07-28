@@ -20,6 +20,20 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
+import com.InovaSkill.CaderninhoDigital.entity.CompraMateriaPrima;
+import com.InovaSkill.CaderninhoDigital.entity.Lancamento;
+import com.InovaSkill.CaderninhoDigital.entity.MateriaPrima;
+import com.InovaSkill.CaderninhoDigital.entity.Producao;
+import com.InovaSkill.CaderninhoDigital.entity.Produto;
+import com.InovaSkill.CaderninhoDigital.entity.Usuario;
+import com.InovaSkill.CaderninhoDigital.entity.Venda;
+import com.InovaSkill.CaderninhoDigital.repository.CompraMateriaPrimaRepository;
+import com.InovaSkill.CaderninhoDigital.repository.LancamentoRepository;
+import com.InovaSkill.CaderninhoDigital.repository.MateriaPrimaRepository;
+import com.InovaSkill.CaderninhoDigital.repository.ProducaoRepository;
+import com.InovaSkill.CaderninhoDigital.repository.ProdutoRepository;
+import com.InovaSkill.CaderninhoDigital.repository.UsuarioRepository;
+import com.InovaSkill.CaderninhoDigital.repository.VendaRepository;
 
 @Service
 @RequiredArgsConstructor
@@ -32,7 +46,23 @@ public class GeminiService {
     @Value("${app.gemini.url}")
     private String apiUrl;
 
+    @Value("${app.openrouter.key:}")
+    private String openrouterKey;
+
+    @Value("${app.openrouter.url:https://openrouter.ai/api/v1/chat/completions}")
+    private String openrouterUrl;
+
+    @Value("${app.openrouter.model:google/gemini-2.5-flash}")
+    private String openrouterModel;
+
     private final ObjectMapper objectMapper;
+    private final MateriaPrimaRepository materiaPrimaRepository;
+    private final ProdutoRepository produtoRepository;
+    private final VendaRepository vendaRepository;
+    private final CompraMateriaPrimaRepository compraMateriaPrimaRepository;
+    private final ProducaoRepository producaoRepository;
+    private final LancamentoRepository lancamentoRepository;
+    private final UsuarioRepository usuarioRepository;
 
     public VozResultadoResponseDTO interpretarVoz(InterpretarVozRequestDTO request) {
         if (apiKey == null || apiKey.trim().isEmpty()) {
@@ -106,16 +136,285 @@ public class GeminiService {
         }
     }
 
-    public ConversaResponseDTO conversar(ConversaRequestDTO request) {
-        if (apiKey == null || apiKey.trim().isEmpty()) {
-            log.warn("GEMINI_API_KEY não configurada. Retornando conversa mockada.");
-            return obterMockConversa(request);
+    public ConversaResponseDTO conversar(Long usuarioId, ConversaRequestDTO request) {
+        Usuario gestor;
+        try {
+            gestor = usuarioRepository.findById(usuarioId)
+                    .orElseThrow(() -> new RuntimeException("Gestor não encontrado"));
+        } catch (Exception e) {
+            log.error("Erro ao carregar usuário gestor: ", e);
+            return new ConversaResponseDTO("Oi, meu bem. Não consegui carregar suas anotações no momento. Tente novamente.");
         }
 
+        boolean temOpenRouter = openrouterKey != null && !openrouterKey.trim().isEmpty();
+        boolean temGemini = apiKey != null && !apiKey.trim().isEmpty();
+
+        if (!temOpenRouter && !temGemini) {
+            log.warn("Nenhuma chave de IA configurada (OPENROUTER_API_KEY ou GEMINI_API_KEY). Usando Mock Operacional Inteligente.");
+            return obterMockConversaInteligente(gestor, request);
+        }
+
+        String systemPrompt = construirPromptConversa(gestor, request);
+
+        if (temOpenRouter) {
+            return chamarOpenRouter(systemPrompt, request);
+        } else {
+            return chamarGeminiDirect(systemPrompt, request);
+        }
+    }
+
+    private String construirPromptConversa(Usuario gestor, ConversaRequestDTO request) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Você é a Vovó AI, uma senhora muito carinhosa, afetuosa, acolhedora e experiente que auxilia o usuário a gerenciar sua pequena fábrica de doces artesanais (especialmente Biriba, Paçoca e Fondant de leite).\n");
+        sb.append("Instruções de tom:\n");
+        sb.append("- Responda sempre em português brasileiro de forma doce e paciente.\n");
+        sb.append("- Use expressões afetuosas como 'meu filho', 'minha filha', 'meu bem', 'querido(a)'.\n");
+        sb.append("- Dê conselhos práticos e encorajadores sobre negócios, estoque, vendas e lucros.\n");
+        sb.append("- Seja calorosa, mas direta nas respostas, evitando textos extremamente longos.\n");
+        sb.append("- Utilize os dados de estoque, vendas, compras, lançamentos e produção reais fornecidos abaixo para responder às perguntas do usuário com precisão.\n\n");
+
+        sb.append(construirDadosSistemaContexto(gestor));
+        sb.append("\n");
+
+        return sb.toString();
+    }
+
+    private String construirDadosSistemaContexto(Usuario gestor) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("--- INFORMAÇÕES DO SISTEMA (CADERNINHO DIGITAL) ---\n");
+        sb.append("Gestor: ").append(gestor.getNome()).append(" (Email: ").append(gestor.getEmail()).append(")\n\n");
+
+        // 1. ESTOQUE DE MATÉRIAS-PRIMAS
+        sb.append("1. Estoque de Matérias-Primas:\n");
+        try {
+            List<MateriaPrima> materias = materiaPrimaRepository.findByGestorOrderByNomeAsc(gestor);
+            if (materias == null || materias.isEmpty()) {
+                sb.append("  Nenhuma matéria-prima cadastrada.\n");
+            } else {
+                for (MateriaPrima mp : materias) {
+                    sb.append("  - ").append(mp.getNome())
+                      .append(": Atual = ").append(mp.getEstoqueAtual()).append(" ").append(mp.getUnidadeMedida())
+                      .append(", Mínimo = ").append(mp.getEstoqueMinimo()).append(" ").append(mp.getUnidadeMedida());
+                    if (mp.getEstoqueAtual().compareTo(mp.getEstoqueMinimo()) < 0) {
+                        sb.append(" [ESTOQUE BAIXO - RECOMENDA-SE COMPRAR]");
+                    }
+                    sb.append("\n");
+                }
+            }
+        } catch (Exception e) {
+            log.error("Erro ao buscar matérias-primas para o contexto: ", e);
+            sb.append("  Erro ao obter estoque.\n");
+        }
+        sb.append("\n");
+
+        // 2. PRODUTOS DO CATÁLOGO
+        sb.append("2. Produtos para Venda:\n");
+        try {
+            List<Produto> produtos = produtoRepository.findByGestorOrderByNomeAsc(gestor);
+            if (produtos == null || produtos.isEmpty()) {
+                sb.append("  Nenhum produto cadastrado no catálogo.\n");
+            } else {
+                for (Produto p : produtos) {
+                    sb.append("  - ID: ").append(p.getId()).append(", Nome: ").append(p.getNome()).append(" (SKU: ").append(p.getSku()).append(")\n");
+                }
+            }
+        } catch (Exception e) {
+            log.error("Erro ao buscar produtos para o contexto: ", e);
+            sb.append("  Erro ao obter produtos.\n");
+        }
+        sb.append("\n");
+
+        // 3. ÚLTIMAS VENDAS
+        sb.append("3. Histórico de Vendas Recentes:\n");
+        try {
+            List<Venda> vendas = vendaRepository.findByGestorOrderByDataVendaDesc(gestor);
+            if (vendas == null || vendas.isEmpty()) {
+                sb.append("  Nenhuma venda registrada.\n");
+            } else {
+                int limite = Math.min(vendas.size(), 8);
+                for (int i = 0; i < limite; i++) {
+                    Venda v = vendas.get(i);
+                    sb.append("  - Data: ").append(v.getDataVenda())
+                      .append(", Cliente: ").append(v.getCliente() != null ? v.getCliente().getNome() : "Não Informado")
+                      .append(", Valor Total: R$ ").append(v.getValorTotal())
+                      .append(", Pagamento: ").append(v.getStatusPagamento())
+                      .append(", Itens: ");
+                    if (v.getItens() != null) {
+                        List<String> itensStr = new ArrayList<>();
+                        for (var item : v.getItens()) {
+                            if (item.getProduto() != null) {
+                                itensStr.add(item.getProduto().getNome() + " (Qtd: " + item.getQuantidade() + ")");
+                            }
+                        }
+                        sb.append(String.join(", ", itensStr));
+                    }
+                    sb.append("\n");
+                }
+            }
+        } catch (Exception e) {
+            log.error("Erro ao buscar vendas para o contexto: ", e);
+            sb.append("  Erro ao obter vendas.\n");
+        }
+        sb.append("\n");
+
+        // 4. ÚLTIMAS PRODUÇÕES
+        sb.append("4. Histórico de Produção Recente:\n");
+        try {
+            List<Producao> producoes = producaoRepository.findByGestorOrderByDataProducaoDesc(gestor);
+            if (producoes == null || producoes.isEmpty()) {
+                sb.append("  Nenhuma produção registrada.\n");
+            } else {
+                int limite = Math.min(producoes.size(), 8);
+                for (int i = 0; i < limite; i++) {
+                    Producao p = producoes.get(i);
+                    sb.append("  - Data: ").append(p.getDataProducao())
+                      .append(", Produto: ").append(p.getProduto() != null ? p.getProduto().getNome() : "Desconhecido")
+                      .append(", Quantidade: ").append(p.getQuantidadeProduzida())
+                      .append(" potes\n");
+                }
+            }
+        } catch (Exception e) {
+            log.error("Erro ao buscar produções para o contexto: ", e);
+            sb.append("  Erro ao obter produções.\n");
+        }
+        sb.append("\n");
+
+        // 5. COMPRAS RECENTES DE INSUMOS
+        sb.append("5. Histórico de Compras de Matérias-Primas:\n");
+        try {
+            List<CompraMateriaPrima> compras = compraMateriaPrimaRepository.findByGestorOrderByDataCompraDesc(gestor);
+            if (compras == null || compras.isEmpty()) {
+                sb.append("  Nenhuma compra registrada.\n");
+            } else {
+                int limite = Math.min(compras.size(), 8);
+                for (int i = 0; i < limite; i++) {
+                    CompraMateriaPrima c = compras.get(i);
+                    sb.append("  - Data: ").append(c.getDataCompra())
+                      .append(", Fornecedor: ").append(c.getFornecedor() != null ? c.getFornecedor().getNome() : "Não Informado")
+                      .append(", Valor Total: R$ ").append(c.getValorTotal())
+                      .append(", Pagamento: ").append(c.getStatusPagamento());
+                    if (c.getItens() != null) {
+                        List<String> itensStr = new ArrayList<>();
+                        for (var item : c.getItens()) {
+                            if (item.getMateriaPrima() != null) {
+                                itensStr.add(item.getMateriaPrima().getNome() + " (Qtd: " + item.getQuantidade() + " " + item.getMateriaPrima().getUnidadeMedida() + ")");
+                            }
+                        }
+                        sb.append(", Itens: ").append(String.join(", ", itensStr));
+                    }
+                    sb.append("\n");
+                }
+            }
+        } catch (Exception e) {
+            log.error("Erro ao buscar compras para o contexto: ", e);
+            sb.append("  Erro ao obter compras.\n");
+        }
+        sb.append("\n");
+
+        // 6. LANÇAMENTOS FINANCEIROS GERAIS
+        sb.append("6. Resumo Financeiro Recente (Outros Lançamentos):\n");
+        try {
+            List<Lancamento> lancs = lancamentoRepository.findByGestorOrderByDataLancamentoDesc(gestor);
+            if (lancs == null || lancs.isEmpty()) {
+                sb.append("  Nenhum lançamento financeiro registrado.\n");
+            } else {
+                int limite = Math.min(lancs.size(), 8);
+                for (int i = 0; i < limite; i++) {
+                    Lancamento l = lancs.get(i);
+                    sb.append("  - Data: ").append(l.getDataLancamento())
+                      .append(", Tipo: ").append(l.getTipo())
+                      .append(", Descrição: ").append(l.getDescricao())
+                      .append(", Valor: R$ ").append(l.getValorTotal())
+                      .append(", Status: ").append(l.getStatusPagamento())
+                      .append("\n");
+                }
+            }
+        } catch (Exception e) {
+            log.error("Erro ao buscar lançamentos para o contexto: ", e);
+            sb.append("  Erro ao obter lançamentos.\n");
+        }
+        sb.append("\n-----------------------------------------------\n");
+        return sb.toString();
+    }
+
+    private ConversaResponseDTO chamarOpenRouter(String systemPrompt, ConversaRequestDTO request) {
+        try {
+            RestClient restClient = RestClient.create();
+            
+            ObjectNode requestBody = objectMapper.createObjectNode();
+            requestBody.put("model", openrouterModel != null && !openrouterModel.isEmpty() ? openrouterModel : "google/gemini-2.5-flash");
+            
+            ArrayNode messagesArray = requestBody.putArray("messages");
+            
+            // 1. Mensagem de Sistema
+            ObjectNode systemMessage = messagesArray.addObject();
+            systemMessage.put("role", "system");
+            systemMessage.put("content", systemPrompt);
+            
+            // 2. Histórico de Conversa
+            if (request.getHistorico() != null) {
+                for (MensagemConversaDTO msg : request.getHistorico()) {
+                    ObjectNode msgNode = messagesArray.addObject();
+                    String role = "usuario".equals(msg.getAutor()) ? "user" : "assistant";
+                    msgNode.put("role", role);
+                    msgNode.put("content", msg.getTexto());
+                }
+            }
+            
+            // 3. Última mensagem do usuário
+            ObjectNode userMessage = messagesArray.addObject();
+            userMessage.put("role", "user");
+            userMessage.put("content", request.getMensagem());
+            
+            log.info("Enviando requisição para OpenRouter com modelo: {}", requestBody.get("model").asText());
+
+            String rawResponse = restClient.post()
+                    .uri(openrouterUrl)
+                    .header("Authorization", "Bearer " + openrouterKey)
+                    .header("HTTP-Referer", "https://caderninhodigital.com")
+                    .header("X-Title", "Caderninho Digital")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(requestBody)
+                    .retrieve()
+                    .body(String.class);
+
+            JsonNode root = objectMapper.readTree(rawResponse);
+            
+            String responseText = root.path("choices")
+                    .path(0)
+                    .path("message")
+                    .path("content")
+                    .asText();
+
+            if (responseText == null || responseText.trim().isEmpty()) {
+                log.warn("Resposta vazia do OpenRouter. Resposta bruta: {}", rawResponse);
+                return new ConversaResponseDTO("Desculpe, meu filho, perguntei para o meu caderninho digital mas ele não soube responder. Pode tentar de novo?");
+            }
+
+            return new ConversaResponseDTO(responseText.trim());
+            
+        } catch (Exception e) {
+            log.error("Erro ao chamar API do OpenRouter para conversa: ", e);
+            return new ConversaResponseDTO("Desculpe, meu filho, meu caderninho de anotações caiu no chão e me perdi. Pode tentar perguntar de novo? (Erro no OpenRouter)");
+        }
+    }
+
+    private ConversaResponseDTO chamarGeminiDirect(String systemPrompt, ConversaRequestDTO request) {
         try {
             RestClient restClient = RestClient.create();
 
-            String prompt = construirPromptConversa(request);
+            // Monta o prompt concatenado com histórico
+            StringBuilder promptBuilder = new StringBuilder();
+            promptBuilder.append(systemPrompt).append("\n\n");
+            promptBuilder.append("Histórico da conversa:\n");
+            if (request.getHistorico() != null) {
+                for (MensagemConversaDTO msg : request.getHistorico()) {
+                    String autor = "usuario".equals(msg.getAutor()) ? "Usuário" : "Vovó AI";
+                    promptBuilder.append(autor).append(": ").append(msg.getTexto()).append("\n");
+                }
+            }
+            promptBuilder.append("Usuário: ").append(request.getMensagem()).append("\n");
+            promptBuilder.append("Vovó AI: ");
 
             ObjectNode requestBody = objectMapper.createObjectNode();
             ArrayNode contentsArray = requestBody.putArray("contents");
@@ -123,7 +422,7 @@ public class GeminiService {
             ArrayNode partsArray = contentObj.putArray("parts");
 
             ObjectNode textPart = partsArray.addObject();
-            textPart.put("text", prompt);
+            textPart.put("text", promptBuilder.toString());
 
             String endpointUrl = apiUrl + "?key=" + apiKey;
 
@@ -147,7 +446,113 @@ public class GeminiService {
 
         } catch (Exception e) {
             log.error("Erro ao chamar API do Gemini para conversa: ", e);
-            return new ConversaResponseDTO("Desculpe, meu filho, meu caderninho de anotações caiu no chão e me perdi. Pode tentar perguntar de novo? (Erro interno da IA)");
+            return new ConversaResponseDTO("Desculpe, meu filho, meu caderninho de anotações caiu no chão e me perdi. Pode tentar perguntar de novo? (Erro no Gemini)");
+        }
+    }
+
+    private ConversaResponseDTO obterMockConversaInteligente(Usuario gestor, ConversaRequestDTO request) {
+        String msg = request.getMensagem().toLowerCase();
+        
+        // 1. Busca estoque baixo
+        List<MateriaPrima> materias = materiaPrimaRepository.findByGestorOrderByNomeAsc(gestor);
+        List<String> estoqueBaixo = new ArrayList<>();
+        for (MateriaPrima mp : materias) {
+            if (mp.getEstoqueAtual().compareTo(mp.getEstoqueMinimo()) < 0) {
+                estoqueBaixo.add(mp.getNome() + " (Atual: " + mp.getEstoqueAtual() + " " + mp.getUnidadeMedida() + ", Mín: " + mp.getEstoqueMinimo() + " " + mp.getUnidadeMedida() + ")");
+            }
+        }
+
+        // 2. Calcula finanças
+        BigDecimal receitaVendas = BigDecimal.ZERO;
+        List<Venda> vendas = vendaRepository.findByGestorOrderByDataVendaDesc(gestor);
+        for (Venda v : vendas) {
+            receitaVendas = receitaVendas.add(v.getValorTotal());
+        }
+        
+        List<Lancamento> lancamentos = lancamentoRepository.findByGestorOrderByDataLancamentoDesc(gestor);
+        for (Lancamento l : lancamentos) {
+            if ("VENDA".equals(l.getTipo().name())) {
+                receitaVendas = receitaVendas.add(l.getValorTotal());
+            }
+        }
+
+        BigDecimal despesasCompras = BigDecimal.ZERO;
+        List<CompraMateriaPrima> compras = compraMateriaPrimaRepository.findByGestorOrderByDataCompraDesc(gestor);
+        for (CompraMateriaPrima c : compras) {
+            despesasCompras = despesasCompras.add(c.getValorTotal());
+        }
+
+        BigDecimal despesasGerais = BigDecimal.ZERO;
+        for (Lancamento l : lancamentos) {
+            if ("GASTO_GERAL".equals(l.getTipo().name()) || "COMPRA_PRODUTO".equals(l.getTipo().name())) {
+                despesasGerais = despesasGerais.add(l.getValorTotal());
+            }
+        }
+        
+        BigDecimal despesasTotais = despesasCompras.add(despesasGerais);
+        BigDecimal lucroDocinho = receitaVendas.subtract(despesasTotais);
+
+        List<Producao> producoes = producaoRepository.findByGestorOrderByDataProducaoDesc(gestor);
+
+        // 3. Resposta baseada em palavras-chave
+        if (msg.contains("lucro") || msg.contains("faturamento") || msg.contains("ganh") || msg.contains("rend") || msg.contains("financeiro") || msg.contains("vendi")) {
+            return new ConversaResponseDTO(
+                "Ah, meu querido " + gestor.getNome() + ", os lucros são o doce fruto do seu trabalho! 🍯 Dando uma olhada por cima no seu caderninho digital:\n\n" +
+                "- **Faturamento Total**: R$ " + receitaVendas + "\n" +
+                "- **Custos e Despesas**: R$ " + despesasTotais + "\n" +
+                "- **Lucro Líquido**: R$ " + lucroDocinho + "\n\n" +
+                (lucroDocinho.compareTo(BigDecimal.ZERO) > 0 
+                  ? "Que bênção! Estamos no azul. Continue controlando tudo com carinho, meu bem."
+                  : "Parece que as despesas estão altas, querido. Vamos dar uma olhada onde podemos economizar?") +
+                "\n\n*(Lembre-se: Configure a chave `OPENROUTER_API_KEY` para que eu use inteligência artificial completa para prever suas próximas vendas!)*"
+            );
+        } else if (msg.contains("estoque") || msg.contains("falta") || msg.contains("compr") || msg.contains("ingrediente")) {
+            if (estoqueBaixo.isEmpty()) {
+                return new ConversaResponseDTO(
+                    "Meu filho, manter os ingredientes em dia é o segredo de um bom doce! 🥐 Dei uma olhada detalhada no seu estoque e **está tudo em ordem**!\n\n" +
+                    "Nenhuma matéria-prima está abaixo do limite mínimo recomendado. Que orgulho de você!\n\n" +
+                    "*(Lembre-se: Configure a chave `OPENROUTER_API_KEY` para previsões e alertas avançados com IA!)*"
+                );
+            } else {
+                StringBuilder sb = new StringBuilder();
+                sb.append("Meu filho, manter os ingredientes em dia é o segredo de um bom doce! 🥐 Dei uma olhada detalhada no armário e notei que os seguintes insumos estão abaixo do estoque mínimo:\n\n");
+                for (String item : estoqueBaixo) {
+                    sb.append("- ").append(item).append("\n");
+                }
+                sb.append("\nRecomendo fazer uma comprinha de reposição para não deixar faltar nada no tacho. Quer ajuda para registrar?\n\n");
+                sb.append("*(Lembre-se: Configure a chave `OPENROUTER_API_KEY` para eu gerar listas de compras inteligentes para você!)*");
+                return new ConversaResponseDTO(sb.toString());
+            }
+        } else if (msg.contains("produ") || msg.contains("doce") || msg.contains("biriba") || msg.contains("paçoca") || msg.contains("fondant")) {
+            if (producoes.isEmpty()) {
+                return new ConversaResponseDTO(
+                    "Minha filha, produzir com amor é o ingrediente secreto! 🧁 Vejo que você ainda não registrou nenhuma produção recente no caderninho.\n\n" +
+                    "Que tal registrar sua primeira produção de doces hoje para que eu possa te ajudar a planejar?\n\n" +
+                    "*(Lembre-se: Configure a chave `OPENROUTER_API_KEY` para previsões de demanda e sugestões de quanto produzir!)*"
+                );
+            } else {
+                Producao ultima = producoes.get(0);
+                return new ConversaResponseDTO(
+                    "Minha filha, produzir com amor é o ingrediente secreto! 🧁 No seu histórico, a última produção registrada foi de **" + 
+                    ultima.getQuantidadeProduzida() + " potes** de **" + (ultima.getProduto() != null ? ultima.getProduto().getNome() : "Doce") + 
+                    "** no dia " + ultima.getDataProducao() + ".\n\n" +
+                    (estoqueBaixo.isEmpty() 
+                      ? "Como seu estoque está em ordem, você pode continuar produzindo de acordo com os pedidos, querido." 
+                      : "Atenção: como temos insumos baixos no estoque, recomendo comprar o que falta antes de iniciar a próxima grande produção!") +
+                    "\n\n*(Lembre-se: Configure a chave `OPENROUTER_API_KEY` para eu prever qual doce venderá mais nas próximas semanas!)*"
+                );
+            }
+        } else {
+            return new ConversaResponseDTO(
+                "Oi, meu bem " + gestor.getNome() + "! Que bom ver você na cozinha. 💛\n\n" +
+                "Eu sou a **Vovó AI** e estou aqui no seu caderninho digital para ajudar nas decisões sobre compras, produção e próximas vendas.\n\n" +
+                "Para conversarmos com inteligência artificial de verdade, peça para configurar a chave `OPENROUTER_API_KEY` nas variáveis de ambiente do backend. Enquanto isso, eu analisei seu caderninho e montei esse painel para você:\n\n" +
+                "### 📊 Painel de Decisões da Vovó\n" +
+                "- **Estoque**: " + (estoqueBaixo.isEmpty() ? "✅ Tudo em ordem!" : "⚠️ " + estoqueBaixo.size() + " insumos baixos.") + "\n" +
+                "- **Última Produção**: " + (producoes.isEmpty() ? "Nenhuma registrada." : (producoes.get(0).getProduto() != null ? producoes.get(0).getProduto().getNome() : "Doce") + " (" + producoes.get(0).getQuantidadeProduzida() + " potes)") + "\n" +
+                "- **Finanças do Mês**: Lucro estimado de R$ " + lucroDocinho + "\n\n" +
+                "Fique à voltar para me perguntar sobre o lucro, estoque ou produções. Pegue um pedaço de bolo e continue registrando tudo!"
+            );
         }
     }
 
@@ -238,28 +643,6 @@ public class GeminiService {
         return sb.toString();
     }
 
-    private String construirPromptConversa(ConversaRequestDTO request) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("Você é a Vovó AI, uma senhora muito carinhosa, afetuosa, acolhedora e experiente que auxilia o usuário a gerenciar sua pequena fábrica de doces artesanais (especialmente Biriba, Paçoca e Fondant de leite).\n");
-        sb.append("Instruções de tom:\n");
-        sb.append("- Responda sempre em português brasileiro de forma doce e paciente.\n");
-        sb.append("- Use expressões afetuosas como 'meu filho', 'minha filha', 'meu bem', 'querido(a)'.\n");
-        sb.append("- Dê conselhos práticos e encorajadores sobre negócios, estoque, vendas e lucros.\n");
-        sb.append("- Seja calorosa, mas direta nas respostas, evitando textos extremamente longos.\n\n");
-
-        sb.append("Histórico da conversa:\n");
-        if (request.getHistorico() != null) {
-            for (MensagemConversaDTO msg : request.getHistorico()) {
-                String autor = "usuario".equals(msg.getAutor()) ? "Usuário" : "Vovó AI";
-                sb.append(autor).append(": ").append(msg.getTexto()).append("\n");
-            }
-        }
-        sb.append("Usuário: ").append(request.getMensagem()).append("\n");
-        sb.append("Vovó AI: ");
-
-        return sb.toString();
-    }
-
     private VozResultadoResponseDTO obterMockInterpretarVoz(InterpretarVozRequestDTO request) {
         VozResultadoResponseDTO mock = new VozResultadoResponseDTO();
         mock.setTranscricao("Vendi duas caixas de biriba para a dona Maria");
@@ -295,25 +678,9 @@ public class GeminiService {
         venda.setItens(List.of(item));
         mock.setVenda(venda);
 
-        // Se o usuário não passou uma chave, adiciona uma mensagem explicativa no perguntaProximo para fins didáticos
         mock.setPerguntaProximo("Que maravilha, meu filho! Eu simulei essa venda de biriba para você testar, mas lembre-se de configurar a chave GEMINI_API_KEY no servidor para eu te ouvir de verdade.");
-        mock.setFaltando(List.of("preco_unitario")); // Força a exibição da pergunta
+        mock.setFaltando(List.of("preco_unitario"));
 
         return mock;
-    }
-
-    private ConversaResponseDTO obterMockConversa(ConversaRequestDTO request) {
-        String msg = request.getMensagem().toLowerCase();
-        String resp;
-
-        if (msg.contains("lucro") || msg.contains("faturamento")) {
-            resp = "Ah, meu querido, os lucros são o doce fruto do seu trabalho! Dando uma olhada por cima no seu caderninho, vejo que as vendas de Biriba estão indo muito bem. Mas para eu fazer as contas certinhas e te dar um relatório detalhado com a IA, você precisa configurar a chave GEMINI_API_KEY no servidor. Que tal dar uma olhada nisso?";
-        } else if (msg.contains("estoque") || msg.contains("falta")) {
-            resp = "Meu filho, manter os ingredientes em dia é o segredo de um bom doce! Eu posso monitorar as matérias-primas e te avisar quando o amendoim ou o açúcar estiverem acabando. Só preciso que você configure a chave GEMINI_API_KEY no docker-compose do backend para que eu possa analisar tudo com inteligência. Não deixe faltar açúcar no tacho!";
-        } else {
-            resp = "Oi, meu bem! Que bom ver você na cozinha. Eu sou a Vovó AI e posso te ajudar a gerenciar as vendas, compras e produções de doces por aqui. Para a gente conversar de verdade, peça para configurar a chave GEMINI_API_KEY no backend. Enquanto isso, coma um pedaço de bolo e continue registrando tudo no caderninho!";
-        }
-
-        return new ConversaResponseDTO(resp);
     }
 }
