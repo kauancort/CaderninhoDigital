@@ -115,11 +115,34 @@ As migrations pendentes serão aplicadas automaticamente no banco existente.
 
 ## Deploy no Render
 
-O arquivo `render.yaml` da raiz cria a API Docker e um PostgreSQL 16 na mesma região. Importe o repositório como Blueprint no Render; as credenciais são injetadas pelo próprio Render e o health check usa `/actuator/health`.
+O arquivo `render.yaml` da raiz cria a API Docker no Render. Em produção, a API
+usa um PostgreSQL externo no Supabase; o PostgreSQL do `docker-compose.yml`
+continua exclusivo do ambiente local.
+
+Antes do primeiro deploy, configure manualmente estas variáveis no serviço da
+API no Render:
+
+```txt
+SPRING_DATASOURCE_URL=jdbc:postgresql://<host-do-session-pooler>:5432/postgres?sslmode=require
+SPRING_DATASOURCE_USERNAME=postgres.<project-ref>
+SPRING_DATASOURCE_PASSWORD=<senha-do-banco>
+```
+
+Use os dados exibidos em `Connect > Session pooler` no painel do Supabase. As
+credenciais são declaradas com `sync: false` no Blueprint para nunca serem
+versionadas. Em serviços já existentes, alterações no `render.yaml` não
+preenchem esses segredos; mantenha os valores configurados diretamente no
+painel do Render.
+
+O Flyway executa as migrations pendentes quando a API inicia e o health check
+usa `/actuator/health`.
 
 O Blueprint também gera `JWT_SECRET`. Esse valor deve permanecer estável: alterá-lo invalida todas as sessões ativas. Em uma instalação vazia, use a conta inicial `adm@gmail.com` / `123` e defina imediatamente uma senha forte.
 
-Os planos gratuitos são apropriados para homologação. Faça upgrade do banco antes de armazenar dados reais que precisem de persistência e backups.
+Depois de validar o health check, o login e uma operação de escrita no Supabase,
+o antigo PostgreSQL do Render pode ser excluído manualmente. Os planos gratuitos
+são apropriados para homologação; revise persistência e backups antes de
+armazenar dados reais.
 
 ## Repositório
 

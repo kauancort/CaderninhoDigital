@@ -9,26 +9,12 @@ services:
     healthCheckPath: /actuator/health
     autoDeployTrigger: checksPass
     envVars:
-      - key: DB_HOST
-        fromDatabase:
-          name: caderninho-digital-db
-          property: host
-      - key: DB_PORT
-        fromDatabase:
-          name: caderninho-digital-db
-          property: port
-      - key: DB_NAME
-        fromDatabase:
-          name: caderninho-digital-db
-          property: database
-      - key: DB_USERNAME
-        fromDatabase:
-          name: caderninho-digital-db
-          property: user
-      - key: DB_PASSWORD
-        fromDatabase:
-          name: caderninho-digital-db
-          property: password
+      - key: SPRING_DATASOURCE_URL
+        sync: false
+      - key: SPRING_DATASOURCE_USERNAME
+        sync: false
+      - key: SPRING_DATASOURCE_PASSWORD
+        sync: false
       - key: SPRING_JPA_HIBERNATE_DDL_AUTO
         value: validate
       - key: SPRING_JPA_SHOW_SQL
@@ -47,12 +33,3 @@ services:
         sync: false
       - key: APP_CORS_ALLOWED_ORIGINS
         value: http://localhost:3000,http://localhost:5173,https://caderninhodigital.vercel.app,https://caderninho-digital-api.onrender.com
-
-databases:
-  - name: caderninho-digital-db
-    databaseName: caderninho_digital
-    user: caderninho_user
-    plan: free
-    region: virginia
-    postgresMajorVersion: "16"
-    ipAllowList: []
