@@ -551,7 +551,7 @@ public class GeminiService {
                 "- **Estoque**: " + (estoqueBaixo.isEmpty() ? "✅ Tudo em ordem!" : "⚠️ " + estoqueBaixo.size() + " insumos baixos.") + "\n" +
                 "- **Última Produção**: " + (producoes.isEmpty() ? "Nenhuma registrada." : (producoes.get(0).getProduto() != null ? producoes.get(0).getProduto().getNome() : "Doce") + " (" + producoes.get(0).getQuantidadeProduzida() + " potes)") + "\n" +
                 "- **Finanças do Mês**: Lucro estimado de R$ " + lucroDocinho + "\n\n" +
-                "Fique à voltar para me perguntar sobre o lucro, estoque ou produções. Pegue um pedaço de bolo e continue registrando tudo!"
+                "Fique à vontade para me perguntar sobre o lucro, estoque ou produções. Pegue um pedaço de bolo e continue registrando tudo!"
             );
         }
     }
