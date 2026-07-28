@@ -100,11 +100,6 @@ SPRING_DATASOURCE_PASSWORD
 SPRING_JPA_HIBERNATE_DDL_AUTO
 SPRING_JPA_SHOW_SQL
 SPRING_FLYWAY_ENABLED
-DB_HOST
-DB_PORT
-DB_NAME
-DB_USERNAME
-DB_PASSWORD
 SMTP_HOST
 SMTP_PORT
 SMTP_USER
@@ -246,20 +241,25 @@ A API é stateless e não utiliza sessão HTTP ou `X-Usuario-Id`. O usuário é 
 
 ## Deploy No Render
 
-Para deploy no Render, use o `Dockerfile` da API ou configure build Maven.
+Para deploy no Render, use o `Dockerfile` da API. O `render.yaml` na raiz
+provisiona somente a API; o banco PostgreSQL de produção é externo e fica no
+Supabase.
 
-O `render.yaml` na raiz provisiona a API e um PostgreSQL gerenciado usando a rede interna do Render.
-
-Configure no Render:
+Configure manualmente no serviço do Render:
 
 ```txt
-PORT
-SPRING_DATASOURCE_URL
-SPRING_DATASOURCE_USERNAME
-SPRING_DATASOURCE_PASSWORD
+SPRING_DATASOURCE_URL=jdbc:postgresql://<host-do-session-pooler>:5432/postgres?sslmode=require
+SPRING_DATASOURCE_USERNAME=postgres.<project-ref>
+SPRING_DATASOURCE_PASSWORD=<senha-do-banco>
 SPRING_JPA_HIBERNATE_DDL_AUTO=validate
 SPRING_FLYWAY_ENABLED=true
 JWT_SECRET=um-segredo-persistente-com-pelo-menos-32-bytes
 ```
 
-O `docker-compose.yml` é apenas para desenvolvimento local.
+Copie host, usuário e porta de `Connect > Session pooler` no Supabase. As três
+credenciais são segredos `sync: false`: seus valores ficam somente no painel do
+Render e nunca no repositório. O Flyway aplica as migrations pendentes durante a
+inicialização da API.
+
+O `docker-compose.yml` e seus valores locais não são afetados por essa
+configuração de produção.
