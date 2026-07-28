@@ -2,6 +2,41 @@ import { createApiFn } from "@/lib/api-function";
 import { API_URL as BASE_URL, apiFetch as fetch } from "@/lib/api-client";
 import { z } from "zod";
 
+export const listarVendas = createApiFn({ method: "GET" }).handler(async () => {
+  const res = await fetch(`${BASE_URL}/vendas`, {});
+  if (!res.ok) throw new Error("Erro ao listar vendas");
+
+  const data = await res.json();
+
+  return data.map((v: any) => ({
+    id: String(v.id),
+    cliente_id: v.clienteId ? String(v.clienteId) : null,
+    comprador: v.clienteNome || v.observacao || "Cliente Avulso",
+    forma_pagamento: v.formaPagamento ? v.formaPagamento.toLowerCase() : "pix",
+    status_pagamento: v.statusPagamento ?? "NAO_SE_APLICA",
+    valor_total: v.valorTotal || 0,
+    data_venda: v.dataVenda,
+    data_vencimento: v.dataVencimento || null,
+    tipo_cartao: v.tipoCartao || null,
+    parcelas: v.parcelas || null,
+    em_atraso: Boolean(v.emAtraso),
+    contatos: (v.contatos || []).map((c: any) => ({
+      data: c.data,
+      tipo: c.tipo,
+      resposta: c.resposta || "",
+    })),
+    itens_venda: (v.itens || []).map((i: any) => ({
+      id: String(i.id),
+      produto_final_id: String(i.produtoId),
+      quantidade: i.quantidade,
+      preco_unitario: i.valorUnitario,
+      produtos_finais: {
+        nome: i.produtoNome || "Produto",
+      },
+    })),
+  }));
+});
+
 export const prepararDuplicacaoVenda = createApiFn({ method: "GET" })
   .inputValidator((d) => z.object({ id: z.union([z.string(), z.number()]) }).parse(d))
   .handler(async ({ data }) => {

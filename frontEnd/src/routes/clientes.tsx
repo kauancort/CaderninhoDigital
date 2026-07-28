@@ -2,7 +2,25 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useApiFn } from "@/lib/api-function";
-import { Plus, Search, Users, Pencil, Trash2, Phone, Mail, MapPin, X, Check } from "lucide-react";
+import {
+  Plus,
+  Search,
+  Users,
+  Pencil,
+  Trash2,
+  Phone,
+  Mail,
+  MapPin,
+  X,
+  Check,
+  Eye,
+  Star,
+  Sparkles,
+  Clock,
+  CreditCard,
+  AlertTriangle,
+  ThumbsUp,
+} from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import {
   listarClientes,
@@ -10,6 +28,8 @@ import {
   atualizarCliente,
   excluirCliente,
 } from "@/lib/clientes.functions";
+import { listarVendas } from "@/lib/vendas.functions";
+import { fmtBRL, fmtDateTime } from "@/lib/format";
 
 export const Route = createFileRoute("/clientes")({
   component: () => (
@@ -55,6 +75,11 @@ function Clientes() {
     queryFn: () => listarClientes() as Promise<Cliente[]>,
   });
 
+  const { data: vendas = [] } = useQuery({
+    queryKey: ["vendas"],
+    queryFn: () => listarVendas(),
+  });
+
   const [busca, setBusca] = useState("");
   const [modalAberto, setModalAberto] = useState(false);
   const [editando, setEditando] = useState<Cliente | null>(null);
@@ -62,6 +87,7 @@ function Clientes() {
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [confirmDel, setConfirmDel] = useState<Cliente | null>(null);
+  const [perfilAberto, setPerfilAberto] = useState<Cliente | null>(null);
 
   const filtrados = useMemo(() => {
     const q = busca.trim().toLowerCase();
@@ -186,48 +212,67 @@ function Clientes() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filtrados.map((c) => (
-            <article
-              key={c.id}
-              className="bg-card border border-border rounded-2xl p-5 shadow-warm-sm flex flex-col gap-3"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <h2 className="font-display text-lg font-bold text-foreground truncate">
-                    {c.nome}
-                  </h2>
+          {filtrados.map((c) => {
+            const vendasCliente = vendas.filter((v: any) => v.cliente_id === c.id);
+            const frequencia = classificarFrequencia(vendasCliente.length);
+            return (
+              <article
+                key={c.id}
+                className="bg-card border border-border rounded-2xl p-5 shadow-warm-sm flex flex-col gap-3"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <h2 className="font-display text-lg font-bold text-foreground truncate">
+                      {c.nome}
+                    </h2>
+                    <FrequenciaBadge frequencia={frequencia} />
+                  </div>
+                  <div className="flex gap-1 shrink-0">
+                    <button
+                      onClick={() => setPerfilAberto(c)}
+                      aria-label="Ver perfil"
+                      className="w-9 h-9 rounded-full bg-secondary text-brown-mid hover:bg-beige-dark flex items-center justify-center"
+                    >
+                      <Eye size={14} />
+                    </button>
+                    <button
+                      onClick={() => abrirEditar(c)}
+                      aria-label="Editar"
+                      className="w-9 h-9 rounded-full bg-secondary text-brown-mid hover:bg-beige-dark flex items-center justify-center"
+                    >
+                      <Pencil size={14} />
+                    </button>
+                    <button
+                      onClick={() => setConfirmDel(c)}
+                      aria-label="Excluir"
+                      className="w-9 h-9 rounded-full bg-error-bg text-error hover:bg-error hover:text-error-foreground flex items-center justify-center"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
                 </div>
-                <div className="flex gap-1 shrink-0">
-                  <button
-                    onClick={() => abrirEditar(c)}
-                    aria-label="Editar"
-                    className="w-9 h-9 rounded-full bg-secondary text-brown-mid hover:bg-beige-dark flex items-center justify-center"
-                  >
-                    <Pencil size={14} />
-                  </button>
-                  <button
-                    onClick={() => setConfirmDel(c)}
-                    aria-label="Excluir"
-                    className="w-9 h-9 rounded-full bg-error-bg text-error hover:bg-error hover:text-error-foreground flex items-center justify-center"
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                </div>
-              </div>
 
-              <div className="space-y-2 text-sm text-foreground font-body">
-                <Linha icon={<Phone size={13} />} value={c.telefone} placeholder="Sem telefone" />
-                <Linha icon={<Mail size={13} />} value={c.email} placeholder="Sem e-mail" />
-                <Linha icon={<MapPin size={13} />} value={c.endereco} placeholder="Sem endereço" />
-              </div>
-
-              {c.documento && (
-                <div className="mt-1 text-xs text-muted-foreground bg-secondary/60 rounded-md px-3 py-2 font-body">
-                  Documento: {c.documento}
+                <div className="space-y-2 text-sm text-foreground font-body">
+                  <Linha icon={<Phone size={13} />} value={c.telefone} placeholder="Sem telefone" />
+                  <Linha icon={<Mail size={13} />} value={c.email} placeholder="Sem e-mail" />
+                  <Linha icon={<MapPin size={13} />} value={c.endereco} placeholder="Sem endereço" />
                 </div>
-              )}
-            </article>
-          ))}
+
+                {c.documento && (
+                  <div className="text-xs text-muted-foreground bg-secondary/60 rounded-md px-3 py-2 font-body">
+                    Documento: {c.documento}
+                  </div>
+                )}
+
+                <button
+                  onClick={() => setPerfilAberto(c)}
+                  className="mt-1 text-xs font-bold text-primary inline-flex items-center gap-1 self-start"
+                >
+                  <Eye size={13} /> Ver perfil de compras
+                </button>
+              </article>
+            );
+          })}
         </div>
       )}
 
@@ -360,6 +405,242 @@ function Clientes() {
           </div>
         </div>
       )}
+
+      {perfilAberto && (
+        <PerfilClienteModal
+          cliente={perfilAberto}
+          vendas={vendas.filter((v: any) => v.cliente_id === perfilAberto.id)}
+          onClose={() => setPerfilAberto(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ----- Regras de classificação -----
+
+type Frequencia = "sem_compras" | "novo" | "recorrente" | "frequente";
+
+function classificarFrequencia(qtdCompras: number): Frequencia {
+  if (qtdCompras === 0) return "sem_compras";
+  if (qtdCompras === 1) return "novo";
+  if (qtdCompras <= 2) return "recorrente";
+  return "frequente";
+}
+
+type Comportamento = "sem_historico" | "pontual" | "parcelador" | "atrasador";
+
+function classificarComportamento(vendasCliente: any[]) {
+  const relevantes = vendasCliente.filter((v) => v.status_pagamento !== "NAO_SE_APLICA");
+  if (relevantes.length === 0) {
+    return { tipo: "sem_historico" as Comportamento, qtdAtraso: 0, qtdParcelada: 0, total: 0 };
+  }
+  const qtdAtraso = relevantes.filter((v) => v.em_atraso).length;
+  const qtdParcelada = relevantes.filter(
+    (v) => v.tipo_cartao === "CREDITO" && (v.parcelas || 1) > 1,
+  ).length;
+
+  let tipo: Comportamento = "pontual";
+  if (qtdAtraso > 0) {
+    tipo = "atrasador";
+  } else if (qtdParcelada / relevantes.length > 0.5) {
+    tipo = "parcelador";
+  }
+  return { tipo, qtdAtraso, qtdParcelada, total: relevantes.length };
+}
+
+// ----- Componentes visuais -----
+
+function FrequenciaBadge({ frequencia }: { frequencia: Frequencia }) {
+  const map: Record<Frequencia, { label: string; cls: string; Icon: any }> = {
+    sem_compras: { label: "Sem compras ainda", cls: "text-muted-foreground", Icon: Clock },
+    novo: { label: "Cliente novo", cls: "text-info", Icon: Sparkles },
+    recorrente: { label: "Cliente recorrente", cls: "text-gold-dark", Icon: Star },
+    frequente: { label: "Cliente frequente", cls: "text-success", Icon: Star },
+  };
+  const { label, cls, Icon } = map[frequencia];
+  return (
+    <div className={`inline-flex items-center gap-1 text-[11px] font-semibold mt-0.5 ${cls}`}>
+      <Icon size={12} /> {label}
+    </div>
+  );
+}
+
+function ComportamentoBadge({ tipo }: { tipo: Comportamento }) {
+  const map: Record<Comportamento, { label: string; cls: string; Icon: any }> = {
+    sem_historico: {
+      label: "Sem histórico suficiente",
+      cls: "bg-secondary text-brown-mid",
+      Icon: Clock,
+    },
+    pontual: { label: "Costuma pagar em dia", cls: "bg-success-bg text-success", Icon: ThumbsUp },
+    parcelador: {
+      label: "Prefere parcelar no cartão",
+      cls: "bg-info-bg text-info",
+      Icon: CreditCard,
+    },
+    atrasador: {
+      label: "Já teve atraso no pagamento",
+      cls: "bg-error-bg text-error",
+      Icon: AlertTriangle,
+    },
+  };
+  const { label, cls, Icon } = map[tipo];
+  return (
+    <span
+      className={`inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide px-2.5 py-1 rounded-full ${cls}`}
+    >
+      <Icon size={12} /> {label}
+    </span>
+  );
+}
+
+function MiniCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="bg-secondary/50 rounded-lg px-3 py-2 text-center">
+      <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground truncate">
+        {label}
+      </div>
+      <div className="font-display text-sm font-bold text-primary mt-0.5 truncate">{value}</div>
+    </div>
+  );
+}
+
+function PerfilClienteModal({
+  cliente,
+  vendas,
+  onClose,
+}: {
+  cliente: Cliente;
+  vendas: any[];
+  onClose: () => void;
+}) {
+  const totalGasto = vendas.reduce((s, v) => s + Number(v.valor_total), 0);
+  const qtdCompras = vendas.length;
+  const ticketMedio = qtdCompras > 0 ? totalGasto / qtdCompras : 0;
+  const ultimaCompra = vendas
+    .slice()
+    .sort((a, b) => +new Date(b.data_venda) - +new Date(a.data_venda))[0];
+
+  const frequencia = classificarFrequencia(qtdCompras);
+  const comportamento = classificarComportamento(vendas);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-end md:items-center justify-center p-0 md:p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-card w-full md:max-w-lg md:rounded-2xl rounded-t-2xl shadow-warm-sm max-h-[90vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="px-6 py-4 border-b border-border flex items-start justify-between gap-3">
+          <div>
+            <h2 className="font-display text-xl font-bold text-primary">{cliente.nome}</h2>
+            <FrequenciaBadge frequencia={frequencia} />
+          </div>
+          <button
+            onClick={onClose}
+            aria-label="Fechar"
+            className="w-8 h-8 rounded-full hover:bg-secondary flex items-center justify-center shrink-0"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="p-6 space-y-5">
+          {/* Card 1: resumo de compras */}
+          <section>
+            <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">
+              Resumo de compras
+            </h3>
+            {qtdCompras === 0 ? (
+              <p className="text-sm text-muted-foreground bg-secondary/50 rounded-lg px-3 py-3">
+                Esse cliente ainda não tem nenhuma compra registrada.
+              </p>
+            ) : (
+              <div className="grid grid-cols-3 gap-2">
+                <MiniCard label="Compras" value={String(qtdCompras)} />
+                <MiniCard label="Total gasto" value={fmtBRL(totalGasto)} />
+                <MiniCard label="Ticket médio" value={fmtBRL(ticketMedio)} />
+              </div>
+            )}
+            {ultimaCompra && (
+              <p className="text-xs text-muted-foreground mt-2">
+                Última compra em {fmtDateTime(ultimaCompra.data_venda)}, no valor de{" "}
+                {fmtBRL(Number(ultimaCompra.valor_total))}.
+              </p>
+            )}
+          </section>
+
+          {/* Card 2: comportamento de pagamento */}
+          <section>
+            <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">
+              Comportamento de pagamento
+            </h3>
+            <ComportamentoBadge tipo={comportamento.tipo} />
+            {comportamento.total > 0 && (
+              <p className="text-xs text-muted-foreground mt-2">
+                Baseado nas últimas {comportamento.total}{" "}
+                {comportamento.total === 1 ? "venda" : "vendas"}:{" "}
+                {comportamento.qtdAtraso > 0 && (
+                  <>
+                    {comportamento.qtdAtraso}{" "}
+                    {comportamento.qtdAtraso === 1 ? "ficou" : "ficaram"} em atraso
+                    {comportamento.qtdParcelada > 0 ? " · " : ""}
+                  </>
+                )}
+                {comportamento.qtdParcelada > 0 && (
+                  <>{comportamento.qtdParcelada} parcelada(s) no cartão</>
+                )}
+              </p>
+            )}
+            <p className="text-[11px] text-muted-foreground/80 mt-2 italic">
+              Estimativa com base no status atual das vendas — o sistema ainda não registra a data
+              exata em que cada pagamento foi feito.
+            </p>
+          </section>
+
+          {/* Card 3: histórico completo */}
+          {qtdCompras > 0 && (
+            <section>
+              <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">
+                Últimas compras
+              </h3>
+              <ul className="space-y-2 max-h-48 overflow-y-auto">
+                {vendas
+                  .slice()
+                  .sort((a, b) => +new Date(b.data_venda) - +new Date(a.data_venda))
+                  .slice(0, 8)
+                  .map((v) => (
+                    <li
+                      key={v.id}
+                      className="flex items-center justify-between bg-secondary/50 rounded-lg px-3 py-2 text-sm"
+                    >
+                      <div className="min-w-0">
+                        <div className="text-xs text-muted-foreground">
+                          {fmtDateTime(v.data_venda)}
+                        </div>
+                        <div className="text-[11px] text-muted-foreground">
+                          {v.status_pagamento === "PAGO"
+                            ? "Pago"
+                            : v.em_atraso
+                              ? "Em atraso"
+                              : v.status_pagamento === "PENDENTE"
+                                ? "Pendente"
+                                : "—"}
+                        </div>
+                      </div>
+                      <span className="font-display font-bold text-primary">
+                        {fmtBRL(Number(v.valor_total))}
+                      </span>
+                    </li>
+                  ))}
+              </ul>
+            </section>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
