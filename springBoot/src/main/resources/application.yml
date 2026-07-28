@@ -60,3 +60,7 @@ app:
   gemini:
     key: ${GEMINI_API_KEY:}
     url: ${GEMINI_API_URL:https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent}
+  openrouter:
+    key: ${OPENROUTER_API_KEY:}
+    url: ${OPENROUTER_API_URL:https://openrouter.ai/api/v1/chat/completions}
+    model: ${OPENROUTER_MODEL:google/gemini-2.5-flash}

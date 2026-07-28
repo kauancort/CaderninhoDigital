@@ -34,7 +34,7 @@ public class AssistenteController {
             @UsuarioIdAutenticado Long usuarioId,
             @RequestBody @Valid ConversaRequestDTO request
     ) {
-        ConversaResponseDTO response = geminiService.conversar(request);
+        ConversaResponseDTO response = geminiService.conversar(usuarioId, request);
         return ResponseEntity.ok(response);
     }
 }

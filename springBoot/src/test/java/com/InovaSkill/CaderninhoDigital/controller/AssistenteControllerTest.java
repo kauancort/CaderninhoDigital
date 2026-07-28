@@ -78,7 +78,7 @@ class AssistenteControllerTest {
 
         ConversaResponseDTO response = new ConversaResponseDTO("Olá querido!");
 
-        when(geminiService.conversar(any(ConversaRequestDTO.class))).thenReturn(response);
+        when(geminiService.conversar(any(), any(ConversaRequestDTO.class))).thenReturn(response);
 
         mockMvc.perform(post("/api/v1/assistente/conversa")
                 .contentType(MediaType.APPLICATION_JSON)
