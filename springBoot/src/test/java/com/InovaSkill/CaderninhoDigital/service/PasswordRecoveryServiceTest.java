@@ -27,7 +27,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.mail.MailSendException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 @ExtendWith(MockitoExtension.class)
@@ -119,12 +118,12 @@ class PasswordRecoveryServiceTest {
     }
 
     @Test
-    void falhaSmtpNaoExpoemDetalhesNemMantemCodigoAtivo() {
+    void falhaGmailApiNaoExpoemDetalhesNemMantemCodigoAtivo() {
         when(usuarioRepository.findByEmailForUpdate("maria@teste.com")).thenReturn(Optional.of(usuario));
         when(recoveryRepository.findFirstByUsuarioOrderByCriadoEmDesc(usuario)).thenReturn(Optional.empty());
         when(passwordEncoder.encode(anyString())).thenReturn("hash-codigo");
         when(recoveryRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
-        org.mockito.Mockito.doThrow(new MailSendException("credencial SMTP secreta"))
+        org.mockito.Mockito.doThrow(new EmailDeliveryException("credencial OAuth secreta"))
                 .when(emailService).enviarCodigoRecuperacao(anyString(), anyString(), anyString());
 
         var resposta = service.solicitar(solicitacao("maria@teste.com"));

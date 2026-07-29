@@ -126,6 +126,10 @@ API no Render:
 SPRING_DATASOURCE_URL=jdbc:postgresql://<host-do-session-pooler>:5432/postgres?sslmode=require
 SPRING_DATASOURCE_USERNAME=postgres.<project-ref>
 SPRING_DATASOURCE_PASSWORD=<senha-do-banco>
+GMAIL_CLIENT_ID=<oauth-client-id>
+GMAIL_CLIENT_SECRET=<oauth-client-secret>
+GMAIL_REFRESH_TOKEN=<oauth-refresh-token>
+GMAIL_SENDER=docevocida12@gmail.com
 ```
 
 Use os dados exibidos em `Connect > Session pooler` no painel do Supabase. As
@@ -133,6 +137,12 @@ credenciais são declaradas com `sync: false` no Blueprint para nunca serem
 versionadas. Em serviços já existentes, alterações no `render.yaml` não
 preenchem esses segredos; mantenha os valores configurados diretamente no
 painel do Render.
+
+A recuperação de senha envia o código pela Gmail API, não por SMTP. O Client
+Secret e o Refresh Token devem ficar apenas nas variáveis secretas do Render.
+Não é preciso abrir uma porta adicional: a API realiza chamadas HTTPS de saída
+para o Google. O procedimento para gerar o Refresh Token está documentado em
+`springBoot/README.md`.
 
 O Flyway executa as migrations pendentes quando a API inicia e o health check
 usa `/actuator/health`.

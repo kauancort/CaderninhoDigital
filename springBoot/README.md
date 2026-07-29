@@ -100,10 +100,10 @@ SPRING_DATASOURCE_PASSWORD
 SPRING_JPA_HIBERNATE_DDL_AUTO
 SPRING_JPA_SHOW_SQL
 SPRING_FLYWAY_ENABLED
-SMTP_HOST
-SMTP_PORT
-SMTP_USER
-SMTP_PASS
+GMAIL_CLIENT_ID
+GMAIL_CLIENT_SECRET
+GMAIL_REFRESH_TOKEN
+GMAIL_SENDER
 ```
 
 Valores locais padrão:
@@ -118,17 +118,45 @@ SPRING_JPA_SHOW_SQL=false
 SPRING_FLYWAY_ENABLED=true
 ```
 
-Para habilitar a recuperação de senha, configure uma conta Gmail com verificação
-em duas etapas e gere uma senha de aplicativo. Nunca use a senha normal da conta:
+Para habilitar a recuperação de senha, ative a Gmail API no Google Cloud e
+autorize a conta remetente com o escopo mínimo `gmail.send`:
 
 ```txt
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_USER=seu-remetente@gmail.com
-SMTP_PASS=senha-de-aplicativo
+GMAIL_CLIENT_ID=seu-client-id.apps.googleusercontent.com
+GMAIL_CLIENT_SECRET=seu-client-secret
+GMAIL_REFRESH_TOKEN=seu-refresh-token
+GMAIL_SENDER=docevocida12@gmail.com
 ```
 
-Essas variáveis pertencem exclusivamente à API. Não as adicione ao frontend.
+Essas variáveis pertencem exclusivamente à API. Não as adicione ao frontend e
+jamais versione seus valores reais.
+
+### Autorizar a conta remetente
+
+O envio usa uma única conta do Gmail e um `refresh_token`; portanto, a aplicação
+não precisa expor um callback OAuth próprio:
+
+1. No Google Cloud, ative a **Gmail API**.
+2. Configure a tela de consentimento e adicione `docevocida12@gmail.com` como
+   usuário de teste enquanto o aplicativo estiver em modo de teste.
+3. Crie um OAuth Client ID do tipo **Web application**.
+4. Em **Authorized redirect URIs**, cadastre exatamente:
+   `https://developers.google.com/oauthplayground`.
+5. No OAuth 2.0 Playground, abra as configurações, marque **Use your own OAuth
+   credentials** e informe o Client ID e o Client Secret.
+6. Autorize apenas o escopo
+   `https://www.googleapis.com/auth/gmail.send`, usando acesso offline.
+7. Troque o código pelo `refresh_token` e configure as quatro variáveis acima no
+   Render.
+
+Enquanto a tela OAuth externa estiver em **Testing**, o refresh token para esse
+escopo expira em 7 dias. Para uso contínuo em produção, altere o status de
+publicação do aplicativo e cumpra as exigências apresentadas pelo Google Cloud.
+
+O backend renova o access token em `https://oauth2.googleapis.com/token` e envia
+a mensagem por `https://gmail.googleapis.com/gmail/v1/users/me/messages/send`.
+São chamadas HTTPS de saída; não é necessário abrir porta ou criar rota pública
+adicional no Render.
 
 Dentro do Docker Compose, a API usa `postgres` como host do banco:
 
@@ -254,6 +282,10 @@ SPRING_DATASOURCE_PASSWORD=<senha-do-banco>
 SPRING_JPA_HIBERNATE_DDL_AUTO=validate
 SPRING_FLYWAY_ENABLED=true
 JWT_SECRET=um-segredo-persistente-com-pelo-menos-32-bytes
+GMAIL_CLIENT_ID=seu-client-id.apps.googleusercontent.com
+GMAIL_CLIENT_SECRET=seu-client-secret
+GMAIL_REFRESH_TOKEN=seu-refresh-token
+GMAIL_SENDER=docevocida12@gmail.com
 ```
 
 Copie host, usuário e porta de `Connect > Session pooler` no Supabase. As três

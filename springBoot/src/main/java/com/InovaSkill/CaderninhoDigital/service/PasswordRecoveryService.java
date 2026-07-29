@@ -21,7 +21,6 @@ import java.util.Base64;
 import java.util.HexFormat;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.mail.MailException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -146,7 +145,7 @@ public class PasswordRecoveryService {
                 .build());
         try {
             emailService.enviarCodigoRecuperacao(usuario.getEmail(), usuario.getNome(), codigo);
-        } catch (MailException exception) {
+        } catch (EmailDeliveryException exception) {
             invalidar(recovery, agora);
             log.error(
                     "Falha ao enviar e-mail de recuperação para o usuário id={} tipo={}",
