@@ -65,6 +65,44 @@ const emptyForm: FormState = {
 };
 
 type FiltroCliente = "todos" | "frequentes" | "novos" | "atrasadores";
+type TipoDocumento = "CPF" | "CNPJ";
+
+// ----- Máscaras -----
+
+function onlyDigits(v: string) {
+  return v.replace(/\D/g, "");
+}
+
+function maskTelefone(digits: string) {
+  const d = digits.slice(0, 11);
+  if (d.length === 0) return "";
+  if (d.length <= 2) return `(${d}`;
+  if (d.length <= 7) return `(${d.slice(0, 2)}) ${d.slice(2)}`;
+  return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7, 11)}`;
+}
+
+function maskCPF(digits: string) {
+  const d = digits.slice(0, 11);
+  let out = d.slice(0, 3);
+  if (d.length > 3) out += "." + d.slice(3, 6);
+  if (d.length > 6) out += "." + d.slice(6, 9);
+  if (d.length > 9) out += "-" + d.slice(9, 11);
+  return out;
+}
+
+function maskCNPJ(digits: string) {
+  const d = digits.slice(0, 14);
+  let out = d.slice(0, 2);
+  if (d.length > 2) out += "." + d.slice(2, 5);
+  if (d.length > 5) out += "." + d.slice(5, 8);
+  if (d.length > 8) out += "/" + d.slice(8, 12);
+  if (d.length > 12) out += "-" + d.slice(12, 14);
+  return out;
+}
+
+function maskDocumento(digits: string, tipo: TipoDocumento) {
+  return tipo === "CPF" ? maskCPF(digits) : maskCNPJ(digits);
+}
 
 function Clientes() {
   const qc = useQueryClient();
@@ -87,6 +125,7 @@ function Clientes() {
   const [modalAberto, setModalAberto] = useState(false);
   const [editando, setEditando] = useState<Cliente | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
+  const [tipoDocumento, setTipoDocumento] = useState<TipoDocumento>("CPF");
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [confirmDel, setConfirmDel] = useState<Cliente | null>(null);
@@ -118,18 +157,22 @@ function Clientes() {
   function abrirNovo() {
     setEditando(null);
     setForm(emptyForm);
+    setTipoDocumento("CPF");
     setErro(null);
     setModalAberto(true);
   }
 
   function abrirEditar(c: Cliente) {
     setEditando(c);
+    const digitsDoc = onlyDigits(c.documento ?? "");
+    const tipoDetectado: TipoDocumento = digitsDoc.length > 11 ? "CNPJ" : "CPF";
+    setTipoDocumento(tipoDetectado);
     setForm({
       nome: c.nome,
-      telefone: c.telefone ?? "",
+      telefone: maskTelefone(onlyDigits(c.telefone ?? "")),
       email: c.email ?? "",
       endereco: c.endereco ?? "",
-      documento: c.documento ?? "",
+      documento: maskDocumento(digitsDoc, tipoDetectado),
     });
     setErro(null);
     setModalAberto(true);
@@ -141,6 +184,19 @@ function Clientes() {
     setEditando(null);
     setForm(emptyForm);
     setErro(null);
+  }
+
+  function handleTelefoneChange(valor: string) {
+    setForm((f) => ({ ...f, telefone: maskTelefone(onlyDigits(valor)) }));
+  }
+
+  function handleDocumentoChange(valor: string) {
+    setForm((f) => ({ ...f, documento: maskDocumento(onlyDigits(valor), tipoDocumento) }));
+  }
+
+  function trocarTipoDocumento(tipo: TipoDocumento) {
+    setTipoDocumento(tipo);
+    setForm((f) => ({ ...f, documento: maskDocumento(onlyDigits(f.documento), tipo) }));
   }
 
   async function salvar(e: React.FormEvent) {
@@ -352,11 +408,13 @@ function Clientes() {
               <Campo label="Telefone *">
                 <input
                   type="tel"
+                  inputMode="numeric"
                   required
                   className="ds-input"
                   value={form.telefone}
-                  onChange={(e) => setForm({ ...form, telefone: e.target.value })}
+                  onChange={(e) => handleTelefoneChange(e.target.value)}
                   placeholder="(11) 99999-9999"
+                  maxLength={15}
                 />
               </Campo>
               <Campo label="E-mail *">
@@ -377,14 +435,39 @@ function Clientes() {
                   placeholder="Rua, número, bairro"
                 />
               </Campo>
-              <Campo label="Documento">
+
+              <div>
+                <label className="text-sm font-semibold text-foreground mb-1.5 block">
+                  Documento
+                </label>
+                <div className="grid grid-cols-2 gap-2 mb-2">
+                  {(["CPF", "CNPJ"] as const).map((t) => (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => trocarTipoDocumento(t)}
+                      className={[
+                        "py-2 rounded-md text-xs font-bold uppercase tracking-wider transition-colors",
+                        tipoDocumento === t
+                          ? "bg-primary text-primary-foreground shadow-warm-sm"
+                          : "bg-secondary text-brown-mid hover:bg-beige-dark",
+                      ].join(" ")}
+                    >
+                      {t}
+                    </button>
+                  ))}
+                </div>
                 <input
+                  inputMode="numeric"
                   className="ds-input"
                   value={form.documento}
-                  onChange={(e) => setForm({ ...form, documento: e.target.value })}
-                  placeholder="CPF ou CNPJ"
+                  onChange={(e) => handleDocumentoChange(e.target.value)}
+                  placeholder={
+                    tipoDocumento === "CPF" ? "000.000.000-00" : "00.000.000/0000-00"
+                  }
+                  maxLength={tipoDocumento === "CPF" ? 14 : 18}
                 />
-              </Campo>
+              </div>
 
               {erro && (
                 <div className="bg-error-bg border-l-4 border-error text-error rounded-md px-4 py-3 text-sm font-medium">
