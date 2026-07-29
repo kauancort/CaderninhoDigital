@@ -108,7 +108,7 @@ public class GeminiService {
             String endpointUrl = apiUrl + "?key=" + apiKey;
 
             String rawResponse = restClient.post()
-                    .uri(endpointUrl)
+                    .uri(java.net.URI.create(endpointUrl))
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(requestBody)
                     .retrieve()
@@ -130,6 +130,10 @@ public class GeminiService {
 
             return objectMapper.readValue(jsonOutput, VozResultadoResponseDTO.class);
 
+        } catch (org.springframework.web.client.HttpStatusCodeException e) {
+            String errorBody = e.getResponseBodyAsString();
+            log.error("Erro HTTP ao chamar API do Gemini para interpretar voz (Status: {}): {}", e.getStatusCode(), errorBody, e);
+            throw new RuntimeException("Erro ao processar a transcrição da voz. Código HTTP: " + e.getStatusCode() + ". Detalhes da API: " + errorBody, e);
         } catch (Exception e) {
             log.error("Erro ao chamar API do Gemini para interpretar voz: ", e);
             throw new RuntimeException("Erro ao processar a transcrição da voz. Detalhes: " + e.getMessage(), e);
@@ -369,7 +373,7 @@ public class GeminiService {
             log.info("Enviando requisição para OpenRouter com modelo: {}", requestBody.get("model").asText());
 
             String rawResponse = restClient.post()
-                    .uri(openrouterUrl)
+                    .uri(java.net.URI.create(openrouterUrl))
                     .header("Authorization", "Bearer " + openrouterKey)
                     .header("HTTP-Referer", "https://caderninhodigital.com")
                     .header("X-Title", "Caderninho Digital")
@@ -393,6 +397,9 @@ public class GeminiService {
 
             return new ConversaResponseDTO(responseText.trim());
             
+        } catch (org.springframework.web.client.HttpStatusCodeException e) {
+            log.error("Erro HTTP ao chamar API do OpenRouter (Status: {}): {}", e.getStatusCode(), e.getResponseBodyAsString(), e);
+            return new ConversaResponseDTO("Desculpe, meu filho, meu caderninho de anotações caiu no chão e me perdi. Pode tentar perguntar de novo? (Erro no OpenRouter: " + e.getStatusCode() + ")");
         } catch (Exception e) {
             log.error("Erro ao chamar API do OpenRouter para conversa: ", e);
             return new ConversaResponseDTO("Desculpe, meu filho, meu caderninho de anotações caiu no chão e me perdi. Pode tentar perguntar de novo? (Erro no OpenRouter)");
@@ -427,7 +434,7 @@ public class GeminiService {
             String endpointUrl = apiUrl + "?key=" + apiKey;
 
             String rawResponse = restClient.post()
-                    .uri(endpointUrl)
+                    .uri(java.net.URI.create(endpointUrl))
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(requestBody)
                     .retrieve()
@@ -444,6 +451,9 @@ public class GeminiService {
 
             return new ConversaResponseDTO(responseText.trim());
 
+        } catch (org.springframework.web.client.HttpStatusCodeException e) {
+            log.error("Erro HTTP ao chamar API do Gemini para conversa (Status: {}): {}", e.getStatusCode(), e.getResponseBodyAsString(), e);
+            return new ConversaResponseDTO("Desculpe, meu filho, meu caderninho de anotações caiu no chão e me perdi. Pode tentar perguntar de novo? (Erro no Gemini: " + e.getStatusCode() + ")");
         } catch (Exception e) {
             log.error("Erro ao chamar API do Gemini para conversa: ", e);
             return new ConversaResponseDTO("Desculpe, meu filho, meu caderninho de anotações caiu no chão e me perdi. Pode tentar perguntar de novo? (Erro no Gemini)");
