@@ -24,19 +24,6 @@ spring:
     baseline-on-migrate: false
     validate-on-migrate: true
 
-  mail:
-    host: ${SMTP_HOST:smtp.gmail.com}
-    port: ${SMTP_PORT:587}
-    username: ${SMTP_USER}
-    password: ${SMTP_PASS}
-    properties:
-      mail:
-        smtp:
-          auth: true
-          starttls:
-            enable: true
-            required: true
-
 management:
   endpoints:
     web:
@@ -64,3 +51,8 @@ app:
     key: ${OPENROUTER_API_KEY}
     url: ${OPENROUTER_API_URL:https://openrouter.ai/api/v1/chat/completions}
     model: ${OPENROUTER_MODEL}
+  gmail:
+    client-id: ${GMAIL_CLIENT_ID:}
+    client-secret: ${GMAIL_CLIENT_SECRET:}
+    refresh-token: ${GMAIL_REFRESH_TOKEN:}
+    sender: ${GMAIL_SENDER:docevocida12@gmail.com}
