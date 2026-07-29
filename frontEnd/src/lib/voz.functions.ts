@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { apiRequest } from "./api-client";
 
-const CatalogoItem = z.object({ id: z.string(), nome: z.string() });
+const CatalogoItem = z.object({ id: z.union([z.string(), z.number()]), nome: z.string() });
 const InterpretarInput = z.object({
   audioBase64: z.string().min(1),
   mime: z.string().min(1),
