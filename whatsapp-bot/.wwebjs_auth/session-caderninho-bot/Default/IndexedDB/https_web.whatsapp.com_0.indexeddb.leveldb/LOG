@@ -1,0 +1,36 @@
+2026/08/01-09:59:19.965 2898 Reusing MANIFEST C:\Fernanda\docesvocida\Projeto\CaderninhoDigital\whatsapp-bot\.wwebjs_auth\session-caderninho-bot\Default\IndexedDB\https_web.whatsapp.com_0.indexeddb.leveldb/MANIFEST-000001
+2026/08/01-09:59:19.971 2898 Recovering log #219
+2026/08/01-09:59:20.146 2898 Reusing old log C:\Fernanda\docesvocida\Projeto\CaderninhoDigital\whatsapp-bot\.wwebjs_auth\session-caderninho-bot\Default\IndexedDB\https_web.whatsapp.com_0.indexeddb.leveldb/000219.log 
+2026/08/01-09:59:47.977 1f78 Level-0 table #225: started
+2026/08/01-09:59:48.149 1f78 Level-0 table #225: 1249410 bytes OK
+2026/08/01-09:59:48.157 1f78 Delete type=0 #219
+2026/08/01-09:59:48.180 1f78 Compacting 1@1 + 2@2 files
+2026/08/01-09:59:48.585 1f78 Generated table #226@1: 40895 keys, 2196912 bytes
+2026/08/01-09:59:48.780 1f78 Generated table #227@1: 22327 keys, 1090656 bytes
+2026/08/01-09:59:48.780 1f78 Compacted 1@1 + 2@2 files => 3287568 bytes
+2026/08/01-09:59:48.783 1f78 compacted to: files[ 0 0 2 0 0 0 0 ]
+2026/08/01-09:59:48.784 1f78 Delete type=2 #221
+2026/08/01-09:59:48.784 1f78 Delete type=2 #222
+2026/08/01-09:59:48.784 1f78 Delete type=2 #225
+2026/08/01-09:59:52.587 1f78 Level-0 table #229: started
+2026/08/01-09:59:52.739 1f78 Level-0 table #229: 1143167 bytes OK
+2026/08/01-09:59:52.742 1f78 Delete type=0 #224
+2026/08/01-09:59:52.827 1f78 Compacting 1@1 + 2@2 files
+2026/08/01-09:59:53.045 1f78 Generated table #230@1: 48170 keys, 2203544 bytes
+2026/08/01-09:59:53.427 1f78 Generated table #231@1: 29191 keys, 1749498 bytes
+2026/08/01-09:59:53.427 1f78 Compacted 1@1 + 2@2 files => 3953042 bytes
+2026/08/01-09:59:53.429 1f78 compacted to: files[ 0 0 2 0 0 0 0 ]
+2026/08/01-09:59:53.430 1f78 Delete type=2 #226
+2026/08/01-09:59:53.430 1f78 Delete type=2 #227
+2026/08/01-09:59:53.430 1f78 Delete type=2 #229
+2026/08/01-10:00:23.436 1f78 Level-0 table #233: started
+2026/08/01-10:00:23.764 1f78 Level-0 table #233: 989257 bytes OK
+2026/08/01-10:00:23.806 1f78 Delete type=0 #228
+2026/08/01-10:00:23.936 dc Compacting 1@1 + 2@2 files
+2026/08/01-10:00:24.692 dc Generated table #234@1: 40573 keys, 2201751 bytes
+2026/08/01-10:00:25.000 dc Generated table #235@1: 20393 keys, 986611 bytes
+2026/08/01-10:00:25.000 dc Compacted 1@1 + 2@2 files => 3188362 bytes
+2026/08/01-10:00:25.044 dc compacted to: files[ 0 0 2 0 0 0 0 ]
+2026/08/01-10:00:25.045 dc Delete type=2 #230
+2026/08/01-10:00:25.046 dc Delete type=2 #231
+2026/08/01-10:00:25.046 dc Delete type=2 #233

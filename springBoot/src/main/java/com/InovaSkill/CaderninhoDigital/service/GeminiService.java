@@ -73,7 +73,15 @@ public class GeminiService {
         try {
             RestClient restClient = RestClient.create();
 
-            String prompt = construirPromptVoz(request);
+           String prompt = construirPromptVoz(request);
+            if (request.getTextoTranscrito() != null && !request.getTextoTranscrito().isBlank()) {
+                prompt = "Mensagem enviada por TEXTO pelo usuário (não há áudio, use este texto como base e copie-o no campo \"transcricao\"): \""
+                        + request.getTextoTranscrito() + "\"\n\n" + prompt;
+            }
+            if (request.getTextoTranscrito() != null && !request.getTextoTranscrito().isBlank()) {
+                prompt = "Mensagem enviada por TEXTO pelo usuário (não há áudio, use este texto como base e copie-o no campo \"transcricao\"): \""
+                        + request.getTextoTranscrito() + "\"\n\n" + prompt;
+            }
 
             ObjectNode requestBody = objectMapper.createObjectNode();
             ArrayNode contentsArray = requestBody.putArray("contents");
