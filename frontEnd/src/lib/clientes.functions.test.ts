@@ -13,6 +13,8 @@ describe("payload de cliente", () => {
       documento: "00.000.000/0001-00",
       cep: "12345678",
       bairro: "Centro",
+      cidade: "São Paulo",
+      estado: "SP",
       inscricaoEstadual: "00123-X",
     });
     expect(payload).toMatchObject({
@@ -28,21 +30,22 @@ describe("payload de cliente", () => {
     const payload = clientePayload({
       nome: "Pessoa",
       telefone: "(11) 99999-9999",
-      email: "pessoa@email.com",
+      email: "",
       endereco: "",
-      numero: "",
+      numero: "10",
       complemento: "",
-      documento: "",
+      documento: "52998224725",
       cep: "",
-      bairro: "",
+      bairro: "Centro",
+      cidade: "São Paulo",
+      estado: "SP",
       inscricaoEstadual: "",
     });
     expect(payload).toMatchObject({
       cep: null,
-      bairro: null,
       inscricaoEstadual: null,
-      numero: null,
       complemento: null,
+      email: null,
     });
   });
 });

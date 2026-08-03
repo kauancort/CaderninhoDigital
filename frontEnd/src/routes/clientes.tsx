@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useApiFn } from "@/lib/api-function";
 import {
@@ -30,7 +30,11 @@ import {
 } from "@/lib/clientes.functions";
 import { listarVendas } from "@/lib/vendas.functions";
 import { fmtBRL, fmtDateTime } from "@/lib/format";
-import { apenasDigitosCep, consultarCep, mascararCep } from "@/lib/viacep";
+import { mascararCep } from "@/lib/viacep";
+import { ClienteFormModal } from "@/components/clientes/ClienteFormModal";
+import { clienteFormVazio, type ClienteFormData } from "@/lib/cliente-form";
+import { mascararDocumento, somenteDigitos } from "@/lib/documento-fiscal";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/clientes")({
   component: () => (
@@ -51,74 +55,12 @@ type Cliente = {
   documento: string;
   cep: string;
   bairro: string;
+  cidade: string;
+  estado: string;
   inscricaoEstadual: string;
-};
-
-type FormState = {
-  nome: string;
-  telefone: string;
-  email: string;
-  endereco: string;
-  numero: string;
-  complemento: string;
-  documento: string;
-  cep: string;
-  bairro: string;
-  inscricaoEstadual: string;
-};
-
-const emptyForm: FormState = {
-  nome: "",
-  telefone: "",
-  email: "",
-  endereco: "",
-  numero: "",
-  complemento: "",
-  documento: "",
-  cep: "",
-  bairro: "",
-  inscricaoEstadual: "",
 };
 
 type FiltroCliente = "todos" | "frequentes" | "novos" | "atrasadores";
-type TipoDocumento = "CPF" | "CNPJ";
-
-// ----- Máscaras -----
-
-function onlyDigits(v: string) {
-  return v.replace(/\D/g, "");
-}
-
-function maskTelefone(digits: string) {
-  const d = digits.slice(0, 11);
-  if (d.length === 0) return "";
-  if (d.length <= 2) return `(${d}`;
-  if (d.length <= 7) return `(${d.slice(0, 2)}) ${d.slice(2)}`;
-  return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7, 11)}`;
-}
-
-function maskCPF(digits: string) {
-  const d = digits.slice(0, 11);
-  let out = d.slice(0, 3);
-  if (d.length > 3) out += "." + d.slice(3, 6);
-  if (d.length > 6) out += "." + d.slice(6, 9);
-  if (d.length > 9) out += "-" + d.slice(9, 11);
-  return out;
-}
-
-function maskCNPJ(digits: string) {
-  const d = digits.slice(0, 14);
-  let out = d.slice(0, 2);
-  if (d.length > 2) out += "." + d.slice(2, 5);
-  if (d.length > 5) out += "." + d.slice(5, 8);
-  if (d.length > 8) out += "/" + d.slice(8, 12);
-  if (d.length > 12) out += "-" + d.slice(12, 14);
-  return out;
-}
-
-function maskDocumento(digits: string, tipo: TipoDocumento) {
-  return tipo === "CPF" ? maskCPF(digits) : maskCNPJ(digits);
-}
 
 function Clientes() {
   const qc = useQueryClient();
@@ -140,18 +82,11 @@ function Clientes() {
   const [filtro, setFiltro] = useState<FiltroCliente>("todos");
   const [modalAberto, setModalAberto] = useState(false);
   const [editando, setEditando] = useState<Cliente | null>(null);
-  const [form, setForm] = useState<FormState>(emptyForm);
-  const [tipoDocumento, setTipoDocumento] = useState<TipoDocumento>("CPF");
+  const [formInicial, setFormInicial] = useState<ClienteFormData>(clienteFormVazio);
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [confirmDel, setConfirmDel] = useState<Cliente | null>(null);
   const [perfilAberto, setPerfilAberto] = useState<Cliente | null>(null);
-  const [statusCep, setStatusCep] = useState<string | null>(null);
-  const ultimaConsultaCep = useRef<string | null>(null);
-  const consultaCepRef = useRef<AbortController | null>(null);
-  const numeroRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => () => consultaCepRef.current?.abort(), []);
 
   const filtrados = useMemo(() => {
     const q = busca.trim().toLowerCase();
@@ -178,34 +113,29 @@ function Clientes() {
 
   function abrirNovo() {
     setEditando(null);
-    setForm(emptyForm);
-    setTipoDocumento("CPF");
+    setFormInicial(clienteFormVazio);
     setErro(null);
-    setStatusCep(null);
-    ultimaConsultaCep.current = null;
     setModalAberto(true);
   }
 
   function abrirEditar(c: Cliente) {
     setEditando(c);
-    const digitsDoc = onlyDigits(c.documento ?? "");
-    const tipoDetectado: TipoDocumento = digitsDoc.length > 11 ? "CNPJ" : "CPF";
-    setTipoDocumento(tipoDetectado);
-    setForm({
+    const documento = somenteDigitos(c.documento ?? "");
+    setFormInicial({
       nome: c.nome,
-      telefone: maskTelefone(onlyDigits(c.telefone ?? "")),
+      telefone: c.telefone ?? "",
       email: c.email ?? "",
       endereco: c.endereco ?? "",
       numero: c.numero ?? "",
       complemento: c.complemento ?? "",
-      documento: maskDocumento(digitsDoc, tipoDetectado),
+      documento: mascararDocumento(documento, documento.length > 11 ? "CNPJ" : "CPF"),
       cep: mascararCep(c.cep ?? ""),
       bairro: c.bairro ?? "",
+      cidade: c.cidade ?? "",
+      estado: c.estado ?? "",
       inscricaoEstadual: c.inscricaoEstadual ?? "",
     });
     setErro(null);
-    setStatusCep(null);
-    ultimaConsultaCep.current = apenasDigitosCep(c.cep ?? "") || null;
     setModalAberto(true);
   }
 
@@ -213,90 +143,21 @@ function Clientes() {
     if (salvando) return;
     setModalAberto(false);
     setEditando(null);
-    setForm(emptyForm);
+    setFormInicial(clienteFormVazio);
     setErro(null);
-    setStatusCep(null);
-    consultaCepRef.current?.abort();
   }
 
-  function handleTelefoneChange(valor: string) {
-    setForm((f) => ({ ...f, telefone: maskTelefone(onlyDigits(valor)) }));
-  }
-
-  function handleDocumentoChange(valor: string) {
-    setForm((f) => ({ ...f, documento: maskDocumento(onlyDigits(valor), tipoDocumento) }));
-  }
-
-  function trocarTipoDocumento(tipo: TipoDocumento) {
-    setTipoDocumento(tipo);
-    setForm((f) => ({ ...f, documento: maskDocumento(onlyDigits(f.documento), tipo) }));
-  }
-
-  async function buscarEnderecoPorCep() {
-    const cep = apenasDigitosCep(form.cep);
-    if (cep.length !== 8 || cep === ultimaConsultaCep.current) return;
-    consultaCepRef.current?.abort();
-    const controller = new AbortController();
-    consultaCepRef.current = controller;
-    ultimaConsultaCep.current = cep;
-    setStatusCep("Buscando endereço...");
-    try {
-      const endereco = await consultarCep(cep, controller.signal);
-      if (controller.signal.aborted || apenasDigitosCep(form.cep) !== cep) return;
-      if (!endereco) {
-        setStatusCep("CEP não encontrado. Confira o número ou preencha o endereço manualmente.");
-        return;
-      }
-      setForm((atual) =>
-        apenasDigitosCep(atual.cep) === cep
-          ? { ...atual, endereco: endereco.endereco, bairro: endereco.bairro }
-          : atual,
-      );
-      setStatusCep("Endereço encontrado. Confira e complete os dados.");
-      numeroRef.current?.focus();
-    } catch {
-      if (!controller.signal.aborted)
-        setStatusCep(
-          "Não foi possível consultar o CEP agora. Você pode preencher o endereço manualmente.",
-        );
-    }
-  }
-
-  async function salvar(e: React.FormEvent) {
-    e.preventDefault();
+  async function salvar(form: ClienteFormData) {
     setErro(null);
-    if (!form.nome.trim()) {
-      setErro("Informe o nome do cliente.");
-      return;
-    }
-    if (!form.telefone.trim()) {
-      setErro("Informe o telefone do cliente.");
-      return;
-    }
-    if (!form.email.trim()) {
-      setErro("Informe o e-mail do cliente.");
-      return;
-    }
     setSalvando(true);
     try {
-      const payload = {
-        nome: form.nome.trim(),
-        telefone: form.telefone.trim(),
-        email: form.email.trim(),
-        endereco: form.endereco.trim(),
-        numero: form.numero.trim(),
-        complemento: form.complemento.trim(),
-        documento: form.documento.trim(),
-        cep: apenasDigitosCep(form.cep),
-        bairro: form.bairro.trim(),
-        inscricaoEstadual: form.inscricaoEstadual.trim(),
-      };
       if (editando) {
-        await fnAtualizar({ data: { ...payload, id: editando.id } });
+        await fnAtualizar({ data: { ...form, id: editando.id } });
       } else {
-        await fnCriar({ data: payload });
+        await fnCriar({ data: form });
       }
       qc.invalidateQueries({ queryKey: ["clientes"] });
+      toast.success(editando ? "Cliente atualizado com sucesso." : "Cliente cadastrado com sucesso.");
       fecharModal();
     } catch (err) {
       setErro(err instanceof Error ? err.message : "Erro ao salvar");
@@ -437,10 +298,13 @@ function Clientes() {
                   </div>
                 )}
 
-                {(c.cep || c.bairro || c.inscricaoEstadual) && (
+                {(c.cep || c.bairro || c.cidade || c.estado || c.inscricaoEstadual) && (
                   <div className="text-xs text-muted-foreground bg-secondary/60 rounded-md px-3 py-2 font-body space-y-1">
                     {c.cep && <div>CEP: {mascararCep(c.cep)}</div>}
                     {c.bairro && <div>Bairro: {c.bairro}</div>}
+                    {(c.cidade || c.estado) && (
+                      <div>{[c.cidade, c.estado].filter(Boolean).join(" — ")}</div>
+                    )}
                     {c.inscricaoEstadual && <div>Inscrição estadual: {c.inscricaoEstadual}</div>}
                   </div>
                 )}
@@ -457,196 +321,15 @@ function Clientes() {
         </div>
       )}
 
-      {modalAberto && (
-        <div
-          className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-end md:items-center justify-center p-0 md:p-4"
-          onClick={fecharModal}
-        >
-          <div
-            className="bg-card w-full md:max-w-lg md:rounded-2xl rounded-t-2xl shadow-warm-sm max-h-[90vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="px-6 py-4 border-b border-border flex items-center justify-between">
-              <h2 className="font-display text-xl font-bold text-primary">
-                {editando ? "Editar cliente" : "Novo cliente"}
-              </h2>
-              <button
-                onClick={fecharModal}
-                aria-label="Fechar"
-                className="w-8 h-8 rounded-full hover:bg-secondary flex items-center justify-center"
-              >
-                <X size={16} />
-              </button>
-            </div>
-
-            <form onSubmit={salvar} className="p-6 space-y-4">
-              <Campo label="Nome *">
-                <input
-                  autoFocus
-                  className="ds-input"
-                  value={form.nome}
-                  onChange={(e) => setForm({ ...form, nome: e.target.value })}
-                  placeholder="Ex.: Dona Maria"
-                />
-              </Campo>
-              <Campo label="Telefone *">
-                <input
-                  type="tel"
-                  inputMode="numeric"
-                  required
-                  className="ds-input"
-                  value={form.telefone}
-                  onChange={(e) => handleTelefoneChange(e.target.value)}
-                  placeholder="(11) 99999-9999"
-                  maxLength={15}
-                />
-              </Campo>
-              <Campo label="E-mail *">
-                <input
-                  type="email"
-                  required
-                  className="ds-input"
-                  value={form.email}
-                  onChange={(e) => setForm({ ...form, email: e.target.value })}
-                  placeholder="cliente@email.com"
-                />
-              </Campo>
-              <Campo label="CEP">
-                <input
-                  inputMode="numeric"
-                  autoComplete="postal-code"
-                  className="ds-input"
-                  value={form.cep}
-                  onChange={(e) => {
-                    const cep = mascararCep(e.target.value);
-                    if (apenasDigitosCep(cep) !== ultimaConsultaCep.current) {
-                      consultaCepRef.current?.abort();
-                    }
-                    setForm({ ...form, cep });
-                    setStatusCep(null);
-                    if (apenasDigitosCep(cep).length !== 8) ultimaConsultaCep.current = null;
-                  }}
-                  onBlur={buscarEnderecoPorCep}
-                  placeholder="00000-000"
-                  maxLength={9}
-                  aria-describedby="status-cep"
-                />
-                {statusCep && (
-                  <p id="status-cep" role="status" className="mt-1.5 text-sm text-muted-foreground">
-                    {statusCep}
-                  </p>
-                )}
-              </Campo>
-              <Campo label="Rua ou endereço">
-                <input
-                  className="ds-input"
-                  value={form.endereco}
-                  onChange={(e) => setForm({ ...form, endereco: e.target.value })}
-                  placeholder="Ex.: Rua das Flores"
-                  maxLength={255}
-                />
-              </Campo>
-              <Campo label="Número">
-                <input
-                  ref={numeroRef}
-                  type="text"
-                  className="ds-input"
-                  value={form.numero}
-                  onChange={(e) => setForm({ ...form, numero: e.target.value })}
-                  placeholder="Ex.: 123 ou S/N"
-                  maxLength={20}
-                />
-              </Campo>
-              <Campo label="Complemento (opcional)">
-                <input
-                  type="text"
-                  className="ds-input"
-                  value={form.complemento}
-                  onChange={(e) => setForm({ ...form, complemento: e.target.value })}
-                  placeholder="Ex.: Casa 2, fundos ou apartamento"
-                  maxLength={120}
-                />
-              </Campo>
-              <Campo label="Bairro">
-                <input
-                  className="ds-input"
-                  value={form.bairro}
-                  onChange={(e) => setForm({ ...form, bairro: e.target.value })}
-                  placeholder="Ex.: Centro"
-                  maxLength={120}
-                />
-              </Campo>
-
-              <div>
-                <label className="text-sm font-semibold text-foreground mb-1.5 block">
-                  Documento
-                </label>
-                <div className="grid grid-cols-2 gap-2 mb-2">
-                  {(["CPF", "CNPJ"] as const).map((t) => (
-                    <button
-                      key={t}
-                      type="button"
-                      onClick={() => trocarTipoDocumento(t)}
-                      className={[
-                        "py-2 rounded-md text-xs font-bold uppercase tracking-wider transition-colors",
-                        tipoDocumento === t
-                          ? "bg-primary text-primary-foreground shadow-warm-sm"
-                          : "bg-secondary text-brown-mid hover:bg-beige-dark",
-                      ].join(" ")}
-                    >
-                      {t}
-                    </button>
-                  ))}
-                </div>
-                <input
-                  inputMode="numeric"
-                  className="ds-input"
-                  value={form.documento}
-                  onChange={(e) => handleDocumentoChange(e.target.value)}
-                  placeholder={tipoDocumento === "CPF" ? "000.000.000-00" : "00.000.000/0000-00"}
-                  maxLength={tipoDocumento === "CPF" ? 14 : 18}
-                />
-              </div>
-              <Campo label="Inscrição estadual">
-                <input
-                  type="text"
-                  className="ds-input"
-                  value={form.inscricaoEstadual}
-                  onChange={(e) => setForm({ ...form, inscricaoEstadual: e.target.value })}
-                  placeholder={tipoDocumento === "CNPJ" ? "Número ou ISENTO" : "Opcional"}
-                  maxLength={40}
-                />
-              </Campo>
-
-              {erro && (
-                <div className="bg-error-bg border-l-4 border-error text-error rounded-md px-4 py-3 text-sm font-medium">
-                  {erro}
-                </div>
-              )}
-
-              <div className="flex gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={fecharModal}
-                  disabled={salvando}
-                  className="px-5 py-3 rounded-md font-semibold text-sm border border-border bg-card text-brown-mid hover:bg-secondary"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={salvando}
-                  className="flex-1 px-5 py-3 rounded-md font-semibold text-sm bg-primary text-primary-foreground hover:bg-primary-dark shadow-warm-sm inline-flex items-center justify-center gap-2 disabled:opacity-60"
-                >
-                  <Check size={16} />{" "}
-                  {salvando ? "Salvando..." : editando ? "Salvar alterações" : "Cadastrar"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
+      <ClienteFormModal
+        aberto={modalAberto}
+        titulo={editando ? "Editar cliente" : "Novo cliente"}
+        inicial={formInicial}
+        salvando={salvando}
+        erroGeral={erro}
+        onClose={fecharModal}
+        onSubmit={salvar}
+      />
       {confirmDel && (
         <div
           className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4"
@@ -835,6 +518,8 @@ function PerfilClienteModal({
                 cliente.numero ||
                 cliente.complemento ||
                 cliente.bairro ||
+                cliente.cidade ||
+                cliente.estado ||
                 cliente.cep) && (
                 <p>
                   {[
@@ -842,6 +527,7 @@ function PerfilClienteModal({
                       `${cliente.endereco}${cliente.numero ? `, ${cliente.numero}` : ""}`,
                     cliente.complemento,
                     cliente.bairro,
+                    [cliente.cidade, cliente.estado].filter(Boolean).join(" — "),
                     cliente.cep && `CEP ${mascararCep(cliente.cep)}`,
                   ]
                     .filter(Boolean)

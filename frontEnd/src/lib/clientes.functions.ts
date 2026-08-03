@@ -1,20 +1,30 @@
 import { createApiFn } from "@/lib/api-function";
 import { API_URL as BASE_URL, apiFetch as fetch } from "@/lib/api-client";
 import { z } from "zod";
-const clienteSchema = z.object({
-  nome: z.string().min(1).max(120),
-  telefone: z.string().trim().min(1, "Informe o telefone do cliente.").max(40),
-  email: z.string().trim().email("Informe um e-mail válido.").max(120),
-  endereco: z.string().max(240).optional().default(""),
-  numero: z.string().max(20).optional().default(""),
+import { UFS_BRASIL } from "./cliente-form";
+const emailOpcional = z.union([
+  z.literal(""),
+  z.string().trim().email("Informe um e-mail válido.").max(160),
+]);
+export const clienteSchema = z.object({
+  nome: z.string().trim().min(1, "Informe o nome do cliente.").max(120),
+  telefone: z
+    .string()
+    .trim()
+    .regex(/^(?:\D*\d){10,11}\D*$/, "Informe um telefone válido."),
+  email: emailOpcional.default(""),
+  endereco: z.string().trim().min(1, "Informe a rua ou o endereço.").max(255),
+  numero: z.string().trim().min(1, "Informe o número.").max(20),
   complemento: z.string().max(120).optional().default(""),
-  documento: z.string().max(40).optional().default(""),
+  documento: z.string().min(1, "Informe o CPF ou CNPJ.").max(40),
   cep: z
     .string()
     .regex(/^$|^\d{8}$/, "Informe os 8 dígitos do CEP.")
     .optional()
     .default(""),
-  bairro: z.string().max(120).optional().default(""),
+  bairro: z.string().trim().min(1, "Informe o bairro.").max(120),
+  cidade: z.string().trim().min(1, "Informe a cidade.").max(120),
+  estado: z.enum(UFS_BRASIL, { message: "Selecione o estado." }),
   inscricaoEstadual: z.string().max(40).optional().default(""),
 });
 
@@ -30,6 +40,8 @@ function mapCliente(c: any) {
     documento: c.documento || "",
     cep: c.cep || "",
     bairro: c.bairro || "",
+    cidade: c.cidade || "",
+    estado: c.estado || "",
     inscricaoEstadual: c.inscricaoEstadual || "",
   };
 }
@@ -45,9 +57,19 @@ export function clientePayload(data: z.infer<typeof clienteSchema>) {
     complemento: data.complemento || null,
     cep: data.cep || null,
     bairro: data.bairro || null,
+    cidade: data.cidade,
+    estado: data.estado,
     inscricaoEstadual: data.inscricaoEstadual || null,
     ativo: true,
   };
+}
+
+function mensagemCliente(message: string, fallback: string) {
+  if (!message) return fallback;
+  return message
+    .split("; ")
+    .map((parte) => parte.replace(/^[\wÀ-ÿ]+:\s*/, ""))
+    .join(" ");
 }
 
 export const listarClientes = createApiFn({ method: "GET" }).handler(async () => {
@@ -95,7 +117,7 @@ export const criarCliente = createApiFn({ method: "POST" })
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ message: "Erro ao criar cliente" }));
-      throw new Error(err.message || "Erro ao criar cliente");
+      throw new Error(mensagemCliente(err.message, "Não foi possível criar o cliente."));
     }
     const cliente = await res.json();
     return mapCliente(cliente);
@@ -114,7 +136,7 @@ export const atualizarCliente = createApiFn({ method: "POST" })
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ message: "Erro ao atualizar cliente" }));
-      throw new Error(err.message || "Erro ao atualizar cliente");
+      throw new Error(mensagemCliente(err.message, "Não foi possível atualizar o cliente."));
     }
     return { ok: true };
   });

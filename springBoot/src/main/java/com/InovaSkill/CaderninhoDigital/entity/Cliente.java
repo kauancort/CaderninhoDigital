@@ -57,6 +57,12 @@ public class Cliente {
     @Column(length = 120)
     private String bairro;
 
+    @Column(length = 120)
+    private String cidade;
+
+    @Column(length = 2)
+    private String estado;
+
     @Column(name = "inscricao_estadual", length = 40)
     private String inscricaoEstadual;
 

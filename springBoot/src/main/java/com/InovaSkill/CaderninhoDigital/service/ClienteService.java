@@ -5,6 +5,7 @@ import com.InovaSkill.CaderninhoDigital.dto.response.ClienteResponseDTO;
 import com.InovaSkill.CaderninhoDigital.entity.Cliente;
 import com.InovaSkill.CaderninhoDigital.entity.Usuario;
 import com.InovaSkill.CaderninhoDigital.exception.ResourceNotFoundException;
+import com.InovaSkill.CaderninhoDigital.exception.BusinessException;
 import com.InovaSkill.CaderninhoDigital.repository.ClienteRepository;
 import java.util.List;
 import java.util.Locale;
@@ -23,17 +24,20 @@ public class ClienteService {
     private final UsuarioAcessoService usuarioAcessoService;
 
     public ClienteResponseDTO criar(Long usuarioId, ClienteRequestDTO dto) {
+        validarDocumento(dto.getDocumento());
         Usuario gestor = usuarioAcessoService.buscarGestor(usuarioId);
         Cliente cliente = Cliente.builder()
                 .nome(dto.getNome())
-                .email(dto.getEmail())
+                .email(normalizarOpcional(dto.getEmail()))
                 .telefone(dto.getTelefone())
-                .documento(dto.getDocumento())
+                .documento(somenteDigitos(dto.getDocumento()))
                 .endereco(dto.getEndereco())
                 .numero(dto.getNumero())
                 .complemento(dto.getComplemento())
                 .cep(normalizarCep(dto.getCep()))
                 .bairro(dto.getBairro())
+                .cidade(dto.getCidade())
+                .estado(dto.getEstado())
                 .inscricaoEstadual(dto.getInscricaoEstadual())
                 .ativo(dto.getAtivo())
                 .gestor(gestor)
@@ -72,17 +76,20 @@ public class ClienteService {
     }
 
     public ClienteResponseDTO atualizar(Long usuarioId, Long id, ClienteRequestDTO dto) {
+        validarDocumento(dto.getDocumento());
         usuarioAcessoService.buscarGestor(usuarioId);
         Cliente cliente = buscarEntidade(id);
         cliente.setNome(dto.getNome());
-        cliente.setEmail(dto.getEmail());
+        cliente.setEmail(normalizarOpcional(dto.getEmail()));
         cliente.setTelefone(dto.getTelefone());
-        cliente.setDocumento(dto.getDocumento());
+        cliente.setDocumento(somenteDigitos(dto.getDocumento()));
         cliente.setEndereco(dto.getEndereco());
         cliente.setNumero(dto.getNumero());
         cliente.setComplemento(dto.getComplemento());
         cliente.setCep(normalizarCep(dto.getCep()));
         cliente.setBairro(dto.getBairro());
+        cliente.setCidade(dto.getCidade());
+        cliente.setEstado(dto.getEstado());
         cliente.setInscricaoEstadual(dto.getInscricaoEstadual());
         cliente.setAtivo(dto.getAtivo() != null ? dto.getAtivo() : cliente.getAtivo());
         return toResponse(clienteRepository.save(cliente));
@@ -110,6 +117,8 @@ public class ClienteService {
                 .complemento(cliente.getComplemento())
                 .cep(cliente.getCep())
                 .bairro(cliente.getBairro())
+                .cidade(cliente.getCidade())
+                .estado(cliente.getEstado())
                 .inscricaoEstadual(cliente.getInscricaoEstadual())
                 .ativo(cliente.getAtivo())
                 .gestorId(cliente.getGestor().getId())
@@ -120,5 +129,51 @@ public class ClienteService {
     private String normalizarCep(String cep) {
         if (cep == null || cep.isBlank()) return null;
         return cep.replaceAll("\\D", "");
+    }
+
+    private String normalizarOpcional(String valor) {
+        return valor == null || valor.isBlank() ? null : valor.trim();
+    }
+
+    private String somenteDigitos(String valor) {
+        return valor == null ? "" : valor.replaceAll("\\D", "");
+    }
+
+    private void validarDocumento(String documento) {
+        String valor = somenteDigitos(documento);
+        if (valor.length() == 11 && validarCpf(valor)) return;
+        if (valor.length() == 14 && validarCnpj(valor)) return;
+        throw new BusinessException(valor.length() <= 11
+                ? "O CPF informado não é válido"
+                : "O CNPJ informado não é válido");
+    }
+
+    private boolean validarCpf(String cpf) {
+        if (cpf.chars().distinct().count() == 1) return false;
+        int soma = 0;
+        for (int i = 0; i < 9; i++) soma += Character.digit(cpf.charAt(i), 10) * (10 - i);
+        int d1 = 11 - soma % 11;
+        if (d1 >= 10) d1 = 0;
+        soma = 0;
+        for (int i = 0; i < 10; i++) soma += Character.digit(cpf.charAt(i), 10) * (11 - i);
+        int d2 = 11 - soma % 11;
+        if (d2 >= 10) d2 = 0;
+        return d1 == Character.digit(cpf.charAt(9), 10) && d2 == Character.digit(cpf.charAt(10), 10);
+    }
+
+    private boolean validarCnpj(String cnpj) {
+        if (cnpj.chars().distinct().count() == 1) return false;
+        int[] pesos1 = {5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2};
+        int[] pesos2 = {6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2};
+        int d1 = digitoCnpj(cnpj, pesos1);
+        int d2 = digitoCnpj(cnpj.substring(0, 12) + d1, pesos2);
+        return d1 == Character.digit(cnpj.charAt(12), 10) && d2 == Character.digit(cnpj.charAt(13), 10);
+    }
+
+    private int digitoCnpj(String valor, int[] pesos) {
+        int soma = 0;
+        for (int i = 0; i < pesos.length; i++) soma += Character.digit(valor.charAt(i), 10) * pesos[i];
+        int resto = soma % 11;
+        return resto < 2 ? 0 : 11 - resto;
     }
 }

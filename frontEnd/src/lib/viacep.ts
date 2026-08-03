@@ -2,6 +2,8 @@ export type EnderecoViaCep = {
   cep: string;
   endereco: string;
   bairro: string;
+  cidade: string;
+  estado: string;
 };
 
 type ViaCepBody = {
@@ -9,6 +11,8 @@ type ViaCepBody = {
   cep?: unknown;
   logradouro?: unknown;
   bairro?: unknown;
+  localidade?: unknown;
+  uf?: unknown;
 };
 
 export function apenasDigitosCep(valor: string) {
@@ -43,11 +47,20 @@ export async function consultarCep(
       typeof body.cep !== "string" ||
       apenasDigitosCep(body.cep) !== cep ||
       typeof body.logradouro !== "string" ||
-      typeof body.bairro !== "string"
+      typeof body.bairro !== "string" ||
+      typeof body.localidade !== "string" ||
+      typeof body.uf !== "string" ||
+      !/^[A-Z]{2}$/.test(body.uf)
     ) {
       throw new Error("Resposta inválida do ViaCEP");
     }
-    return { cep, endereco: body.logradouro, bairro: body.bairro };
+    return {
+      cep,
+      endereco: body.logradouro,
+      bairro: body.bairro,
+      cidade: body.localidade,
+      estado: body.uf,
+    };
   } finally {
     globalThis.clearTimeout(timer);
     signal?.removeEventListener("abort", abort);
