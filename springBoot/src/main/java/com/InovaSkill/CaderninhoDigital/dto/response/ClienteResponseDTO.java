@@ -16,6 +16,8 @@ public class ClienteResponseDTO {
     private String complemento;
     private String cep;
     private String bairro;
+    private String cidade;
+    private String estado;
     private String inscricaoEstadual;
     private Boolean ativo;
     private Long gestorId;

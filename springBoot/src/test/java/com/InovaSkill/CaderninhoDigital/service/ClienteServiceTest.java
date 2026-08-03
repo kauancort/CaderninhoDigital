@@ -3,11 +3,13 @@ package com.InovaSkill.CaderninhoDigital.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.InovaSkill.CaderninhoDigital.dto.request.ClienteRequestDTO;
 import com.InovaSkill.CaderninhoDigital.entity.Cliente;
 import com.InovaSkill.CaderninhoDigital.entity.Usuario;
 import com.InovaSkill.CaderninhoDigital.repository.ClienteRepository;
+import com.InovaSkill.CaderninhoDigital.exception.BusinessException;
 import java.util.Optional;
 import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.Test;
@@ -51,6 +53,8 @@ class ClienteServiceTest {
         dto.setComplemento("Fundos");
         dto.setBairro("Centro");
         dto.setInscricaoEstadual("ISENTO");
+        dto.setCidade("São Paulo");
+        dto.setEstado("SP");
         when(usuarioAcessoService.buscarGestor(1L)).thenReturn(gestor);
         when(clienteRepository.save(org.mockito.ArgumentMatchers.any(Cliente.class)))
                 .thenAnswer(invocation -> {
@@ -67,22 +71,25 @@ class ClienteServiceTest {
         assertThat(response.getComplemento()).isEqualTo("Fundos");
         assertThat(response.getBairro()).isEqualTo("Centro");
         assertThat(response.getInscricaoEstadual()).isEqualTo("ISENTO");
+        assertThat(response.getCidade()).isEqualTo("São Paulo");
+        assertThat(response.getEstado()).isEqualTo("SP");
     }
 
     @Test
-    void criaClienteSemNovosDadosMantendoCompatibilidade() {
+    void criaClienteSemCamposOpcionaisEEmail() {
         Usuario gestor = Usuario.builder().id(1L).nome("Gestora").build();
         when(usuarioAcessoService.buscarGestor(1L)).thenReturn(gestor);
         when(clienteRepository.save(org.mockito.ArgumentMatchers.any(Cliente.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        var response = clienteService.criar(1L, dtoBasico());
+        ClienteRequestDTO dto = dtoBasico();
+        dto.setEmail(null);
+        var response = clienteService.criar(1L, dto);
 
         assertThat(response.getCep()).isNull();
-        assertThat(response.getBairro()).isNull();
         assertThat(response.getInscricaoEstadual()).isNull();
-        assertThat(response.getNumero()).isNull();
         assertThat(response.getComplemento()).isNull();
+        assertThat(response.getEmail()).isNull();
     }
 
     @Test
@@ -95,6 +102,8 @@ class ClienteServiceTest {
         dto.setNumero("45");
         dto.setComplemento("Casa 2");
         dto.setInscricaoEstadual("110.042.490.114");
+        dto.setCidade("Recife");
+        dto.setEstado("PE");
         when(usuarioAcessoService.buscarGestor(1L)).thenReturn(gestor);
         when(clienteRepository.findById(10L)).thenReturn(Optional.of(existente));
         when(clienteRepository.save(existente)).thenReturn(existente);
@@ -108,6 +117,24 @@ class ClienteServiceTest {
         assertThat(captor.getValue().getNumero()).isEqualTo("45");
         assertThat(captor.getValue().getComplemento()).isEqualTo("Casa 2");
         assertThat(captor.getValue().getInscricaoEstadual()).isEqualTo("110.042.490.114");
+        assertThat(captor.getValue().getCidade()).isEqualTo("Recife");
+        assertThat(captor.getValue().getEstado()).isEqualTo("PE");
+    }
+
+    @Test
+    void aceitaCnpjValidoERejeitaDocumentosInvalidos() {
+        Usuario gestor = Usuario.builder().id(1L).nome("Gestora").build();
+        ClienteRequestDTO dto = dtoBasico();
+        dto.setDocumento("11.222.333/0001-81");
+        when(usuarioAcessoService.buscarGestor(1L)).thenReturn(gestor);
+        when(clienteRepository.save(org.mockito.ArgumentMatchers.any(Cliente.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        assertThat(clienteService.criar(1L, dto).getDocumento()).isEqualTo("11222333000181");
+
+        dto.setDocumento("111.111.111-11");
+        assertThatThrownBy(() -> clienteService.criar(1L, dto))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("O CPF informado não é válido");
     }
 
     private ClienteRequestDTO dtoBasico() {
@@ -115,6 +142,12 @@ class ClienteServiceTest {
         dto.setNome("Cliente");
         dto.setEmail("cliente@email.com");
         dto.setTelefone("(11) 99999-9999");
+        dto.setDocumento("529.982.247-25");
+        dto.setEndereco("Rua A");
+        dto.setNumero("10");
+        dto.setBairro("Centro");
+        dto.setCidade("São Paulo");
+        dto.setEstado("SP");
         return dto;
     }
 }

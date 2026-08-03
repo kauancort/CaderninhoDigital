@@ -9,6 +9,9 @@ import { criarCliente, pesquisarClientes } from "@/lib/clientes.functions";
 import { registrarVenda } from "@/lib/vendas.functions";
 import { fmtBRL, hojeISO, type FormaPagamento, type StatusPagamento } from "@/lib/format";
 import { consumePrefill, type PrefillVenda } from "@/lib/voz-prefill";
+import { ClienteFormModal } from "@/components/clientes/ClienteFormModal";
+import { clienteFormVazio, type ClienteFormData } from "@/lib/cliente-form";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/registrar/venda")({
   component: () => (
@@ -35,14 +38,8 @@ type Cliente = {
   telefone: string;
 };
 
-type ClienteRapidoForm = Omit<Cliente, "id">;
-
-const clienteRapidoInicial: ClienteRapidoForm = {
-  nome: "",
-  documento: "",
-  email: "",
-  telefone: "",
-};
+type ClienteRapidoForm = ClienteFormData;
+const clienteRapidoInicial = clienteFormVazio;
 
 const POTES_POR_CAIXA = 6;
 
@@ -193,6 +190,7 @@ function RegistrarVenda() {
       setClienteRapido(clienteRapidoInicial);
       setErroClienteRapido(null);
       setModalClienteAberto(false);
+      toast.success("Cliente cadastrado e vinculado à venda.");
     },
     onError: (err: Error) => setErroClienteRapido(err.message),
   });
@@ -302,27 +300,9 @@ function RegistrarVenda() {
     setModalClienteAberto(true);
   }
 
-  function salvarClienteRapido(e: React.FormEvent) {
-    e.preventDefault();
+  function salvarClienteRapido(clienteCompleto: ClienteRapidoForm) {
     setErroClienteRapido(null);
-    if (!clienteRapido.nome.trim()) {
-      setErroClienteRapido("Informe o nome ou a razão social do cliente.");
-      return;
-    }
-    if (!clienteRapido.telefone.trim()) {
-      setErroClienteRapido("Informe o telefone do cliente.");
-      return;
-    }
-    if (!clienteRapido.email.trim()) {
-      setErroClienteRapido("Informe o e-mail do cliente.");
-      return;
-    }
-    criarClienteMutation.mutate({
-      nome: clienteRapido.nome.trim(),
-      documento: clienteRapido.documento.trim(),
-      email: clienteRapido.email.trim(),
-      telefone: clienteRapido.telefone.trim(),
-    });
+    criarClienteMutation.mutate(clienteCompleto);
   }
 
   function navegarSugestoes(e: React.KeyboardEvent<HTMLInputElement>) {
@@ -915,120 +895,16 @@ function RegistrarVenda() {
         </div>
       )}
 
-      {modalClienteAberto && (
-        <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-0 backdrop-blur-sm md:items-center md:p-4"
-          onClick={() => !criarClienteMutation.isPending && setModalClienteAberto(false)}
-        >
-          <div
-            className="max-h-[90vh] w-full overflow-y-auto rounded-t-2xl bg-card shadow-warm-lg md:max-w-lg md:rounded-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between border-b border-border px-6 py-4">
-              <div>
-                <h2 className="font-display text-xl font-bold text-primary">Novo cliente</h2>
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  O cliente será vinculado automaticamente a esta venda.
-                </p>
-              </div>
-              <button
-                type="button"
-                disabled={criarClienteMutation.isPending}
-                onClick={() => setModalClienteAberto(false)}
-                aria-label="Fechar cadastro de cliente"
-                className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-secondary disabled:opacity-50"
-              >
-                <X size={16} />
-              </button>
-            </div>
-            <form onSubmit={salvarClienteRapido} className="space-y-4 p-6">
-              <div>
-                <label className="mb-1 block text-sm font-semibold text-foreground">
-                  Nome ou razão social *
-                </label>
-                <input
-                  autoFocus
-                  className="ds-input"
-                  value={clienteRapido.nome}
-                  onChange={(e) => setClienteRapido({ ...clienteRapido, nome: e.target.value })}
-                  placeholder="Ex.: Mercado da Maria"
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-sm font-semibold text-foreground">
-                  CPF ou CNPJ
-                </label>
-                <input
-                  className="ds-input"
-                  value={clienteRapido.documento}
-                  onChange={(e) =>
-                    setClienteRapido({ ...clienteRapido, documento: e.target.value })
-                  }
-                  placeholder="Somente se disponível"
-                />
-              </div>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="mb-1 block text-sm font-semibold text-foreground">
-                    E-mail *
-                  </label>
-                  <input
-                    type="email"
-                    required
-                    className="ds-input"
-                    value={clienteRapido.email}
-                    onChange={(e) => setClienteRapido({ ...clienteRapido, email: e.target.value })}
-                    placeholder="cliente@email.com"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-sm font-semibold text-foreground">
-                    Telefone *
-                  </label>
-                  <input
-                    type="tel"
-                    required
-                    className="ds-input"
-                    value={clienteRapido.telefone}
-                    onChange={(e) =>
-                      setClienteRapido({ ...clienteRapido, telefone: e.target.value })
-                    }
-                    placeholder="(00) 00000-0000"
-                  />
-                </div>
-              </div>
-              {erroClienteRapido && (
-                <div className="rounded-md border-l-4 border-error bg-error-bg px-4 py-3 text-sm font-medium text-error">
-                  {erroClienteRapido}
-                </div>
-              )}
-              <div className="flex gap-3 pt-2">
-                <button
-                  type="button"
-                  disabled={criarClienteMutation.isPending}
-                  onClick={() => setModalClienteAberto(false)}
-                  className="rounded-md border border-border bg-card px-5 py-3 text-sm font-semibold text-brown-mid hover:bg-secondary disabled:opacity-50"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={criarClienteMutation.isPending}
-                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-md bg-primary px-5 py-3 text-sm font-bold text-primary-foreground shadow-warm-sm hover:bg-primary-dark disabled:opacity-60"
-                >
-                  {criarClienteMutation.isPending ? (
-                    "Salvando..."
-                  ) : (
-                    <>
-                      <Check size={16} /> Salvar e vincular
-                    </>
-                  )}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <ClienteFormModal
+        aberto={modalClienteAberto}
+        titulo="Novo cliente"
+        descricao="O cliente será vinculado automaticamente a esta venda."
+        inicial={clienteRapido}
+        salvando={criarClienteMutation.isPending}
+        erroGeral={erroClienteRapido}
+        onClose={() => setModalClienteAberto(false)}
+        onSubmit={salvarClienteRapido}
+      />
     </div>
   );
 }

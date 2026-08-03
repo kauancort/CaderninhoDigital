@@ -17,14 +17,23 @@ describe("ViaCEP", () => {
 
   it("aceita CEP mascarado e valida a resposta", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({ cep: "12345-678", logradouro: "Rua A", bairro: "Centro" }), {
-        status: 200,
-      }),
+      new Response(
+        JSON.stringify({
+          cep: "12345-678",
+          logradouro: "Rua A",
+          bairro: "Centro",
+          localidade: "São Paulo",
+          uf: "SP",
+        }),
+        { status: 200 },
+      ),
     );
     await expect(consultarCep("12345-678")).resolves.toEqual({
       cep: "12345678",
       endereco: "Rua A",
       bairro: "Centro",
+      cidade: "São Paulo",
+      estado: "SP",
     });
   });
 
