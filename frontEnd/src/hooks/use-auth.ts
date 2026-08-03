@@ -22,7 +22,7 @@ export function useAuth(): AuthState {
         expirationTimer = window.setTimeout(
           () => {
             clearUserSession();
-            if (window.location.pathname !== "/login") window.location.assign("/login");
+            if (window.location.pathname !== "/login") window.location.replace("/login");
           },
           Math.min(remaining, 2_147_483_647),
         );

@@ -14,6 +14,7 @@ import com.InovaSkill.CaderninhoDigital.service.PasswordRecoveryService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -26,6 +27,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
     private final AuthService authService;
     private final PasswordRecoveryService passwordRecoveryService;
+
+    @GetMapping("/session")
+    public ResponseEntity<Void> validarSessao() {
+        return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
+    }
 
     @PostMapping("/login")
     public ResponseEntity<LoginResponseDTO> login(@RequestBody @Valid LoginRequestDTO dto) {

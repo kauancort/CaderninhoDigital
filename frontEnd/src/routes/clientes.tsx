@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useApiFn } from "@/lib/api-function";
 import {
@@ -30,6 +30,7 @@ import {
 } from "@/lib/clientes.functions";
 import { listarVendas } from "@/lib/vendas.functions";
 import { fmtBRL, fmtDateTime } from "@/lib/format";
+import { apenasDigitosCep, consultarCep, mascararCep } from "@/lib/viacep";
 
 export const Route = createFileRoute("/clientes")({
   component: () => (
@@ -45,7 +46,12 @@ type Cliente = {
   telefone: string;
   email: string;
   endereco: string;
+  numero: string;
+  complemento: string;
   documento: string;
+  cep: string;
+  bairro: string;
+  inscricaoEstadual: string;
 };
 
 type FormState = {
@@ -53,7 +59,12 @@ type FormState = {
   telefone: string;
   email: string;
   endereco: string;
+  numero: string;
+  complemento: string;
   documento: string;
+  cep: string;
+  bairro: string;
+  inscricaoEstadual: string;
 };
 
 const emptyForm: FormState = {
@@ -61,7 +72,12 @@ const emptyForm: FormState = {
   telefone: "",
   email: "",
   endereco: "",
+  numero: "",
+  complemento: "",
   documento: "",
+  cep: "",
+  bairro: "",
+  inscricaoEstadual: "",
 };
 
 type FiltroCliente = "todos" | "frequentes" | "novos" | "atrasadores";
@@ -130,6 +146,12 @@ function Clientes() {
   const [erro, setErro] = useState<string | null>(null);
   const [confirmDel, setConfirmDel] = useState<Cliente | null>(null);
   const [perfilAberto, setPerfilAberto] = useState<Cliente | null>(null);
+  const [statusCep, setStatusCep] = useState<string | null>(null);
+  const ultimaConsultaCep = useRef<string | null>(null);
+  const consultaCepRef = useRef<AbortController | null>(null);
+  const numeroRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => () => consultaCepRef.current?.abort(), []);
 
   const filtrados = useMemo(() => {
     const q = busca.trim().toLowerCase();
@@ -159,6 +181,8 @@ function Clientes() {
     setForm(emptyForm);
     setTipoDocumento("CPF");
     setErro(null);
+    setStatusCep(null);
+    ultimaConsultaCep.current = null;
     setModalAberto(true);
   }
 
@@ -172,9 +196,16 @@ function Clientes() {
       telefone: maskTelefone(onlyDigits(c.telefone ?? "")),
       email: c.email ?? "",
       endereco: c.endereco ?? "",
+      numero: c.numero ?? "",
+      complemento: c.complemento ?? "",
       documento: maskDocumento(digitsDoc, tipoDetectado),
+      cep: mascararCep(c.cep ?? ""),
+      bairro: c.bairro ?? "",
+      inscricaoEstadual: c.inscricaoEstadual ?? "",
     });
     setErro(null);
+    setStatusCep(null);
+    ultimaConsultaCep.current = apenasDigitosCep(c.cep ?? "") || null;
     setModalAberto(true);
   }
 
@@ -184,6 +215,8 @@ function Clientes() {
     setEditando(null);
     setForm(emptyForm);
     setErro(null);
+    setStatusCep(null);
+    consultaCepRef.current?.abort();
   }
 
   function handleTelefoneChange(valor: string) {
@@ -197,6 +230,36 @@ function Clientes() {
   function trocarTipoDocumento(tipo: TipoDocumento) {
     setTipoDocumento(tipo);
     setForm((f) => ({ ...f, documento: maskDocumento(onlyDigits(f.documento), tipo) }));
+  }
+
+  async function buscarEnderecoPorCep() {
+    const cep = apenasDigitosCep(form.cep);
+    if (cep.length !== 8 || cep === ultimaConsultaCep.current) return;
+    consultaCepRef.current?.abort();
+    const controller = new AbortController();
+    consultaCepRef.current = controller;
+    ultimaConsultaCep.current = cep;
+    setStatusCep("Buscando endereço...");
+    try {
+      const endereco = await consultarCep(cep, controller.signal);
+      if (controller.signal.aborted || apenasDigitosCep(form.cep) !== cep) return;
+      if (!endereco) {
+        setStatusCep("CEP não encontrado. Confira o número ou preencha o endereço manualmente.");
+        return;
+      }
+      setForm((atual) =>
+        apenasDigitosCep(atual.cep) === cep
+          ? { ...atual, endereco: endereco.endereco, bairro: endereco.bairro }
+          : atual,
+      );
+      setStatusCep("Endereço encontrado. Confira e complete os dados.");
+      numeroRef.current?.focus();
+    } catch {
+      if (!controller.signal.aborted)
+        setStatusCep(
+          "Não foi possível consultar o CEP agora. Você pode preencher o endereço manualmente.",
+        );
+    }
   }
 
   async function salvar(e: React.FormEvent) {
@@ -221,7 +284,12 @@ function Clientes() {
         telefone: form.telefone.trim(),
         email: form.email.trim(),
         endereco: form.endereco.trim(),
+        numero: form.numero.trim(),
+        complemento: form.complemento.trim(),
         documento: form.documento.trim(),
+        cep: apenasDigitosCep(form.cep),
+        bairro: form.bairro.trim(),
+        inscricaoEstadual: form.inscricaoEstadual.trim(),
       };
       if (editando) {
         await fnAtualizar({ data: { ...payload, id: editando.id } });
@@ -352,12 +420,28 @@ function Clientes() {
                 <div className="space-y-2 text-sm text-foreground font-body">
                   <Linha icon={<Phone size={13} />} value={c.telefone} placeholder="Sem telefone" />
                   <Linha icon={<Mail size={13} />} value={c.email} placeholder="Sem e-mail" />
-                  <Linha icon={<MapPin size={13} />} value={c.endereco} placeholder="Sem endereço" />
+                  <Linha
+                    icon={<MapPin size={13} />}
+                    value={
+                      c.endereco
+                        ? `${c.endereco}${c.numero ? `, ${c.numero}` : ""}${c.complemento ? ` · ${c.complemento}` : ""}`
+                        : ""
+                    }
+                    placeholder="Sem endereço"
+                  />
                 </div>
 
                 {c.documento && (
                   <div className="text-xs text-muted-foreground bg-secondary/60 rounded-md px-3 py-2 font-body">
                     Documento: {c.documento}
+                  </div>
+                )}
+
+                {(c.cep || c.bairro || c.inscricaoEstadual) && (
+                  <div className="text-xs text-muted-foreground bg-secondary/60 rounded-md px-3 py-2 font-body space-y-1">
+                    {c.cep && <div>CEP: {mascararCep(c.cep)}</div>}
+                    {c.bairro && <div>Bairro: {c.bairro}</div>}
+                    {c.inscricaoEstadual && <div>Inscrição estadual: {c.inscricaoEstadual}</div>}
                   </div>
                 )}
 
@@ -427,12 +511,69 @@ function Clientes() {
                   placeholder="cliente@email.com"
                 />
               </Campo>
-              <Campo label="Endereço">
+              <Campo label="CEP">
+                <input
+                  inputMode="numeric"
+                  autoComplete="postal-code"
+                  className="ds-input"
+                  value={form.cep}
+                  onChange={(e) => {
+                    const cep = mascararCep(e.target.value);
+                    if (apenasDigitosCep(cep) !== ultimaConsultaCep.current) {
+                      consultaCepRef.current?.abort();
+                    }
+                    setForm({ ...form, cep });
+                    setStatusCep(null);
+                    if (apenasDigitosCep(cep).length !== 8) ultimaConsultaCep.current = null;
+                  }}
+                  onBlur={buscarEnderecoPorCep}
+                  placeholder="00000-000"
+                  maxLength={9}
+                  aria-describedby="status-cep"
+                />
+                {statusCep && (
+                  <p id="status-cep" role="status" className="mt-1.5 text-sm text-muted-foreground">
+                    {statusCep}
+                  </p>
+                )}
+              </Campo>
+              <Campo label="Rua ou endereço">
                 <input
                   className="ds-input"
                   value={form.endereco}
                   onChange={(e) => setForm({ ...form, endereco: e.target.value })}
-                  placeholder="Rua, número, bairro"
+                  placeholder="Ex.: Rua das Flores"
+                  maxLength={255}
+                />
+              </Campo>
+              <Campo label="Número">
+                <input
+                  ref={numeroRef}
+                  type="text"
+                  className="ds-input"
+                  value={form.numero}
+                  onChange={(e) => setForm({ ...form, numero: e.target.value })}
+                  placeholder="Ex.: 123 ou S/N"
+                  maxLength={20}
+                />
+              </Campo>
+              <Campo label="Complemento (opcional)">
+                <input
+                  type="text"
+                  className="ds-input"
+                  value={form.complemento}
+                  onChange={(e) => setForm({ ...form, complemento: e.target.value })}
+                  placeholder="Ex.: Casa 2, fundos ou apartamento"
+                  maxLength={120}
+                />
+              </Campo>
+              <Campo label="Bairro">
+                <input
+                  className="ds-input"
+                  value={form.bairro}
+                  onChange={(e) => setForm({ ...form, bairro: e.target.value })}
+                  placeholder="Ex.: Centro"
+                  maxLength={120}
                 />
               </Campo>
 
@@ -462,12 +603,20 @@ function Clientes() {
                   className="ds-input"
                   value={form.documento}
                   onChange={(e) => handleDocumentoChange(e.target.value)}
-                  placeholder={
-                    tipoDocumento === "CPF" ? "000.000.000-00" : "00.000.000/0000-00"
-                  }
+                  placeholder={tipoDocumento === "CPF" ? "000.000.000-00" : "00.000.000/0000-00"}
                   maxLength={tipoDocumento === "CPF" ? 14 : 18}
                 />
               </div>
+              <Campo label="Inscrição estadual">
+                <input
+                  type="text"
+                  className="ds-input"
+                  value={form.inscricaoEstadual}
+                  onChange={(e) => setForm({ ...form, inscricaoEstadual: e.target.value })}
+                  placeholder={tipoDocumento === "CNPJ" ? "Número ou ISENTO" : "Opcional"}
+                  maxLength={40}
+                />
+              </Campo>
 
               {erro && (
                 <div className="bg-error-bg border-l-4 border-error text-error rounded-md px-4 py-3 text-sm font-medium">
@@ -675,6 +824,33 @@ function PerfilClienteModal({
         </div>
 
         <div className="p-7 space-y-7 text-base">
+          <section>
+            <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground mb-3">
+              Dados cadastrais
+            </h3>
+            <div className="space-y-1 text-sm text-foreground">
+              <p>{cliente.email || "Sem e-mail"}</p>
+              <p>{cliente.telefone || "Sem telefone"}</p>
+              {(cliente.endereco ||
+                cliente.numero ||
+                cliente.complemento ||
+                cliente.bairro ||
+                cliente.cep) && (
+                <p>
+                  {[
+                    cliente.endereco &&
+                      `${cliente.endereco}${cliente.numero ? `, ${cliente.numero}` : ""}`,
+                    cliente.complemento,
+                    cliente.bairro,
+                    cliente.cep && `CEP ${mascararCep(cliente.cep)}`,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </p>
+              )}
+              {cliente.inscricaoEstadual && <p>Inscrição estadual: {cliente.inscricaoEstadual}</p>}
+            </div>
+          </section>
           {/* Card 1: resumo de compras */}
           <section>
             <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground mb-3">
@@ -711,8 +887,8 @@ function PerfilClienteModal({
                 {comportamento.total === 1 ? "venda" : "vendas"}:{" "}
                 {comportamento.qtdAtraso > 0 && (
                   <>
-                    {comportamento.qtdAtraso}{" "}
-                    {comportamento.qtdAtraso === 1 ? "ficou" : "ficaram"} em atraso
+                    {comportamento.qtdAtraso} {comportamento.qtdAtraso === 1 ? "ficou" : "ficaram"}{" "}
+                    em atraso
                     {comportamento.qtdParcelada > 0 ? " · " : ""}
                   </>
                 )}

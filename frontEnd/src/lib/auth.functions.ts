@@ -106,6 +106,19 @@ export async function obterBootstrapStatus(): Promise<{ available: boolean }> {
   return apiRequest("/auth/bootstrap-status", {}, { public: true });
 }
 
+export async function validarSessao(signal?: AbortSignal): Promise<void> {
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  const timeout = globalThis.setTimeout(abort, 5_000);
+  signal?.addEventListener("abort", abort, { once: true });
+  try {
+    await apiRequest<void>("/auth/session", { signal: controller.signal });
+  } finally {
+    globalThis.clearTimeout(timeout);
+    signal?.removeEventListener("abort", abort);
+  }
+}
+
 export async function listarUsuarios(): Promise<User[]> {
   return apiRequest("/usuarios");
 }

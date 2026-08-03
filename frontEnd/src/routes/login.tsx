@@ -11,11 +11,18 @@ import {
 } from "@/lib/auth.functions";
 import { getUserSession, saveUserSession } from "@/lib/user-session";
 import voCidaImg from "@/assets/vo-cida.png";
+import { sanitizeRedirect } from "@/lib/auth-routing";
 
-export const Route = createFileRoute("/login")({ component: LoginPage });
+export const Route = createFileRoute("/login")({
+  validateSearch: (search: Record<string, unknown>) => ({
+    redirect: sanitizeRedirect(search.redirect),
+  }),
+  component: LoginPage,
+});
 
 function LoginPage() {
   const navigate = useNavigate();
+  const { redirect } = Route.useSearch();
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [novaSenha, setNovaSenha] = useState("");
@@ -47,7 +54,7 @@ function LoginPage() {
         return;
       }
       saveUserSession(result);
-      navigate({ to: "/" });
+      navigate({ to: redirect ?? "/", replace: true });
     } catch (error) {
       setErro(error instanceof Error ? error.message : "Erro inesperado");
     } finally {
@@ -65,7 +72,7 @@ function LoginPage() {
         data: { email: emailPrimeiroAcesso, senhaAtual: senhaTemporaria, novaSenha },
       });
       saveUserSession(session);
-      navigate({ to: "/" });
+      navigate({ to: redirect ?? "/", replace: true });
     } catch (error) {
       setErro(error instanceof Error ? error.message : "Erro inesperado");
     } finally {
@@ -85,7 +92,7 @@ function LoginPage() {
         setSenhaTemporaria("123");
       } else {
         saveUserSession(result);
-        navigate({ to: "/" });
+        navigate({ to: redirect ?? "/", replace: true });
       }
     } catch (error) {
       setErro(error instanceof Error ? error.message : "Não foi possível usar a conta inicial.");
