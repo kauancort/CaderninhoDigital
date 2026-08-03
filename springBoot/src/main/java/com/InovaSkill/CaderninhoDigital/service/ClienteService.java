@@ -30,6 +30,11 @@ public class ClienteService {
                 .telefone(dto.getTelefone())
                 .documento(dto.getDocumento())
                 .endereco(dto.getEndereco())
+                .numero(dto.getNumero())
+                .complemento(dto.getComplemento())
+                .cep(normalizarCep(dto.getCep()))
+                .bairro(dto.getBairro())
+                .inscricaoEstadual(dto.getInscricaoEstadual())
                 .ativo(dto.getAtivo())
                 .gestor(gestor)
                 .build();
@@ -74,6 +79,11 @@ public class ClienteService {
         cliente.setTelefone(dto.getTelefone());
         cliente.setDocumento(dto.getDocumento());
         cliente.setEndereco(dto.getEndereco());
+        cliente.setNumero(dto.getNumero());
+        cliente.setComplemento(dto.getComplemento());
+        cliente.setCep(normalizarCep(dto.getCep()));
+        cliente.setBairro(dto.getBairro());
+        cliente.setInscricaoEstadual(dto.getInscricaoEstadual());
         cliente.setAtivo(dto.getAtivo() != null ? dto.getAtivo() : cliente.getAtivo());
         return toResponse(clienteRepository.save(cliente));
     }
@@ -96,9 +106,19 @@ public class ClienteService {
                 .telefone(cliente.getTelefone())
                 .documento(cliente.getDocumento())
                 .endereco(cliente.getEndereco())
+                .numero(cliente.getNumero())
+                .complemento(cliente.getComplemento())
+                .cep(cliente.getCep())
+                .bairro(cliente.getBairro())
+                .inscricaoEstadual(cliente.getInscricaoEstadual())
                 .ativo(cliente.getAtivo())
                 .gestorId(cliente.getGestor().getId())
                 .gestorNome(cliente.getGestor().getNome())
                 .build();
+    }
+
+    private String normalizarCep(String cep) {
+        if (cep == null || cep.isBlank()) return null;
+        return cep.replaceAll("\\D", "");
     }
 }

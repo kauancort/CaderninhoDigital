@@ -9,6 +9,8 @@ import {
 import { AlertTriangle, Home, RefreshCw } from "lucide-react";
 import voCidaImg from "@/assets/vo-cida.png";
 import { getUserSession } from "@/lib/user-session";
+import { validarSessao } from "@/lib/auth.functions";
+import { decideAuthRoute } from "@/lib/auth-routing";
 import { Toaster } from "@/components/ui/sonner";
 
 function SystemPage({ children }: { children: React.ReactNode }) {
@@ -86,11 +88,33 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
 }
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
-  beforeLoad: ({ location }) => {
+  beforeLoad: async ({ location, context }) => {
     const session = getUserSession();
-    if (location.pathname !== "/login" && !session) throw redirect({ to: "/login" });
-    if (location.pathname === "/login" && session) throw redirect({ to: "/" });
+    const decision = decideAuthRoute(location.pathname, Boolean(session));
+    if (decision === "login")
+      throw redirect({ to: "/login", search: { redirect: location.href }, replace: true });
+    if (session) {
+      try {
+        await context.queryClient.ensureQueryData({
+          queryKey: ["auth", "session", session.token],
+          queryFn: ({ signal }) => validarSessao(signal),
+          staleTime: 60_000,
+        });
+      } catch {
+        // Um 401 já limpa a sessão no cliente HTTP. Timeout, cold start ou falha de
+        // rede não devem encerrar uma sessão local ainda válida.
+        if (!getUserSession() && location.pathname !== "/login")
+          throw redirect({ to: "/login", search: { redirect: location.href }, replace: true });
+        if (!getUserSession()) return;
+      }
+      if (decision === "home") throw redirect({ to: "/", replace: true });
+    }
   },
+  pendingComponent: () => (
+    <SystemPage>
+      <p className="text-base font-semibold text-foreground">Verificando sua sessão...</p>
+    </SystemPage>
+  ),
   component: RootComponent,
   notFoundComponent: NotFoundComponent,
   errorComponent: ErrorComponent,

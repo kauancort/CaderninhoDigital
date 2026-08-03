@@ -24,7 +24,7 @@ function authHeaders(headers: Headers, publicRequest: boolean) {
 async function handleAuthError(response: Response) {
   if (response.status === 401) {
     clearUserSession();
-    if (window.location.pathname !== "/login") window.location.assign("/login");
+    if (window.location.pathname !== "/login") window.location.replace("/login");
     throw new Error("Sessão expirada. Entre novamente.");
   }
   if (response.status === 403) {

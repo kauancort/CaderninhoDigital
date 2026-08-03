@@ -45,6 +45,21 @@ public class Cliente {
     @Column(length = 255)
     private String endereco;
 
+    @Column(length = 20)
+    private String numero;
+
+    @Column(length = 120)
+    private String complemento;
+
+    @Column(length = 8)
+    private String cep;
+
+    @Column(length = 120)
+    private String bairro;
+
+    @Column(name = "inscricao_estadual", length = 40)
+    private String inscricaoEstadual;
+
     @Column(nullable = false)
     private Boolean ativo;
 
