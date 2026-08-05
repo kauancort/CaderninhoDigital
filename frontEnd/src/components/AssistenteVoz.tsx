@@ -44,6 +44,8 @@ export function AssistenteVoz({ open, onClose }: Props) {
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
+  const recognitionRef = useRef<any>(null);
+  const nativeTranscriptRef = useRef<string>("");
 
   useEffect(() => {
     if (!open) {
@@ -60,6 +62,7 @@ export function AssistenteVoz({ open, onClose }: Props) {
     setResultado(null);
     setConversa("");
     chunksRef.current = [];
+    nativeTranscriptRef.current = "";
   }
 
   function stopStream() {
@@ -67,11 +70,40 @@ export function AssistenteVoz({ open, onClose }: Props) {
     streamRef.current?.getTracks().forEach((t) => t.stop());
     recorderRef.current = null;
     streamRef.current = null;
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch (e) {}
+      recognitionRef.current = null;
+    }
   }
 
   async function iniciarGravacao() {
     setErro(null);
+    nativeTranscriptRef.current = "";
     try {
+      // Inicia SpeechRecognition nativo do navegador
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        const recognition = new SpeechRecognition();
+        recognition.lang = "pt-BR";
+        recognition.interimResults = false;
+        recognition.maxAlternatives = 1;
+        
+        recognition.onresult = (event: any) => {
+          const text = event.results[0][0].transcript;
+          console.log("Transcrição nativa detectada:", text);
+          nativeTranscriptRef.current = text;
+        };
+        
+        recognition.onerror = (event: any) => {
+          console.error("Erro no reconhecimento de fala nativo:", event.error);
+        };
+        
+        recognition.start();
+        recognitionRef.current = recognition;
+      }
+
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
       const mime =
@@ -87,12 +119,15 @@ export function AssistenteVoz({ open, onClose }: Props) {
       rec.onstop = async () => {
         const blob = new Blob(chunksRef.current, { type: rec.mimeType });
         stopStream();
+        // Pequena pausa para garantir que o evento onresult do reconhecimento nativo seja processado
+        await new Promise((resolve) => setTimeout(resolve, 400));
+        
         if (blob.size < 1024) {
           setStatus("erro");
           setErro("Gravação muito curta. Tente novamente segurando o microfone enquanto fala.");
           return;
         }
-        await enviarAudio(blob);
+        await enviarAudio(blob, nativeTranscriptRef.current);
       };
       rec.start();
       setStatus("gravando");
@@ -109,7 +144,7 @@ export function AssistenteVoz({ open, onClose }: Props) {
     }
   }
 
-  async function enviarAudio(blob: Blob) {
+  async function enviarAudio(blob: Blob, texto?: string) {
     try {
       setStatus("processando");
       const buf = await blob.arrayBuffer();
@@ -124,6 +159,7 @@ export function AssistenteVoz({ open, onClose }: Props) {
         data: {
           audioBase64,
           mime: blob.type || "audio/webm",
+          texto: texto || null,
           produtos: (produtos as any[]).map((p) => ({ id: p.id, nome: p.nome })),
           materiasPrimas: (mps as any[]).map((m) => ({ id: m.id, nome: m.nome })),
           conversaPrevia: conversa || null,

@@ -1,7 +1,7 @@
 import { apiRequest } from "@/lib/api-client";
 
 export type StatusPagamentoApi = "PAGO" | "PENDENTE" | "ATRASADO" | "NAO_SE_APLICA";
-export type FormaPagamentoApi = "DINHEIRO" | "PIX" | "CARTAO" | "BOLETO" | "OUTRO";
+export type FormaPagamentoApi = "DINHEIRO" | "PIX" | "CARTAO" | "BOLETO" | "CHEQUE" | "OUTRO";
 export type FiltroParcelamento = "" | "parceladas" | "nao-parceladas";
 
 export type FiltrosHistoricoVendas = {

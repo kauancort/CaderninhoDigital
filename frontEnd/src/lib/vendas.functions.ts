@@ -52,7 +52,7 @@ export const registrarVenda = createApiFn({ method: "POST" })
         comprador: z.string().max(120),
         cliente_id: z.union([z.string().min(1), z.number().positive()]),
         data_venda: z.string().date(),
-        forma_pagamento: z.enum(["dinheiro", "pix", "cartao", "boleto", "outro"]).nullable(),
+        forma_pagamento: z.enum(["dinheiro", "pix", "cartao", "boleto", "cheque", "outro"]).nullable(),
         status_pagamento: z.enum(["PAGO", "PENDENTE", "ATRASADO", "NAO_SE_APLICA"]),
         data_vencimento: z.string().date().optional().nullable(),
         tipo_cartao: z.enum(["CREDITO", "DEBITO"]).optional().nullable(),

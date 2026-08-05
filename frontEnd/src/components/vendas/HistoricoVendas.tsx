@@ -151,8 +151,7 @@ export function HistoricoVendas() {
             options={[
               { value: "DINHEIRO", label: "Dinheiro" },
               { value: "PIX", label: "Pix" },
-              { value: "CARTAO", label: "Cartão" },
-              { value: "BOLETO", label: "Boleto" },
+              { value: "CHEQUE", label: "Cheque" },
               { value: "OUTRO", label: "Outro" },
             ]}
           />
@@ -489,7 +488,7 @@ function EstadoVazio({ filtrado }: { filtrado: boolean }) {
 
 function rotuloForma(forma: string | null) {
   return (
-    { DINHEIRO: "Dinheiro", PIX: "Pix", CARTAO: "Cartão", BOLETO: "Boleto", OUTRO: "Outro" }[
+    { DINHEIRO: "Dinheiro", PIX: "Pix", CHEQUE: "Cheque", CARTAO: "Cartão", BOLETO: "Boleto", OUTRO: "Outro" }[
       forma ?? ""
     ] ?? "Não informada"
   );

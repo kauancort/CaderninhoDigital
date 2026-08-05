@@ -5,5 +5,6 @@ public enum FormaPagamento {
     PIX,
     CARTAO,
     BOLETO,
+    CHEQUE,
     OUTRO
 }
