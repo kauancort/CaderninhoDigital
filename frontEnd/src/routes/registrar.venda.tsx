@@ -367,6 +367,7 @@ function RegistrarVenda() {
   const formaLabel: Record<FormaPagamento, string> = {
     dinheiro: "Dinheiro",
     pix: "Pix",
+    cheque: "Cheque",
     cartao: "Cartão",
     boleto: "Boleto",
     outro: "Outro",
@@ -545,20 +546,18 @@ function RegistrarVenda() {
             <label className="text-sm font-semibold text-foreground mb-2 block">
               Forma de pagamento
             </label>
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-              {(["dinheiro", "pix", "cartao", "boleto", "outro"] as const).map((f) => (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {(["dinheiro", "pix", "cheque", "outro"] as const).map((f) => (
                 <button
                   key={f}
                   type="button"
                   onClick={() => {
                     setForma(f);
-                    if (f !== "cartao") {
-                      setTipoCartao(null);
-                      setParcelas("1");
-                    }
+                    setTipoCartao(null);
+                    setParcelas("1");
                   }}
                   className={[
-                    "py-2.5 rounded-md text-xs font-bold uppercase tracking-wider transition-colors",
+                    "py-2.5 rounded-md text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer",
                     forma === f
                       ? "bg-primary text-primary-foreground shadow-warm-sm"
                       : "bg-secondary text-brown-mid hover:bg-beige-dark",

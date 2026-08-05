@@ -27,7 +27,7 @@ export const categoriaLabel: Record<CategoriaGasto, string> = {
   outros: "Outros",
 };
 
-export type FormaPagamento = "dinheiro" | "pix" | "cartao" | "boleto" | "outro";
+export type FormaPagamento = "dinheiro" | "pix" | "cartao" | "boleto" | "cheque" | "outro";
 export type StatusPagamento = "PAGO" | "PENDENTE" | "ATRASADO" | "NAO_SE_APLICA";
 
 export const hojeISO = () => new Date().toISOString().slice(0, 10);

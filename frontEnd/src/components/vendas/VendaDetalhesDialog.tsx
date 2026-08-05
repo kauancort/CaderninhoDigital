@@ -55,6 +55,7 @@ export function VendaDetalhesDialog({
   const [confirmando, setConfirmando] = useState(false);
   const [tipoContato, setTipoContato] = useState("WhatsApp");
   const [resposta, setResposta] = useState("");
+  const [confirmarContato, setConfirmarContato] = useState<{ tipo: "whatsapp" | "email"; link: string } | null>(null);
 
   const detalhesQuery = useQuery({
     queryKey: ["vendas", "detalhes", vendaId],
@@ -188,14 +189,13 @@ export function VendaDetalhesDialog({
                       onCopy={() => copiar(venda.clienteTelefone!, "Telefone")}
                       action={
                         whatsapp ? (
-                          <a
-                            href={whatsapp}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex min-h-9 items-center gap-1.5 rounded-md bg-success px-3 text-xs font-bold text-white"
+                          <button
+                            type="button"
+                            onClick={() => setConfirmarContato({ tipo: "whatsapp", link: whatsapp })}
+                            className="inline-flex min-h-9 items-center gap-1.5 rounded-md bg-success px-3 text-xs font-bold text-white cursor-pointer"
                           >
                             WhatsApp <ExternalLink size={12} />
-                          </a>
+                          </button>
                         ) : null
                       }
                     />
@@ -207,12 +207,13 @@ export function VendaDetalhesDialog({
                       onCopy={() => copiar(venda.clienteEmail!, "E-mail")}
                       action={
                         mensagem ? (
-                          <a
-                            href={criarLinkEmail(venda.clienteEmail, mensagem)}
-                            className="ds-button-secondary min-h-9 px-3 text-xs"
+                          <button
+                            type="button"
+                            onClick={() => setConfirmarContato({ tipo: "email", link: criarLinkEmail(venda.clienteEmail!, mensagem) })}
+                            className="ds-button-secondary min-h-9 px-3 text-xs cursor-pointer"
                           >
                             Escrever <ExternalLink size={12} />
-                          </a>
+                          </button>
                         ) : null
                       }
                     />
@@ -351,7 +352,7 @@ export function VendaDetalhesDialog({
                     type="button"
                     onClick={() => setConfirmando(true)}
                     disabled={ocupada}
-                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-primary px-5 text-sm font-bold text-primary-foreground disabled:opacity-60"
+                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-primary px-5 text-sm font-bold text-primary-foreground disabled:opacity-60 cursor-pointer"
                   >
                     <Check size={15} /> Confirmar pagamento
                   </button>
@@ -388,6 +389,39 @@ export function VendaDetalhesDialog({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AlertDialog
+        open={confirmarContato !== null}
+        onOpenChange={(open) => !open && setConfirmarContato(null)}
+      >
+        <AlertDialogContent className="w-[calc(100%-2rem)] rounded-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar envio de mensagem</AlertDialogTitle>
+            <AlertDialogDescription>
+              Você tem certeza que {venda?.clienteNome} realizou o pagamento? revise se há algum comprovante de pagamento enviado por {venda?.clienteNome} antes de mandar essa mensagem.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (confirmarContato) {
+                  if (confirmarContato.tipo === "whatsapp") {
+                    window.open(confirmarContato.link, "_blank", "noopener,noreferrer");
+                  } else {
+                    window.location.href = confirmarContato.link;
+                  }
+                  setConfirmarContato(null);
+                }
+              }}
+            >
+              Enviar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+
     </>
   );
 }

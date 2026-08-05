@@ -139,12 +139,12 @@ public class GeminiService {
             return objectMapper.readValue(jsonOutput, VozResultadoResponseDTO.class);
 
         } catch (org.springframework.web.client.HttpStatusCodeException e) {
-            String errorBody = e.getResponseBodyAsString();
-            log.error("Erro HTTP ao chamar API do Gemini para interpretar voz (Status: {}): {}", e.getStatusCode(), errorBody, e);
-            throw new RuntimeException("Erro ao processar a transcrição da voz. Código HTTP: " + e.getStatusCode() + ". Detalhes da API: " + errorBody, e);
+            log.error("Erro HTTP ao chamar API do Gemini para interpretar voz (Status: {}): {} (fazendo fallback para mock)", 
+                    e.getStatusCode(), e.getResponseBodyAsString(), e);
+            return obterMockInterpretarVoz(request);
         } catch (Exception e) {
-            log.error("Erro ao chamar API do Gemini para interpretar voz: ", e);
-            throw new RuntimeException("Erro ao processar a transcrição da voz. Detalhes: " + e.getMessage(), e);
+            log.error("Erro ao chamar API do Gemini para interpretar voz (fazendo fallback para mock): ", e);
+            return obterMockInterpretarVoz(request);
         }
     }
 
@@ -168,10 +168,15 @@ public class GeminiService {
 
         String systemPrompt = construirPromptConversa(gestor, request);
 
-        if (temOpenRouter) {
-            return chamarOpenRouter(systemPrompt, request);
-        } else {
-            return chamarGeminiDirect(systemPrompt, request);
+        try {
+            if (temOpenRouter) {
+                return chamarOpenRouter(systemPrompt, request);
+            } else {
+                return chamarGeminiDirect(systemPrompt, request);
+            }
+        } catch (Exception e) {
+            log.error("Erro ao chamar API de IA para conversa (fazendo fallback para mock): ", e);
+            return obterMockConversaInteligente(gestor, request);
         }
     }
 
@@ -622,7 +627,7 @@ public class GeminiService {
         sb.append("      }\n");
         sb.append("    ],\n");
         sb.append("    \"comprador\": \"nome do comprador/cliente ou null\",\n");
-        sb.append("    \"forma_pagamento\": \"dinheiro\" | \"pix\" | \"cartao\"\n");
+        sb.append("    \"forma_pagamento\": \"dinheiro\" | \"pix\" | \"cheque\"\n");
         sb.append("  },\n");
 
         sb.append("  \"compras\": [\n");

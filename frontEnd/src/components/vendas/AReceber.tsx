@@ -211,8 +211,7 @@ export function AReceber() {
             options={[
               { value: "DINHEIRO", label: "Dinheiro" },
               { value: "PIX", label: "Pix" },
-              { value: "CARTAO", label: "Cartão" },
-              { value: "BOLETO", label: "Boleto" },
+              { value: "CHEQUE", label: "Cheque" },
               { value: "OUTRO", label: "Outro" },
             ]}
           />
