@@ -5,7 +5,6 @@ import { useApiFn } from "@/lib/api-function";
 import { Mic, Square, Loader2, Check, Pencil, X, Sparkles } from "lucide-react";
 import { listarProdutos, listarMateriaPrima } from "@/lib/catalogo.functions";
 import { interpretarVoz, type VozResultado } from "@/lib/voz.functions";
-import { registrarVenda } from "@/lib/vendas.functions";
 import { registrarCompra } from "@/lib/compras.functions";
 import { registrarProducao } from "@/lib/producoes.functions";
 import { registrarGasto } from "@/lib/gastos.functions";
@@ -31,7 +30,6 @@ export function AssistenteVoz({ open, onClose }: Props) {
   });
 
   const fnInterpretar = useApiFn(interpretarVoz);
-  const fnVenda = useApiFn(registrarVenda);
   const fnCompra = useApiFn(registrarCompra);
   const fnProducao = useApiFn(registrarProducao);
   const fnGasto = useApiFn(registrarGasto);
@@ -73,7 +71,9 @@ export function AssistenteVoz({ open, onClose }: Props) {
     if (recognitionRef.current) {
       try {
         recognitionRef.current.stop();
-      } catch (e) {}
+      } catch {
+        // O reconhecimento pode já ter sido encerrado pelo navegador.
+      }
       recognitionRef.current = null;
     }
   }
@@ -83,23 +83,24 @@ export function AssistenteVoz({ open, onClose }: Props) {
     nativeTranscriptRef.current = "";
     try {
       // Inicia SpeechRecognition nativo do navegador
-      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      const SpeechRecognition =
+        (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       if (SpeechRecognition) {
         const recognition = new SpeechRecognition();
         recognition.lang = "pt-BR";
         recognition.interimResults = false;
         recognition.maxAlternatives = 1;
-        
+
         recognition.onresult = (event: any) => {
           const text = event.results[0][0].transcript;
           console.log("Transcrição nativa detectada:", text);
           nativeTranscriptRef.current = text;
         };
-        
+
         recognition.onerror = (event: any) => {
           console.error("Erro no reconhecimento de fala nativo:", event.error);
         };
-        
+
         recognition.start();
         recognitionRef.current = recognition;
       }
@@ -121,13 +122,13 @@ export function AssistenteVoz({ open, onClose }: Props) {
         stopStream();
         // Pequena pausa para garantir que o evento onresult do reconhecimento nativo seja processado
         await new Promise((resolve) => setTimeout(resolve, 400));
-        
+
         if (blob.size < 1024) {
           setStatus("erro");
           setErro("Gravação muito curta. Tente novamente segurando o microfone enquanto fala.");
           return;
         }
-        await enviarAudio(blob, nativeTranscriptRef.current);
+        await enviarAudio(nativeTranscriptRef.current);
       };
       rec.start();
       setStatus("gravando");
@@ -144,22 +145,17 @@ export function AssistenteVoz({ open, onClose }: Props) {
     }
   }
 
-  async function enviarAudio(blob: Blob, texto?: string) {
+  async function enviarAudio(texto?: string) {
     try {
       setStatus("processando");
-      const buf = await blob.arrayBuffer();
-      let bin = "";
-      const u8 = new Uint8Array(buf);
-      const CHUNK = 0x8000;
-      for (let i = 0; i < u8.length; i += CHUNK) {
-        bin += String.fromCharCode(...u8.subarray(i, i + CHUNK));
+      if (!texto?.trim()) {
+        throw new Error(
+          "Não consegui transcrever o áudio neste navegador. Tente novamente usando Chrome ou Edge.",
+        );
       }
-      const audioBase64 = btoa(bin);
       const res = await fnInterpretar({
         data: {
-          audioBase64,
-          mime: blob.type || "audio/webm",
-          texto: texto || null,
+          texto: texto.trim(),
           produtos: (produtos as any[]).map((p) => ({ id: p.id, nome: p.nome })),
           materiasPrimas: (mps as any[]).map((m) => ({ id: m.id, nome: m.nome })),
           conversaPrevia: conversa || null,
@@ -180,28 +176,7 @@ export function AssistenteVoz({ open, onClose }: Props) {
     setErro(null);
     try {
       if (resultado.tipo === "venda" && resultado.venda) {
-        const itens = resultado.venda.itens
-          .filter((i) => i.produto_final_id && (i.preco_unitario ?? 0) > 0 && i.quantidade > 0)
-          .map((i) => ({
-            produto_final_id: i.produto_final_id!,
-            quantidade: i.tipo === "caixa" ? i.quantidade * POTES_POR_CAIXA : i.quantidade,
-            preco_unitario: Number(i.preco_unitario),
-          }));
-        if (itens.length === 0)
-          throw new Error("Itens da venda incompletos. Use Editar para ajustar.");
-        await fnVenda({
-          data: {
-            comprador: resultado.venda.comprador,
-            data_venda: hojeISO(),
-            forma_pagamento: resultado.venda.forma_pagamento,
-            status_pagamento: "PAGO",
-            observacao: "Registro realizado pela assistente de voz",
-            itens,
-          },
-        });
-        qc.invalidateQueries({ queryKey: ["vendas"] });
-        qc.invalidateQueries({ queryKey: ["produtos"] });
-        qc.invalidateQueries({ queryKey: ["dashboard"] });
+        throw new Error("Selecione o cliente na opção Editar antes de registrar a venda.");
       } else if (resultado.tipo === "compra" && resultado.compras) {
         const items = resultado.compras.filter(
           (c) => c.materia_prima_id && (c.valor_total ?? 0) > 0 && c.quantidade > 0,
@@ -434,10 +409,10 @@ export function AssistenteVoz({ open, onClose }: Props) {
               <Pencil size={14} /> Editar
             </button>
             <button
-              onClick={confirmar}
+              onClick={resultado.tipo === "venda" ? editar : confirmar}
               className="flex-1 px-4 py-3 rounded-full bg-primary text-primary-foreground font-bold text-sm inline-flex items-center justify-center gap-2"
             >
-              <Check size={14} /> Confirmar
+              <Check size={14} /> {resultado.tipo === "venda" ? "Selecionar cliente" : "Confirmar"}
             </button>
           </div>
         )}

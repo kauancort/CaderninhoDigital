@@ -4,7 +4,7 @@ import com.InovaSkill.CaderninhoDigital.dto.request.ConversaRequestDTO;
 import com.InovaSkill.CaderninhoDigital.dto.request.InterpretarVozRequestDTO;
 import com.InovaSkill.CaderninhoDigital.dto.response.ConversaResponseDTO;
 import com.InovaSkill.CaderninhoDigital.dto.response.VozResultadoResponseDTO;
-import com.InovaSkill.CaderninhoDigital.service.GeminiService;
+import com.InovaSkill.CaderninhoDigital.service.OpenRouterService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -18,14 +18,14 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class AssistenteController {
 
-    private final GeminiService geminiService;
+    private final OpenRouterService openRouterService;
 
     @PostMapping("/interpretar-voz")
     public ResponseEntity<VozResultadoResponseDTO> interpretarVoz(
             @UsuarioIdAutenticado Long usuarioId,
             @RequestBody @Valid InterpretarVozRequestDTO request
     ) {
-        VozResultadoResponseDTO response = geminiService.interpretarVoz(request);
+        VozResultadoResponseDTO response = openRouterService.interpretarVoz(request);
         return ResponseEntity.ok(response);
     }
 
@@ -34,7 +34,7 @@ public class AssistenteController {
             @UsuarioIdAutenticado Long usuarioId,
             @RequestBody @Valid ConversaRequestDTO request
     ) {
-        ConversaResponseDTO response = geminiService.conversar(usuarioId, request);
+        ConversaResponseDTO response = openRouterService.conversar(usuarioId, request);
         return ResponseEntity.ok(response);
     }
 }

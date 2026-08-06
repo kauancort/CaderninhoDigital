@@ -157,7 +157,9 @@ function Clientes() {
         await fnCriar({ data: form });
       }
       qc.invalidateQueries({ queryKey: ["clientes"] });
-      toast.success(editando ? "Cliente atualizado com sucesso." : "Cliente cadastrado com sucesso.");
+      toast.success(
+        editando ? "Cliente atualizado com sucesso." : "Cliente cadastrado com sucesso.",
+      );
       fecharModal();
     } catch (err) {
       setErro(err instanceof Error ? err.message : "Erro ao salvar");
