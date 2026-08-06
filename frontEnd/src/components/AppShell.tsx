@@ -63,7 +63,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [configuracoesAbertas, setConfiguracoesAbertas] = useState(false);
 
   useEffect(() => {
-    if (!loading && !user) navigate({ to: "/login" });
+    if (!loading && !user) navigate({ to: "/login", search: { redirect: undefined } });
   }, [loading, user, navigate]);
 
   const { data: mp = [] } = useQuery({
@@ -122,7 +122,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   function sair() {
     queryClient.clear();
     clearUserSession();
-    navigate({ to: "/login" });
+    navigate({ to: "/login", search: { redirect: undefined } });
   }
 
   if (loading || !user) {

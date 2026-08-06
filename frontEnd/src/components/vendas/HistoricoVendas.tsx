@@ -488,8 +488,13 @@ function EstadoVazio({ filtrado }: { filtrado: boolean }) {
 
 function rotuloForma(forma: string | null) {
   return (
-    { DINHEIRO: "Dinheiro", PIX: "Pix", CHEQUE: "Cheque", CARTAO: "Cartão", BOLETO: "Boleto", OUTRO: "Outro" }[
-      forma ?? ""
-    ] ?? "Não informada"
+    {
+      DINHEIRO: "Dinheiro",
+      PIX: "Pix",
+      CHEQUE: "Cheque",
+      CARTAO: "Cartão",
+      BOLETO: "Boleto",
+      OUTRO: "Outro",
+    }[forma ?? ""] ?? "Não informada"
   );
 }

@@ -1,13 +1,13 @@
 package com.InovaSkill.CaderninhoDigital.dto.request;
 
+import jakarta.validation.constraints.NotBlank;
 import java.util.List;
 import lombok.Data;
 
 @Data
 public class InterpretarVozRequestDTO {
-    private String audioBase64;
-    private String mime;
-    private String textoTranscrito;
+    @NotBlank(message = "Não foi possível transcrever o áudio")
+    private String texto;
     private List<CatalogoItemDTO> produtos;
     private List<CatalogoItemDTO> materiasPrimas;
     private String conversaPrevia;

@@ -55,7 +55,10 @@ export function VendaDetalhesDialog({
   const [confirmando, setConfirmando] = useState(false);
   const [tipoContato, setTipoContato] = useState("WhatsApp");
   const [resposta, setResposta] = useState("");
-  const [confirmarContato, setConfirmarContato] = useState<{ tipo: "whatsapp" | "email"; link: string } | null>(null);
+  const [confirmarContato, setConfirmarContato] = useState<{
+    tipo: "whatsapp" | "email";
+    link: string;
+  } | null>(null);
 
   const detalhesQuery = useQuery({
     queryKey: ["vendas", "detalhes", vendaId],
@@ -191,7 +194,9 @@ export function VendaDetalhesDialog({
                         whatsapp ? (
                           <button
                             type="button"
-                            onClick={() => setConfirmarContato({ tipo: "whatsapp", link: whatsapp })}
+                            onClick={() =>
+                              setConfirmarContato({ tipo: "whatsapp", link: whatsapp })
+                            }
                             className="inline-flex min-h-9 items-center gap-1.5 rounded-md bg-success px-3 text-xs font-bold text-white cursor-pointer"
                           >
                             WhatsApp <ExternalLink size={12} />
@@ -209,7 +214,12 @@ export function VendaDetalhesDialog({
                         mensagem ? (
                           <button
                             type="button"
-                            onClick={() => setConfirmarContato({ tipo: "email", link: criarLinkEmail(venda.clienteEmail!, mensagem) })}
+                            onClick={() =>
+                              setConfirmarContato({
+                                tipo: "email",
+                                link: criarLinkEmail(venda.clienteEmail!, mensagem),
+                              })
+                            }
                             className="ds-button-secondary min-h-9 px-3 text-xs cursor-pointer"
                           >
                             Escrever <ExternalLink size={12} />
@@ -398,7 +408,9 @@ export function VendaDetalhesDialog({
           <AlertDialogHeader>
             <AlertDialogTitle>Confirmar envio de mensagem</AlertDialogTitle>
             <AlertDialogDescription>
-              Você tem certeza que {venda?.clienteNome} realizou o pagamento? revise se há algum comprovante de pagamento enviado por {venda?.clienteNome} antes de mandar essa mensagem.
+              Você tem certeza que {venda?.clienteNome} realizou o pagamento? revise se há algum
+              comprovante de pagamento enviado por {venda?.clienteNome} antes de mandar essa
+              mensagem.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -420,8 +432,6 @@ export function VendaDetalhesDialog({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-
     </>
   );
 }
