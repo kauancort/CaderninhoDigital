@@ -44,10 +44,35 @@ app:
     secret: ${JWT_SECRET}
   cors:
     allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:5173,https://caderninhodigital.vercel.app,https://caderninho-digital-api.onrender.com}
-  openrouter:
-    key: ${OPENROUTER_API_KEY}
-    url: ${OPENROUTER_API_URL:https://openrouter.ai/api/v1/chat/completions}
-    model: ${OPENROUTER_MODEL}
+  ai:
+    prompt-version: ${AI_PROMPT_VERSION:1.0}
+    schema-version: ${AI_SCHEMA_VERSION:1.0}
+    provider:
+      key: ${OPENROUTER_API_KEY:}
+      url: ${OPENROUTER_API_URL:https://openrouter.ai/api/v1/chat/completions}
+      model: ${OPENROUTER_MODEL:openrouter/free}
+    limits:
+      message-characters: ${AI_MAX_MESSAGE_CHARACTERS:2000}
+      history-messages: ${AI_MAX_HISTORY_MESSAGES:30}
+      history-message-characters: ${AI_MAX_HISTORY_MESSAGE_CHARACTERS:4000}
+      tools-per-plan: ${AI_MAX_TOOLS_PER_PLAN:5}
+      tool-calls: ${AI_MAX_TOOL_CALLS:5}
+      plan-repairs: ${AI_MAX_PLAN_REPAIRS:1}
+      max-period-days: ${AI_MAX_PERIOD_DAYS:366}
+      context-items: ${AI_MAX_CONTEXT_ITEMS:200}
+      context-string-characters: ${AI_MAX_CONTEXT_STRING_CHARACTERS:4000}
+      provider-messages: ${AI_MAX_PROVIDER_MESSAGES:40}
+      provider-payload-characters: ${AI_MAX_PROVIDER_PAYLOAD_CHARACTERS:30000}
+      max-output-tokens: ${AI_MAX_OUTPUT_TOKENS:1000}
+      connect-timeout-ms: ${AI_CONNECT_TIMEOUT_MS:5000}
+      read-timeout-ms: ${AI_READ_TIMEOUT_MS:20000}
+      request-budget-millis: ${AI_REQUEST_BUDGET_MILLIS:30000}
+    features:
+      orchestrator: ${AI_FEATURE_ORCHESTRATOR:true}
+      tools: ${AI_FEATURE_TOOLS:true}
+      search: ${AI_FEATURE_SEARCH:false}
+      charts: ${AI_FEATURE_CHARTS:false}
+      writes: ${AI_FEATURE_WRITES:false}
   gmail:
     client-id: ${GMAIL_CLIENT_ID:}
     client-secret: ${GMAIL_CLIENT_SECRET:}

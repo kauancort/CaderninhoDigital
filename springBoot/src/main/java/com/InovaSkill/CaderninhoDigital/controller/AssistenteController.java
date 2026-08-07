@@ -5,6 +5,8 @@ import com.InovaSkill.CaderninhoDigital.dto.request.InterpretarVozRequestDTO;
 import com.InovaSkill.CaderninhoDigital.dto.response.ConversaResponseDTO;
 import com.InovaSkill.CaderninhoDigital.dto.response.VozResultadoResponseDTO;
 import com.InovaSkill.CaderninhoDigital.service.OpenRouterService;
+import com.InovaSkill.CaderninhoDigital.service.AssistenteContratoService;
+import com.InovaSkill.CaderninhoDigital.service.AssistenteOrquestradorService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -19,13 +21,15 @@ import org.springframework.web.bind.annotation.RestController;
 public class AssistenteController {
 
     private final OpenRouterService openRouterService;
+    private final AssistenteContratoService contratoService;
+    private final AssistenteOrquestradorService orquestradorService;
 
     @PostMapping("/interpretar-voz")
     public ResponseEntity<VozResultadoResponseDTO> interpretarVoz(
             @UsuarioIdAutenticado Long usuarioId,
             @RequestBody @Valid InterpretarVozRequestDTO request
     ) {
-        VozResultadoResponseDTO response = openRouterService.interpretarVoz(request);
+        VozResultadoResponseDTO response = openRouterService.interpretarVoz(usuarioId, request);
         return ResponseEntity.ok(response);
     }
 
@@ -34,7 +38,9 @@ public class AssistenteController {
             @UsuarioIdAutenticado Long usuarioId,
             @RequestBody @Valid ConversaRequestDTO request
     ) {
-        ConversaResponseDTO response = openRouterService.conversar(usuarioId, request);
+        ConversaRequestDTO preparada = contratoService.preparar(request);
+        ConversaResponseDTO response = contratoService.finalizar(
+                orquestradorService.conversar(preparada), preparada);
         return ResponseEntity.ok(response);
     }
 }

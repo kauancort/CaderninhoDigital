@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Bot, Mic, Package, Send, Sparkles, TrendingUp, X } from "lucide-react";
+import { Bot, Mic, Package, Send, X } from "lucide-react";
 import { conversarComAssistente, type MensagemConversa } from "@/lib/assistente.functions";
 
 type Props = {
@@ -9,9 +9,7 @@ type Props = {
 };
 
 const sugestoes = [
-  { texto: "Qual meu lucro?", icon: TrendingUp },
-  { texto: "O que falta no estoque?", icon: Package },
-  { texto: "Sugestão de preço", icon: Sparkles },
+  { texto: "Ver estoque crítico", acaoRapida: "VERIFICAR_ESTOQUE" as const, icon: Package },
 ];
 
 export function AssistenteChat({ open, onClose, onOpenVoice }: Props) {
@@ -31,7 +29,7 @@ export function AssistenteChat({ open, onClose, onOpenVoice }: Props) {
 
   if (!open) return null;
 
-  async function enviar(mensagem = texto) {
+  async function enviar(mensagem = texto, acaoRapida?: "VERIFICAR_ESTOQUE") {
     const limpa = mensagem.trim();
     if (!limpa || enviando) return;
 
@@ -41,7 +39,10 @@ export function AssistenteChat({ open, onClose, onOpenVoice }: Props) {
     setEnviando(true);
 
     try {
-      const resultado = await conversarComAssistente({ mensagem: limpa, historico });
+      const resultado = await conversarComAssistente({
+        ...(acaoRapida ? { acaoRapida } : { mensagem: limpa }),
+        historico,
+      });
       setMensagens((atual) => [...atual, { autor: "assistente", texto: resultado.resposta }]);
     } catch (error) {
       setMensagens((atual) => [
@@ -121,11 +122,11 @@ export function AssistenteChat({ open, onClose, onOpenVoice }: Props) {
 
         <footer className="border-t border-border bg-secondary/30 p-4 sm:p-5 space-y-4">
           <div className="flex gap-2 overflow-x-auto pb-1">
-            {sugestoes.map(({ texto: sugestao, icon: Icon }) => (
+            {sugestoes.map(({ texto: sugestao, acaoRapida, icon: Icon }) => (
               <button
                 key={sugestao}
                 type="button"
-                onClick={() => enviar(sugestao)}
+                onClick={() => enviar(sugestao, acaoRapida)}
                 disabled={enviando}
                 className="shrink-0 rounded-full border border-border bg-card px-4 py-2 text-xs sm:text-sm font-medium flex items-center gap-2 hover:border-primary disabled:opacity-50"
               >

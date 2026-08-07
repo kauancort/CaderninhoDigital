@@ -24,6 +24,7 @@ public class RestAuthenticationEntryPoint implements AuthenticationEntryPoint {
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.setCharacterEncoding("UTF-8");
         objectMapper.writeValue(response.getOutputStream(), new ErrorResponseDTO(
-                LocalDateTime.now(), 401, "Unauthorized", "Autenticação necessária ou token inválido", request.getRequestURI()));
+                LocalDateTime.now(), 401, "Unauthorized", "Autenticação necessária ou token inválido",
+                request.getRequestURI(), "NAO_AUTENTICADO", null));
     }
 }

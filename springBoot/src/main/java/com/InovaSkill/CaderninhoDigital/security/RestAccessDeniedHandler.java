@@ -24,6 +24,7 @@ public class RestAccessDeniedHandler implements AccessDeniedHandler {
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.setCharacterEncoding("UTF-8");
         objectMapper.writeValue(response.getOutputStream(), new ErrorResponseDTO(
-                LocalDateTime.now(), 403, "Forbidden", "Você não possui permissão para este recurso", request.getRequestURI()));
+                LocalDateTime.now(), 403, "Forbidden", "Você não possui permissão para este recurso",
+                request.getRequestURI(), "NAO_AUTORIZADO", null));
     }
 }
