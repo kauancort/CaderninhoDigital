@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { useApiFn } from "@/lib/api-function";
 import { Mic, Square, Loader2, Check, Pencil, X, Sparkles } from "lucide-react";
-import { listarProdutos, listarMateriaPrima } from "@/lib/catalogo.functions";
 import { interpretarVoz, type VozResultado } from "@/lib/voz.functions";
 import { registrarCompra } from "@/lib/compras.functions";
 import { registrarProducao } from "@/lib/producoes.functions";
@@ -20,15 +19,6 @@ const POTES_POR_CAIXA = 6;
 export function AssistenteVoz({ open, onClose }: Props) {
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const { data: produtos = [] } = useQuery({
-    queryKey: ["produtos"],
-    queryFn: () => listarProdutos(),
-  });
-  const { data: mps = [] } = useQuery({
-    queryKey: ["materia_prima"],
-    queryFn: () => listarMateriaPrima(),
-  });
-
   const fnInterpretar = useApiFn(interpretarVoz);
   const fnCompra = useApiFn(registrarCompra);
   const fnProducao = useApiFn(registrarProducao);
@@ -93,13 +83,11 @@ export function AssistenteVoz({ open, onClose }: Props) {
 
         recognition.onresult = (event: any) => {
           const text = event.results[0][0].transcript;
-          console.log("Transcrição nativa detectada:", text);
           nativeTranscriptRef.current = text;
         };
 
-        recognition.onerror = (event: any) => {
-          console.error("Erro no reconhecimento de fala nativo:", event.error);
-        };
+        recognition.onerror = () =>
+          setErro("Não foi possível reconhecer o áudio. Tente novamente.");
 
         recognition.start();
         recognitionRef.current = recognition;
@@ -156,9 +144,7 @@ export function AssistenteVoz({ open, onClose }: Props) {
       const res = await fnInterpretar({
         data: {
           texto: texto.trim(),
-          produtos: (produtos as any[]).map((p) => ({ id: p.id, nome: p.nome })),
-          materiasPrimas: (mps as any[]).map((m) => ({ id: m.id, nome: m.nome })),
-          conversaPrevia: conversa || null,
+          conversaPrevia: conversa ? conversa.slice(-1000) : null,
         },
       });
       setConversa((c) => (c ? c + "\n" : "") + `Usuário: ${res.transcricao}`);

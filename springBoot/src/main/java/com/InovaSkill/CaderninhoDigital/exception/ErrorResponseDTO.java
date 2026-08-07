@@ -12,4 +12,10 @@ public class ErrorResponseDTO {
     private String error;
     private String message;
     private String path;
+    private String code;
+    private String correlationId;
+
+    public ErrorResponseDTO(LocalDateTime timestamp, int status, String error, String message, String path) {
+        this(timestamp, status, error, message, path, null, null);
+    }
 }

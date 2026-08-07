@@ -1,13 +1,12 @@
 import { z } from "zod";
 import { apiRequest } from "./api-client";
 
-const CatalogoItem = z.object({ id: z.union([z.string(), z.number()]), nome: z.string() });
-const InterpretarInput = z.object({
-  texto: z.string().trim().min(1),
-  produtos: z.array(CatalogoItem).default([]),
-  materiasPrimas: z.array(CatalogoItem).default([]),
-  conversaPrevia: z.string().optional().nullable(),
-});
+const InterpretarInput = z
+  .object({
+    texto: z.string().trim().min(1).max(4000),
+    conversaPrevia: z.string().max(1000).optional().nullable(),
+  })
+  .strict();
 
 export type VozTipo = "venda" | "compra" | "producao" | "gasto" | "desconhecido";
 export type ItemVendaParsed = {

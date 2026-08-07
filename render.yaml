@@ -23,6 +23,30 @@ services:
         value: "true"
       - key: JWT_SECRET
         generateValue: true
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: OPENROUTER_MODEL
+        value: openrouter/free
+      - key: AI_MAX_PERIOD_DAYS
+        value: "366"
+      - key: AI_MAX_CONTEXT_ITEMS
+        value: "200"
+      - key: AI_MAX_CONTEXT_STRING_CHARACTERS
+        value: "4000"
+      - key: AI_MAX_PROVIDER_MESSAGES
+        value: "40"
+      - key: AI_MAX_PROVIDER_PAYLOAD_CHARACTERS
+        value: "30000"
+      - key: AI_FEATURE_ORCHESTRATOR
+        value: "true"
+      - key: AI_FEATURE_TOOLS
+        value: "true"
+      - key: AI_FEATURE_SEARCH
+        value: "false"
+      - key: AI_FEATURE_CHARTS
+        value: "false"
+      - key: AI_FEATURE_WRITES
+        value: "false"
       - key: GMAIL_CLIENT_ID
         sync: false
       - key: GMAIL_CLIENT_SECRET

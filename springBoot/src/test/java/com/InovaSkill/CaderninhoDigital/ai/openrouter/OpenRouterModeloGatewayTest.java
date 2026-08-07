@@ -1,0 +1,233 @@
+package com.InovaSkill.CaderninhoDigital.ai.openrouter;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
+import com.InovaSkill.CaderninhoDigital.ai.contract.IntencaoOrquestrador;
+import com.InovaSkill.CaderninhoDigital.ai.gateway.MensagemModelo;
+import com.InovaSkill.CaderninhoDigital.ai.gateway.PapelMensagemModelo;
+import com.InovaSkill.CaderninhoDigital.ai.gateway.RespostaModelo;
+import com.InovaSkill.CaderninhoDigital.ai.gateway.SolicitacaoModelo;
+import com.InovaSkill.CaderninhoDigital.config.AiOrchestratorProperties;
+import com.InovaSkill.CaderninhoDigital.ai.privacy.PoliticaDadosIa;
+import com.InovaSkill.CaderninhoDigital.exception.CodigoErroOrquestrador;
+import com.InovaSkill.CaderninhoDigital.exception.OrquestradorException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import java.util.concurrent.CompletableFuture;
+import java.net.http.HttpTimeoutException;
+import jakarta.validation.Validation;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
+
+class OpenRouterModeloGatewayTest {
+    private static final String SECRET = "segredo-nao-pode-vazar";
+
+    private AiOrchestratorProperties properties;
+    private ObjectMapper mapper;
+    private CapturingTransport transport;
+    private OpenRouterModeloGateway gateway;
+
+    @BeforeEach
+    void setUp() {
+        properties = new AiOrchestratorProperties();
+        properties.getProvider().setKey(SECRET);
+        properties.getProvider().setModel("modelo-solicitado");
+        properties.getLimits().setReadTimeoutMs(100);
+        properties.getLimits().setRequestBudgetMillis(100);
+        mapper = new ObjectMapper();
+        transport = new CapturingTransport();
+        gateway = new OpenRouterModeloGateway(
+                properties, mapper, mapper.copy().enable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES),
+                transport, Validation.buildDefaultValidatorFactory().getValidator(),
+                new PoliticaDadosIa(properties));
+    }
+
+    @Test
+    void geraTextoComHeadersEPayloadAllowlistedEMetadados() throws Exception {
+        transport.complete(200, resposta("Tudo certo", "modelo-efetivo", true));
+
+        RespostaModelo<String> response = gateway.gerarRespostaFinal(solicitacao());
+
+        assertThat(response.conteudo()).isEqualTo("Tudo certo");
+        assertThat(response.metadados().modeloSolicitado()).isEqualTo("modelo-solicitado");
+        assertThat(response.metadados().modeloEfetivo()).isEqualTo("modelo-efetivo");
+        assertThat(response.metadados().tokensEntrada()).isEqualTo(8);
+        assertThat(response.metadados().tokensSaida()).isEqualTo(3);
+        assertThat(response.metadados().tokensTotais()).isEqualTo(11);
+        assertThat(response.metadados().modeloDivergente()).isTrue();
+        assertThat(transport.request.headers()).containsOnlyKeys("Authorization", "Content-Type");
+        assertThat(transport.request.headers().get("Authorization")).isEqualTo("Bearer " + SECRET);
+        var body = mapper.readTree(transport.request.body());
+        assertThat(body.properties().stream().map(java.util.Map.Entry::getKey).toList())
+                .containsExactlyInAnyOrder("model", "max_tokens", "messages");
+        assertThat(body.path("messages").get(0).properties().stream()
+                .map(java.util.Map.Entry::getKey).toList())
+                .containsExactlyInAnyOrder("role", "content");
+        assertThat(transport.request.body()).contains("\"model\":\"modelo-solicitado\"");
+    }
+
+    @Test
+    void geraPlanoEstruturadoValido() {
+        String plano = "{\"schemaVersion\":\"1.0\",\"intencao\":\"RESUMO_NEGOCIO\","
+                + "\"chamadas\":[],\"modoResposta\":\"TEXTO_SIMPLES\"}";
+        transport.complete(200, resposta(plano, "modelo-solicitado", false));
+
+        var response = gateway.gerarPlano(solicitacao());
+
+        assertThat(response.conteudo().intencao()).isEqualTo(IntencaoOrquestrador.RESUMO_NEGOCIO);
+        assertThat(transport.request.body()).contains("\"response_format\":{\"type\":\"json_object\"}");
+    }
+
+    @Test
+    void rejeitaJsonEstruturadoInvalidoOuComCampoExtra() {
+        transport.complete(200, resposta("{\"campo\":true}", null, false));
+
+        assertErro(() -> gateway.gerarPlano(solicitacao()), CodigoErroOrquestrador.PLANO_INVALIDO);
+
+        transport.complete(200, resposta("{}", null, false));
+        assertErro(() -> gateway.gerarPlano(solicitacao()), CodigoErroOrquestrador.PLANO_INVALIDO);
+    }
+
+    @Test
+    void rejeitaCorpoVazioERespostaIncompleta() {
+        transport.complete(200, "");
+        assertErro(() -> gateway.gerarRespostaFinal(solicitacao()),
+                CodigoErroOrquestrador.PROVEDOR_INDISPONIVEL);
+
+        transport.complete(200, "{\"choices\":[]}");
+        assertErro(() -> gateway.gerarRespostaFinal(solicitacao()),
+                CodigoErroOrquestrador.PROVEDOR_INDISPONIVEL);
+    }
+
+    @Test
+    void classifica400AutenticacaoLimiteEServidorSemExporCorpo() {
+        assertStatus(400, CodigoErroOrquestrador.ARGUMENTOS_INVALIDOS);
+        assertStatus(401, CodigoErroOrquestrador.PROVEDOR_INDISPONIVEL);
+        assertStatus(403, CodigoErroOrquestrador.PROVEDOR_INDISPONIVEL);
+        assertStatus(429, CodigoErroOrquestrador.LIMITE_EXCEDIDO);
+        assertStatus(500, CodigoErroOrquestrador.PROVEDOR_INDISPONIVEL);
+    }
+
+    @Test
+    void cancelaFutureQuandoExcedeTimeout() {
+        transport.pending();
+
+        assertErro(() -> gateway.gerarRespostaFinal(solicitacao()), CodigoErroOrquestrador.TIMEOUT);
+
+        assertThat(transport.future.isCancelled()).isTrue();
+    }
+
+    @Test
+    void classificaCancelamentoOriginadoNoTransporte() {
+        transport.cancelled();
+
+        assertErro(() -> gateway.gerarRespostaFinal(solicitacao()), CodigoErroOrquestrador.TIMEOUT);
+    }
+
+    @Test
+    void classificaTimeoutOriginadoNoClienteHttp() {
+        transport.failed(new HttpTimeoutException("timeout sem dados sensíveis"));
+
+        assertErro(() -> gateway.gerarRespostaFinal(solicitacao()), CodigoErroOrquestrador.TIMEOUT);
+    }
+
+    @Test
+    void aceitaMetadadosAusentesEModeloNaoInformado() {
+        transport.complete(200, resposta("Olá", null, false));
+
+        var metadata = gateway.gerarRespostaFinal(solicitacao()).metadados();
+
+        assertThat(metadata.modeloEfetivo()).isNull();
+        assertThat(metadata.tokensEntrada()).isNull();
+        assertThat(metadata.tokensSaida()).isNull();
+        assertThat(metadata.tokensTotais()).isNull();
+        assertThat(metadata.modeloDivergente()).isFalse();
+    }
+
+    @Test
+    void segredoNaoApareceEmExcecaoNemLogs() {
+        Logger logger = (Logger) LoggerFactory.getLogger(OpenRouterModeloGateway.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            transport.complete(401, "corpo-sensivel-" + SECRET);
+
+            assertThatThrownBy(() -> gateway.gerarRespostaFinal(solicitacao()))
+                    .isInstanceOf(OrquestradorException.class)
+                    .hasMessageNotContaining(SECRET)
+                    .hasMessageNotContaining("corpo-sensivel");
+            assertThat(appender.list).extracting(ILoggingEvent::getFormattedMessage)
+                    .noneMatch(message -> message.contains(SECRET) || message.contains("corpo-sensivel"));
+        } finally {
+            logger.detachAppender(appender);
+        }
+    }
+
+    private void assertStatus(int status, CodigoErroOrquestrador expected) {
+        transport.complete(status, "corpo-sensivel-" + SECRET);
+        assertErro(() -> gateway.gerarRespostaFinal(solicitacao()), expected);
+    }
+
+    private void assertErro(Runnable action, CodigoErroOrquestrador expected) {
+        assertThatThrownBy(action::run)
+                .isInstanceOfSatisfying(OrquestradorException.class,
+                        exception -> assertThat(exception.getCodigo()).isEqualTo(expected))
+                .hasMessageNotContaining(SECRET);
+    }
+
+    private SolicitacaoModelo solicitacao() {
+        return new SolicitacaoModelo(java.util.List.of(
+                new MensagemModelo(PapelMensagemModelo.USER, "mensagem segura")));
+    }
+
+    private String resposta(String content, String model, boolean usage) {
+        var root = mapper.createObjectNode();
+        root.putArray("choices").addObject().putObject("message").put("content", content);
+        if (model != null) root.put("model", model);
+        if (usage) {
+            root.putObject("usage")
+                    .put("prompt_tokens", 8)
+                    .put("completion_tokens", 3)
+                    .put("total_tokens", 11);
+        }
+        try {
+            return mapper.writeValueAsString(root);
+        } catch (Exception exception) {
+            throw new AssertionError(exception);
+        }
+    }
+
+    private static final class CapturingTransport implements OpenRouterTransport {
+        private CompletableFuture<OpenRouterHttpResponse> future;
+        private OpenRouterHttpRequest request;
+
+        @Override
+        public CompletableFuture<OpenRouterHttpResponse> enviar(OpenRouterHttpRequest request) {
+            this.request = request;
+            return future;
+        }
+
+        void complete(int status, String body) {
+            future = CompletableFuture.completedFuture(new OpenRouterHttpResponse(status, body));
+        }
+
+        void pending() {
+            future = new CompletableFuture<>();
+        }
+
+        void cancelled() {
+            future = new CompletableFuture<>();
+            future.cancel(true);
+        }
+
+        void failed(Throwable throwable) {
+            future = CompletableFuture.failedFuture(throwable);
+        }
+    }
+}

@@ -1,0 +1,14 @@
+package com.InovaSkill.CaderninhoDigital.exception;
+
+public enum CodigoErroOrquestrador {
+    ENTRADA_INVALIDA,
+    NAO_AUTENTICADO,
+    NAO_AUTORIZADO,
+    PLANO_INVALIDO,
+    FERRAMENTA_DESCONHECIDA,
+    ARGUMENTOS_INVALIDOS,
+    PROVEDOR_INDISPONIVEL,
+    TIMEOUT,
+    LIMITE_EXCEDIDO,
+    ERRO_INTERNO
+}

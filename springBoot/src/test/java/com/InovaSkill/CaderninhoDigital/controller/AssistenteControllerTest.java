@@ -11,6 +11,7 @@ import com.InovaSkill.CaderninhoDigital.dto.request.InterpretarVozRequestDTO;
 import com.InovaSkill.CaderninhoDigital.dto.response.ConversaResponseDTO;
 import com.InovaSkill.CaderninhoDigital.dto.response.VozResultadoResponseDTO;
 import com.InovaSkill.CaderninhoDigital.service.OpenRouterService;
+import com.InovaSkill.CaderninhoDigital.service.AssistenteOrquestradorService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Collections;
 import org.junit.jupiter.api.Test;
@@ -20,7 +21,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.http.MediaType;
-import org.springframework.security.test.context.support.WithMockUser;
+import org.springframework.security.test.context.support.WithUserDetails;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -46,8 +47,11 @@ class AssistenteControllerTest {
     @MockBean
     private OpenRouterService openRouterService;
 
+    @MockBean
+    private AssistenteOrquestradorService orquestradorService;
+
     @Test
-    @WithMockUser(username = "adm@gmail.com", roles = {"GESTOR"})
+    @WithUserDetails("adm@gmail.com")
     void interpretarVozComSucesso() throws Exception {
         InterpretarVozRequestDTO request = new InterpretarVozRequestDTO();
         request.setTexto("Vendi duas caixas");
@@ -58,7 +62,7 @@ class AssistenteControllerTest {
         response.setTranscricao("Vendi duas caixas");
         response.setTipo("venda");
 
-        when(openRouterService.interpretarVoz(any(InterpretarVozRequestDTO.class))).thenReturn(response);
+        when(openRouterService.interpretarVoz(any(), any(InterpretarVozRequestDTO.class))).thenReturn(response);
 
         mockMvc.perform(post("/api/v1/assistente/interpretar-voz")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -69,7 +73,7 @@ class AssistenteControllerTest {
     }
 
     @Test
-    @WithMockUser(username = "adm@gmail.com", roles = {"GESTOR"})
+    @WithUserDetails("adm@gmail.com")
     void conversaComSucesso() throws Exception {
         ConversaRequestDTO request = new ConversaRequestDTO();
         request.setMensagem("Olá Vovó");
@@ -77,7 +81,7 @@ class AssistenteControllerTest {
 
         ConversaResponseDTO response = new ConversaResponseDTO("Olá querido!");
 
-        when(openRouterService.conversar(any(), any(ConversaRequestDTO.class))).thenReturn(response);
+        when(orquestradorService.conversar(any(ConversaRequestDTO.class))).thenReturn(response);
 
         mockMvc.perform(post("/api/v1/assistente/conversa")
                 .contentType(MediaType.APPLICATION_JSON)
