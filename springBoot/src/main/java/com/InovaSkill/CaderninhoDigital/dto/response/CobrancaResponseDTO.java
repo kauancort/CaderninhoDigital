@@ -11,6 +11,7 @@ import lombok.Getter;
 @Getter
 @Builder
 public class CobrancaResponseDTO {
+
     private Long id;
     private Long clienteId;
     private String clienteNome;

@@ -14,6 +14,7 @@ import lombok.Getter;
 @Getter
 @Builder
 public class VendaDetalhesResponseDTO {
+
     private Long id;
     private Long clienteId;
     private String clienteNome;

@@ -10,6 +10,7 @@ import lombok.Getter;
 @Getter
 @Builder
 public class VendaHistoricoItemResponseDTO {
+
     private Long id;
     private LocalDate dataVenda;
     private Long clienteId;

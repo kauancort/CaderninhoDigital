@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   ArrowLeft,
@@ -9,6 +9,7 @@ import {
   Package,
   Cookie,
   Search,
+  AlertCircle,
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import {
@@ -52,12 +53,14 @@ function Estoque() {
     staleTime: 60_000,
     placeholderData: (anterior) => anterior,
   });
+
   const { data: resumoMps } = useQuery({
     queryKey: ["materia_prima", "resumo-estoque", buscaDebounced],
     queryFn: () => resumirEstoqueMateriasPrimas({ data: { busca: buscaDebounced } }),
     enabled: aba === "mp",
     staleTime: 60_000,
   });
+
   const { data: paginaProdutos, isLoading: carregandoProdutos } = useQuery({
     queryKey: ["produtos", "consulta", buscaDebounced, pagina],
     queryFn: () => pesquisarProdutos({ data: { busca: buscaDebounced, pagina, tamanho: 20 } }),
@@ -65,10 +68,35 @@ function Estoque() {
     staleTime: 60_000,
     placeholderData: (anterior) => anterior,
   });
-  const mps = paginaMps?.registros ?? [];
-  const produtos = paginaProdutos?.registros ?? [];
+
+  const mpsBruto = paginaMps?.registros ?? [];
+  const produtosBruto = paginaProdutos?.registros ?? [];
   const baixos = resumoMps?.itensEmAlerta ?? 0;
   const paginaAtiva = aba === "mp" ? paginaMps : paginaProdutos;
+
+  // 1. Ordenação de Matéria-Prima: Do mais crítico (menor % em relação ao estoque mínimo) para o menos crítico
+  const mps = useMemo(() => {
+    return [...mpsBruto].sort((a: any, b: any) => {
+      const qta = Number(a.quantidade_estoque);
+      const mina = Math.max(Number(a.estoque_minimo), 0.01);
+      const ratioA = qta / mina;
+
+      const qtb = Number(b.quantidade_estoque);
+      const minb = Math.max(Number(b.estoque_minimo), 0.01);
+      const ratioB = qtb / minb;
+
+      return ratioA - ratioB;
+    });
+  }, [mpsBruto]);
+
+  // 2. Ordenação de Produtos Finais: Do menor estoque para o maior estoque
+  const produtos = useMemo(() => {
+    return [...produtosBruto].sort((a: any, b: any) => {
+      const qta = Number(a.quantidade_estoque);
+      const qtb = Number(b.quantidade_estoque);
+      return qta - qtb;
+    });
+  }, [produtosBruto]);
 
   function abrirAlertas() {
     if (baixos === 0) return;
@@ -98,10 +126,10 @@ function Estoque() {
         <button
           onClick={() => alterarAba("mp")}
           className={[
-            "flex-1 md:flex-none px-3 md:px-4 py-1.5 rounded-full text-[11px] md:text-xs font-bold uppercase tracking-wider whitespace-nowrap",
+            "flex-1 md:flex-none px-3 md:px-4 py-1.5 rounded-full text-[11px] md:text-xs font-bold uppercase tracking-wider whitespace-nowrap transition-colors",
             aba === "mp"
               ? "bg-primary text-primary-foreground shadow-warm-sm"
-              : "text-muted-foreground",
+              : "text-muted-foreground hover:text-foreground",
           ].join(" ")}
         >
           Matéria-prima · {resumoMps?.totalItens ?? "—"}
@@ -109,10 +137,10 @@ function Estoque() {
         <button
           onClick={() => alterarAba("pf")}
           className={[
-            "flex-1 md:flex-none px-3 md:px-4 py-1.5 rounded-full text-[11px] md:text-xs font-bold uppercase tracking-wider whitespace-nowrap",
+            "flex-1 md:flex-none px-3 md:px-4 py-1.5 rounded-full text-[11px] md:text-xs font-bold uppercase tracking-wider whitespace-nowrap transition-colors",
             aba === "pf"
               ? "bg-primary text-primary-foreground shadow-warm-sm"
-              : "text-muted-foreground",
+              : "text-muted-foreground hover:text-foreground",
           ].join(" ")}
         >
           Produtos finais · {paginaProdutos?.totalRegistros ?? "—"}
@@ -185,24 +213,8 @@ function Estoque() {
               <Empty msg="Nenhum produto cadastrado." />
             ) : (
               produtos.map((p: any) => (
-                <div
-                  key={p.id}
-                  className="bg-card border border-border rounded-2xl p-5 shadow-warm-sm flex items-center justify-between"
-                >
-                  <div>
-                    <div className="font-display text-lg font-semibold text-foreground flex items-center gap-2">
-                      <Cookie size={16} /> {p.nome}
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      Preço de venda: {fmtBRL(Number(p.preco_venda))}
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="font-display text-2xl font-bold text-foreground leading-none">
-                      {Number(p.quantidade_estoque)}
-                      <span className="text-sm text-muted-foreground font-sans ml-1">un</span>
-                    </div>
-                  </div>
+                <div key={p.id}>
+                  <RowPF produto={p} />
                 </div>
               ))
             )}
@@ -241,26 +253,46 @@ function RowMP({ item }: { item: any }) {
   const estoque = Number(item.quantidade_estoque);
   const min = Number(item.estoque_minimo);
   const pct = Math.min(100, (estoque / Math.max(min * 2, 0.01)) * 100);
+
   const status = estoque <= min * 0.5 ? "danger" : estoque <= min ? "warning" : "ok";
+
   const statusBar =
     status === "danger" ? "bg-error" : status === "warning" ? "bg-warning" : "bg-success";
+
   const statusBadge =
     status === "danger"
       ? "bg-error-bg text-error"
       : status === "warning"
         ? "bg-warning-bg text-gold-dark"
         : "bg-success-bg text-success";
-  const statusLabel = status === "danger" ? "Crítico" : status === "warning" ? "Acabando" : "Ok";
+
+  const cardBorder =
+    status === "danger"
+      ? "border-error/40 bg-error-bg/10"
+      : status === "warning"
+        ? "border-warning/40"
+        : "border-border";
+
+  const statusLabel =
+    estoque === 0
+      ? "Zerado"
+      : status === "danger"
+        ? "Crítico"
+        : status === "warning"
+          ? "Acabando"
+          : "Ok";
 
   return (
-    <div className="bg-card border border-border rounded-2xl p-5 shadow-warm-sm flex flex-col md:flex-row md:items-center gap-4">
+    <div
+      className={`bg-card border ${cardBorder} rounded-2xl p-5 shadow-warm-sm flex flex-col md:flex-row md:items-center gap-4 transition-all`}
+    >
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-1">
           <div className="font-display text-lg font-semibold text-foreground truncate">
             {item.nome}
           </div>
           <span
-            className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${statusBadge}`}
+            className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full ${statusBadge}`}
           >
             {statusLabel}
           </span>
@@ -268,20 +300,100 @@ function RowMP({ item }: { item: any }) {
         <div className="text-xs text-muted-foreground font-body">
           Mín: {min} {item.unidade} · Custo médio {fmtBRL(Number(item.custo_medio))}
         </div>
-        <div className="mt-3 h-2 bg-secondary rounded-full overflow-hidden">
+        <div className="mt-3 h-2.5 bg-secondary rounded-full overflow-hidden">
           <div
             className={`h-full rounded-full transition-all ${statusBar}`}
-            style={{ width: `${pct}%` }}
+            style={{ width: `${Math.max(pct, 2)}%` }}
           />
         </div>
       </div>
       <div className="flex items-center gap-3 md:gap-4 md:w-64 md:justify-end">
         <div className="text-right">
-          <div className="font-display text-2xl font-bold text-foreground leading-none">
+          <div
+            className={`font-display text-2xl font-bold leading-none ${
+              status === "danger" ? "text-error" : "text-foreground"
+            }`}
+          >
             {estoque}
             <span className="text-sm text-muted-foreground font-sans font-medium ml-1">
               {item.unidade}
             </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RowPF({ produto }: { produto: any }) {
+  const estoque = Number(produto.quantidade_estoque);
+
+  // Definição de níveis de criticidade para produto final (ex: zerado/crítico <= 0, alerta <= 10)
+  const isZerado = estoque <= 0;
+  const isBaixo = estoque > 0 && estoque <= 10;
+
+  const statusBadge = isZerado
+    ? "bg-error-bg text-error border border-error/30"
+    : isBaixo
+      ? "bg-warning-bg text-gold-dark border border-warning/30"
+      : "bg-success-bg text-success border border-success/30";
+
+  const cardBorder = isZerado
+    ? "border-error/50 bg-error-bg/10"
+    : isBaixo
+      ? "border-warning/50 bg-warning-bg/5"
+      : "border-border";
+
+  const statusLabel = isZerado ? "Sem Estoque" : isBaixo ? "Estoque Baixo" : "Disponível";
+
+  // Porcentagem visual baseada num limite ideal padrão (ex: 44 un)
+  const pctVisual = Math.min(100, (estoque / 44) * 100);
+
+  return (
+    <div
+      className={`bg-card border ${cardBorder} rounded-2xl p-5 shadow-warm-sm flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all`}
+    >
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 mb-1">
+          <div className="font-display text-lg font-semibold text-foreground flex items-center gap-2 truncate">
+            <Cookie size={18} className={isZerado ? "text-error" : "text-primary"} />
+            <span className="truncate">{produto.nome}</span>
+          </div>
+          <span
+            className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full ${statusBadge}`}
+          >
+            {statusLabel}
+          </span>
+        </div>
+        <div className="text-xs text-muted-foreground font-body">
+          Preço de venda: <strong className="text-foreground">{fmtBRL(Number(produto.preco_venda))}</strong>
+        </div>
+
+        {/* Barra de Progresso visual */}
+        <div className="mt-3 h-2.5 bg-secondary rounded-full overflow-hidden max-w-md">
+          <div
+            className={`h-full rounded-full transition-all ${
+              isZerado ? "bg-error" : isBaixo ? "bg-warning" : "bg-success"
+            }`}
+            style={{ width: `${Math.max(pctVisual, isZerado ? 0 : 3)}%` }}
+          />
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between md:justify-end gap-3 md:w-48">
+        {isZerado && (
+          <div className="flex items-center gap-1 text-xs text-error font-semibold">
+            <AlertCircle size={15} /> Requer produção
+          </div>
+        )}
+        <div className="text-right ml-auto">
+          <div
+            className={`font-display text-2xl font-bold leading-none ${
+              isZerado ? "text-error" : isBaixo ? "text-gold-dark" : "text-foreground"
+            }`}
+          >
+            {estoque}
+            <span className="text-sm text-muted-foreground font-sans font-medium ml-1">un</span>
           </div>
         </div>
       </div>
@@ -319,9 +431,11 @@ function Sum({
   return (
     <Comp
       onClick={onClick}
-      className={`bg-card border rounded-2xl p-4 flex items-center gap-3 shadow-warm-sm text-left w-full ${active ? "border-primary ring-2 ring-primary/30" : "border-border"} ${interactive ? "hover:shadow-warm-md transition cursor-pointer" : ""}`}
+      className={`bg-card border rounded-2xl p-4 flex items-center gap-3 shadow-warm-sm text-left w-full ${
+        active ? "border-primary ring-2 ring-primary/30" : "border-border"
+      } ${interactive ? "hover:shadow-warm-md transition cursor-pointer" : ""}`}
     >
-      <div className={`w-10 h-10 rounded-md flex items-center justify-center ${iconBg}`}>
+      <div className={`w-10 h-10 rounded-md flex items-center justify-center shrink-0 ${iconBg}`}>
         {icon}
       </div>
       <div className="min-w-0">

@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useApiFn } from "@/lib/api-function";
-import { Check, Sparkles, ArrowLeft, Pencil, Plus, Trash2, UserPlus, X } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Plus, Trash2, UserPlus } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { obterProduto, pesquisarProdutos } from "@/lib/catalogo.functions";
 import { criarCliente, pesquisarClientes } from "@/lib/clientes.functions";
@@ -22,12 +22,15 @@ export const Route = createFileRoute("/registrar/venda")({
 });
 
 type TipoVenda = "pote" | "caixa";
+type TamanhoPote = "22" | "44";
 type TipoCartao = "CREDITO" | "DEBITO";
+
 type ItemForm = {
   produto_final_id: string;
   quantidade: string;
   preco_unitario: string;
   tipo: TipoVenda;
+  tamanho_pote: TamanhoPote;
 };
 
 type Cliente = {
@@ -43,26 +46,26 @@ const clienteRapidoInicial = clienteFormVazio;
 
 const POTES_POR_CAIXA = 6;
 
-const PRECO_POTE_FIXO: Record<string, number> = {
-  "Fondant de leite palito": 21.3,
-  "Fondant de leite": 20.7,
-  "Foundant de leite palito": 21.3,
-  "Foundant de leite": 20.7,
-  "Foundant palito": 21.3,
-  Foundant: 20.7,
-  "Fondant palito": 21.3,
-  Fondant: 20.7,
-  "Fouandant de leite palito": 21.3,
-  "Fouandant de leite": 20.7,
-  "Fouandant palito": 21.3,
-  Fouandant: 20.7,
-  "Biriba palito": 19.7,
-  Biriba: 19.7,
-  "Paçoca Caseira palito": 18.7,
-  "Paçoca Caseira": 18.7,
-  Paçoca: 18.7,
-  Pacoca: 18.7,
-};
+// Tabela de preços dinâmicos com base na variação e tamanho
+function obterPrecoPote(nomeProduto: string, tamanho: TamanhoPote): number | undefined {
+  const nomeLower = nomeProduto.toLowerCase();
+
+  if (
+    nomeLower.includes("fondant") ||
+    nomeLower.includes("foundant") ||
+    nomeLower.includes("fouandant")
+  ) {
+    return tamanho === "22" ? 20.7 : 21.3;
+  }
+  if (nomeLower.includes("biriba")) {
+    return 19.7;
+  }
+  if (nomeLower.includes("paçoca") || nomeLower.includes("pacoca")) {
+    return 18.7;
+  }
+
+  return undefined;
+}
 
 function RegistrarVenda() {
   const navigate = useNavigate();
@@ -73,7 +76,7 @@ function RegistrarVenda() {
   const quantidadeRefs = useRef<Array<HTMLInputElement | null>>([]);
 
   const [itens, setItens] = useState<ItemForm[]>([
-    { produto_final_id: "", quantidade: "1", preco_unitario: "", tipo: "pote" },
+    { produto_final_id: "", quantidade: "1", preco_unitario: "", tipo: "pote", tamanho_pote: "44" },
   ]);
   const [forma, setForma] = useState<FormaPagamento>("pix");
   const [tipoCartao, setTipoCartao] = useState<TipoCartao | null>(null);
@@ -100,12 +103,14 @@ function RegistrarVenda() {
     const t = setTimeout(() => setBuscaProdutoDebounced(buscaProduto.trim()), 300);
     return () => clearTimeout(t);
   }, [buscaProduto]);
+
   const { data: paginaProdutos, isFetching: pesquisandoProdutos } = useQuery({
     queryKey: ["produtos", "seletor-venda", buscaProdutoDebounced],
     queryFn: () =>
       pesquisarProdutos({ data: { busca: buscaProdutoDebounced, pagina: 0, tamanho: 20 } }),
     placeholderData: (a) => a,
   });
+
   const idsProdutosSelecionados = [
     ...new Set(itens.map((item) => item.produto_final_id).filter(Boolean)),
   ];
@@ -115,6 +120,7 @@ function RegistrarVenda() {
       !produtosSelecionados.some((produto) => produto.id === id) &&
       !produtosEncontrados.some((produto: any) => produto.id === id),
   );
+
   const consultasProdutosSelecionados = useQueries({
     queries: idsProdutosAusentes.map((id) => ({
       queryKey: ["produto", id],
@@ -122,12 +128,14 @@ function RegistrarVenda() {
       staleTime: 60_000,
     })),
   });
+
   const produtosFixos = [
     ...produtosSelecionados,
     ...consultasProdutosSelecionados.flatMap((consulta) => (consulta.data ? [consulta.data] : [])),
   ].filter(
     (produto, indice, todos) => todos.findIndex((item) => item.id === produto.id) === indice,
   );
+
   const produtos = [
     ...produtosFixos,
     ...produtosEncontrados.filter((p: any) => !produtosFixos.some((s) => s.id === p.id)),
@@ -138,12 +146,13 @@ function RegistrarVenda() {
     return () => window.clearTimeout(timer);
   }, [cliente]);
 
-  const { data: paginaClientes, isFetching: pesquisandoClientes } = useQuery({
+  const { data: paginaClientes } = useQuery({
     queryKey: ["clientes", "pesquisa", buscaCliente],
     queryFn: () => pesquisarClientes({ data: { busca: buscaCliente, pagina: 0, tamanho: 20 } }),
     enabled: buscaCliente.length >= 2 && !clienteId,
     placeholderData: (anterior) => anterior,
   });
+
   const clientes = useMemo(
     () => (paginaClientes?.registros ?? []) as Cliente[],
     [paginaClientes?.registros],
@@ -165,6 +174,7 @@ function RegistrarVenda() {
           preco_unitario:
             i.preco_unitario != null ? String(i.preco_unitario).replace(".", ",") : "",
           tipo: i.tipo === "caixa" ? "caixa" : "pote",
+          tamanho_pote: "44",
         })),
       );
     }
@@ -212,7 +222,11 @@ function RegistrarVenda() {
       estoqueInsuficiente: Boolean(i.produto_final_id) && potes > estoque,
     };
   });
+
   const total = itensCalculados.reduce((s, i) => s + i.subtotal, 0);
+
+  // Verifica se há algum produto com estoque insuficiente
+  const temItemPendente = itensCalculados.some((i) => i.estoqueInsuficiente);
 
   const sugestoesCliente = useMemo(() => {
     const termo = cliente.trim().toLowerCase();
@@ -230,14 +244,31 @@ function RegistrarVenda() {
   }, [cliente, clientes]);
 
   function atualizarItem(idx: number, patch: Partial<ItemForm>) {
-    setItens((prev) => prev.map((it, i) => (i === idx ? { ...it, ...patch } : it)));
+    setItens((prev) =>
+      prev.map((it, i) => {
+        if (i !== idx) return it;
+        const itemAtualizado = { ...it, ...patch };
+
+        // Se mudou o tamanho do pote ou o produto, recalcular preço automaticamente
+        if (patch.tamanho_pote !== undefined || patch.produto_final_id !== undefined) {
+          const p = produtos.find((prod: any) => prod.id === itemAtualizado.produto_final_id) as any;
+          if (p?.nome) {
+            const precoCalculado = obterPrecoPote(p.nome, itemAtualizado.tamanho_pote);
+            if (precoCalculado !== undefined) {
+              itemAtualizado.preco_unitario = precoCalculado.toFixed(2).replace(".", ",");
+            }
+          }
+        }
+        return itemAtualizado;
+      }),
+    );
   }
 
   function adicionarItem() {
     const novoIndice = itens.length;
     setItens((atuais) => [
       ...atuais,
-      { produto_final_id: "", quantidade: "1", preco_unitario: "", tipo: "pote" },
+      { produto_final_id: "", quantidade: "1", preco_unitario: "", tipo: "pote", tamanho_pote: "44" },
     ]);
     window.setTimeout(() => produtoRefs.current[novoIndice]?.focus(), 0);
   }
@@ -247,32 +278,22 @@ function RegistrarVenda() {
       setErro("Este produto já está na venda. Ajuste a quantidade no item existente.");
       return;
     }
-    const p = produtos.find((p: any) => p.id === id) as any;
-    const nome: string = p?.nome ?? "";
-    const nomeLower = nome.toLowerCase();
+    const p = produtos.find((prod: any) => prod.id === id) as any;
+    const itemAtual = itens[idx];
+    const tamanho = itemAtual?.tamanho_pote ?? "44";
 
-    let precoFixo: number | undefined = undefined;
-
-    if (
-      nomeLower.includes("fondant") ||
-      nomeLower.includes("foundant") ||
-      nomeLower.includes("fouandant")
-    ) {
-      precoFixo = nomeLower.includes("palito") ? 21.3 : 20.7;
-    } else if (nomeLower.includes("biriba")) {
-      precoFixo = 19.7;
-    } else if (nomeLower.includes("paçoca") || nomeLower.includes("pacoca")) {
-      precoFixo = 18.7;
+    let precoStr = "";
+    if (p?.nome) {
+      const precoFixo = obterPrecoPote(p.nome, tamanho);
+      precoStr =
+        precoFixo !== undefined
+          ? precoFixo.toFixed(2).replace(".", ",")
+          : p?.preco_venda
+            ? Number(p.preco_venda).toFixed(2).replace(".", ",")
+            : "";
     }
 
-    const preco =
-      precoFixo !== undefined
-        ? precoFixo.toFixed(2).replace(".", ",")
-        : p?.preco_venda
-          ? Number(p.preco_venda).toFixed(2).replace(".", ",")
-          : "";
-
-    atualizarItem(idx, { produto_final_id: id, preco_unitario: preco });
+    atualizarItem(idx, { produto_final_id: id, preco_unitario: precoStr });
     setErro(null);
     window.setTimeout(() => quantidadeRefs.current[idx]?.focus(), 0);
   }
@@ -288,7 +309,7 @@ function RegistrarVenda() {
 
   function alterarCliente(valor: string) {
     setCliente(valor);
-    setClienteId(null); // digitou algo novo, desassocia até selecionar de novo
+    setClienteId(null);
     setMostrarSugestoes(true);
     setSugestaoAtiva(0);
   }
@@ -327,13 +348,13 @@ function RegistrarVenda() {
     if (!clienteId) return setErro("Selecione um cliente na lista para continuar com a venda.");
     if (itens.some((i) => !i.produto_final_id))
       return setErro("Escolha o produto em todos os itens.");
+    if (itens.some((i) => !i.quantidade || Number(i.quantidade) <= 0))
+      return setErro("A quantidade de potes/caixas é obrigatória.");
     if (itensCalculados.some((i) => i.qtd <= 0 || i.preco <= 0))
       return setErro("Verifique quantidades e preços.");
-    const semEstoque = itensCalculados.find((i) => i.estoqueInsuficiente);
-    if (semEstoque)
-      return setErro(
-        `Estoque insuficiente para ${semEstoque.nome}: disponível ${semEstoque.estoque}, solicitado ${semEstoque.potes}.`,
-      );
+    
+    // Permite a venda mesmo sem estoque! O aviso é exibido dinamicamente no resumo.
+
     if (statusPagamento === "PENDENTE" && !dataVencimento)
       return setErro("Informe a data de vencimento para vendas pendentes.");
     if (forma === "cartao" && !tipoCartao)
@@ -372,7 +393,6 @@ function RegistrarVenda() {
     boleto: "Boleto",
     outro: "Outro",
   };
-  const ok = mutation.isSuccess;
 
   return (
     <div className="max-w-5xl space-y-8">
@@ -400,24 +420,76 @@ function RegistrarVenda() {
         </div>
       )}
 
+      {erro && (
+        <div className="bg-error-bg border-l-4 border-error text-error rounded-md px-4 py-3 text-sm">
+          {erro}
+        </div>
+      )}
+
       <form
         onSubmit={abrirConfirmacao}
         className="space-y-6 pb-28 md:grid md:grid-cols-[minmax(0,1fr)_18rem] md:items-start md:gap-6 md:space-y-0 md:pb-0"
       >
         <div className="flex flex-col gap-5 rounded-2xl border border-border bg-card p-6 shadow-warm-sm md:col-start-1 md:row-start-1">
-          <div className="order-2 space-y-3">
+          {/* CLIENTE */}
+          <div className="space-y-2 relative">
+            <label className="text-sm font-semibold text-foreground">Cliente / Comprador *</label>
+            <div className="flex gap-2">
+              <input
+                className="ds-input flex-1"
+                value={cliente}
+                onChange={(e) => alterarCliente(e.target.value)}
+                onFocus={() => setMostrarSugestoes(true)}
+                onKeyDown={navegarSugestoes}
+                placeholder="Busque por nome ou telefone..."
+                required
+              />
+              <button
+                type="button"
+                onClick={abrirCadastroCliente}
+                className="ds-button-secondary shrink-0 px-3 flex items-center gap-1.5 text-xs"
+              >
+                <UserPlus size={16} /> Novo
+              </button>
+            </div>
+
+            {/* Sugestões de Clientes */}
+            {mostrarSugestoes && sugestoesCliente.length > 0 && (
+              <div className="absolute left-0 right-0 top-full mt-1 bg-card border border-border rounded-xl shadow-warm-lg z-50 overflow-hidden max-h-56 overflow-y-auto">
+                {sugestoesCliente.map((c, idx) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => selecionarCliente(c)}
+                    className={`w-full text-left px-4 py-2.5 text-sm flex items-center justify-between transition-colors ${
+                      idx === sugestaoAtiva ? "bg-primary/10 text-primary font-semibold" : "hover:bg-secondary"
+                    }`}
+                  >
+                    <div>
+                      <div className="font-medium text-foreground">{c.nome}</div>
+                      <div className="text-xs text-muted-foreground">{c.telefone || c.email || c.documento}</div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* ITENS DA VENDA */}
+          <div className="space-y-3">
             <label className="text-sm font-semibold text-foreground">Itens da venda</label>
             <input
               className="ds-input"
               value={buscaProduto}
               onChange={(e) => setBuscaProduto(e.target.value)}
-              placeholder="Buscar produto por nome ou SKU..."
+              placeholder="Buscar produto por nome..."
             />
             {pesquisandoProdutos && (
               <div className="text-xs text-muted-foreground">Pesquisando produtos...</div>
             )}
+
             {itens.map((it, idx) => (
-              <div key={idx} className="space-y-2 border border-border rounded-lg p-3">
+              <div key={idx} className="space-y-3 border border-border rounded-xl p-4 bg-secondary/30">
                 <div className="grid grid-cols-[1fr_auto] gap-2 items-end">
                   <select
                     ref={(element) => {
@@ -444,7 +516,7 @@ function RegistrarVenda() {
                             itemIdx !== idx && item.produto_final_id === String(p.id),
                         )}
                       >
-                        {p.nome} (estoque: {Number(p.quantidade_estoque)})
+                        {p.nome} (estoque: {Number(p.quantidade_estoque)} un)
                       </option>
                     ))}
                   </select>
@@ -452,14 +524,15 @@ function RegistrarVenda() {
                     type="button"
                     onClick={() => setItens((p) => p.filter((_, i) => i !== idx))}
                     disabled={itens.length === 1}
-                    className="w-10 h-10 rounded-md text-error hover:bg-error-bg disabled:opacity-30"
+                    className="w-10 h-10 rounded-md text-error hover:bg-error-bg disabled:opacity-30 flex items-center justify-center shrink-0"
                     aria-label={`Remover item ${idx + 1}`}
                   >
-                    <Trash2 size={16} className="mx-auto" />
+                    <Trash2 size={16} />
                   </button>
                 </div>
+
                 {it.produto_final_id && (
-                  <div className="space-y-2">
+                  <div className="space-y-3 pt-1">
                     <div>
                       <label className="text-xs font-semibold text-muted-foreground mb-1 block">
                         Tipo de Venda
@@ -474,7 +547,7 @@ function RegistrarVenda() {
                               "py-2 rounded-md text-xs font-bold uppercase tracking-wider transition-colors",
                               it.tipo === t
                                 ? "bg-primary text-primary-foreground shadow-warm-sm"
-                                : "bg-secondary text-brown-mid hover:bg-beige-dark",
+                                : "bg-card border border-border text-foreground hover:bg-secondary",
                             ].join(" ")}
                           >
                             {t === "pote" ? "Pote" : "Caixa (6 potes)"}
@@ -482,125 +555,162 @@ function RegistrarVenda() {
                         ))}
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-2">
+
+                    <div className="grid grid-cols-3 gap-3">
+                      {/* Quantidade de Potes (Obrigatório) */}
                       <div>
                         <label className="text-xs font-semibold text-muted-foreground mb-1 block">
-                          {it.tipo === "caixa" ? "Quant. de Caixas" : "Quant. de Potes"}
+                          {it.tipo === "caixa" ? "Quant. Caixas *" : "Quant. Potes *"}
                         </label>
                         <input
                           ref={(element) => {
                             quantidadeRefs.current[idx] = element;
                           }}
                           type="number"
-                          min="0"
-                          step="1"
+                          min="1"
+                          required
                           className="ds-input"
                           value={it.quantidade}
                           onChange={(e) => atualizarItem(idx, { quantidade: e.target.value })}
                         />
-                        {it.tipo === "caixa" && Number(it.quantidade) > 0 && (
-                          <div className="text-[11px] text-muted-foreground mt-1">
-                            Equivale a {Number(it.quantidade) * POTES_POR_CAIXA} potes
-                          </div>
-                        )}
-                        {itensCalculados[idx]?.estoqueInsuficiente && (
-                          <div className="mt-1 text-center text-sm font-semibold text-error">
-                            Estoque insuficiente: {itensCalculados[idx].estoque} potes disponíveis.
-                          </div>
-                        )}
                       </div>
+
+                      {/* Tamanho do Pote */}
                       <div>
                         <label className="text-xs font-semibold text-muted-foreground mb-1 block">
-                          Preço por pote (R$)
+                          Tamanho Pote
                         </label>
-                        <div className="relative">
-                          <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs font-semibold text-muted-foreground">
-                            R$
-                          </span>
-                          <input
-                            type="text"
-                            inputMode="decimal"
-                            className="ds-input"
-                            style={{ paddingLeft: "2.25rem" }}
-                            value={it.preco_unitario}
-                            onChange={(e) => atualizarItem(idx, { preco_unitario: e.target.value })}
-                            placeholder="0,00"
-                          />
-                        </div>
+                        <select
+                          className="ds-input"
+                          value={it.tamanho_pote}
+                          onChange={(e) =>
+                            atualizarItem(idx, { tamanho_pote: e.target.value as TamanhoPote })
+                          }
+                        >
+                          <option value="44">44 uni.</option>
+                          <option value="22">22 uni.</option>
+                        </select>
                       </div>
+
+                      {/* Preço por pote */}
+                      <div>
+                        <label className="text-xs font-semibold text-muted-foreground mb-1 block">
+                          Preço por pote
+                        </label>
+                        <input
+                          className="ds-input"
+                          value={it.preco_unitario}
+                          onChange={(e) => atualizarItem(idx, { preco_unitario: e.target.value })}
+                          placeholder="R$ 0,00"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="text-right text-xs text-muted-foreground">
+                      Subtotal item: <strong className="text-foreground">{fmtBRL(itensCalculados[idx]?.subtotal ?? 0)}</strong>
                     </div>
                   </div>
                 )}
               </div>
             ))}
+
             <button
               type="button"
               onClick={adicionarItem}
-              className="text-xs font-bold text-primary inline-flex items-center gap-1"
+              className="ds-button-secondary w-full flex items-center justify-center gap-2 py-2 text-xs font-semibold uppercase tracking-wider"
             >
-              <Plus size={14} /> Adicionar item
+              <Plus size={16} /> Adicionar outro item
             </button>
           </div>
 
-          <div className="order-3">
-            <label className="text-sm font-semibold text-foreground mb-2 block">
-              Forma de pagamento
-            </label>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              {(["dinheiro", "pix", "cheque", "outro"] as const).map((f) => (
-                <button
-                  key={f}
-                  type="button"
-                  onClick={() => {
-                    setForma(f);
-                    setTipoCartao(null);
-                    setParcelas("1");
-                  }}
-                  className={[
-                    "py-2.5 rounded-md text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer",
-                    forma === f
-                      ? "bg-primary text-primary-foreground shadow-warm-sm"
-                      : "bg-secondary text-brown-mid hover:bg-beige-dark",
-                  ].join(" ")}
+          {/* DADOS DE PAGAMENTO */}
+          <div className="space-y-4 pt-2 border-t border-border">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground mb-1 block">
+                  Data da venda
+                </label>
+                <input
+                  type="date"
+                  className="ds-input"
+                  value={dataVenda}
+                  onChange={(e) => setDataVenda(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground mb-1 block">
+                  Status
+                </label>
+                <select
+                  className="ds-input"
+                  value={statusPagamento}
+                  onChange={(e) => setStatusPagamento(e.target.value as StatusPagamento)}
                 >
-                  {formaLabel[f]}
-                </button>
-              ))}
+                  <option value="PAGO">Pago</option>
+                  <option value="PENDENTE">Pendente</option>
+                </select>
+              </div>
+            </div>
+
+            {statusPagamento === "PENDENTE" && (
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground mb-1 block">
+                  Data de Vencimento *
+                </label>
+                <input
+                  type="date"
+                  className="ds-input"
+                  value={dataVencimento}
+                  onChange={(e) => setDataVencimento(e.target.value)}
+                  required
+                />
+              </div>
+            )}
+
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground mb-1 block">
+                Forma de pagamento
+              </label>
+              <select
+                className="ds-input"
+                value={forma}
+                onChange={(e) => setForma(e.target.value as FormaPagamento)}
+              >
+                <option value="pix">PIX</option>
+                <option value="dinheiro">Dinheiro</option>
+                <option value="cartao">Cartão</option>
+                <option value="cheque">Cheque</option>
+                <option value="boleto">Boleto</option>
+                <option value="outro">Outro</option>
+              </select>
             </div>
 
             {forma === "cartao" && (
-              <div className="mt-3 space-y-3 border border-border rounded-lg p-3">
+              <div className="grid grid-cols-2 gap-3 bg-secondary/50 p-3 rounded-xl border border-border">
                 <div>
                   <label className="text-xs font-semibold text-muted-foreground mb-1 block">
-                    Crédito ou débito?
+                    Tipo Cartão
                   </label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {(["CREDITO", "DEBITO"] as const).map((t) => (
-                      <button
-                        key={t}
-                        type="button"
-                        onClick={() => setTipoCartao(t)}
-                        className={[
-                          "py-2 rounded-md text-xs font-bold uppercase tracking-wider transition-colors",
-                          tipoCartao === t
-                            ? "bg-primary text-primary-foreground shadow-warm-sm"
-                            : "bg-secondary text-brown-mid hover:bg-beige-dark",
-                        ].join(" ")}
-                      >
-                        {t === "CREDITO" ? "Crédito" : "Débito"}
-                      </button>
-                    ))}
-                  </div>
+                  <select
+                    className="ds-input"
+                    value={tipoCartao ?? ""}
+                    onChange={(e) => setTipoCartao((e.target.value as TipoCartao) || null)}
+                  >
+                    <option value="">Selecione...</option>
+                    <option value="CREDITO">Crédito</option>
+                    <option value="DEBITO">Débito</option>
+                  </select>
                 </div>
                 {tipoCartao === "CREDITO" && (
                   <div>
                     <label className="text-xs font-semibold text-muted-foreground mb-1 block">
-                      Quantas parcelas?
+                      Parcelas
                     </label>
                     <input
                       type="number"
                       min="1"
-                      step="1"
                       className="ds-input"
                       value={parcelas}
                       onChange={(e) => setParcelas(e.target.value)}
@@ -609,301 +719,118 @@ function RegistrarVenda() {
                 )}
               </div>
             )}
-          </div>
 
-          <div className="order-4 grid gap-4 sm:grid-cols-2">
             <div>
-              <label className="text-sm font-semibold text-foreground mb-2 block">
-                Data da venda *
+              <label className="text-xs font-semibold text-muted-foreground mb-1 block">
+                Observação
               </label>
-              <input
-                type="date"
-                required
-                className="ds-input"
-                value={dataVenda}
-                onChange={(e) => setDataVenda(e.target.value)}
+              <textarea
+                className="ds-input min-h-[60px]"
+                value={observacao}
+                onChange={(e) => setObservacao(e.target.value)}
+                placeholder="Anotações opcionais sobre a venda..."
               />
             </div>
-            <div>
-              <label className="text-sm font-semibold text-foreground mb-2 block">Status *</label>
-              <select
-                className="ds-input"
-                value={statusPagamento}
-                onChange={(e) => setStatusPagamento(e.target.value as StatusPagamento)}
-              >
-                <option value="PAGO">Pago</option>
-                <option value="PENDENTE">Pendente</option>
-                <option value="NAO_SE_APLICA">Não se aplica</option>
-              </select>
+          </div>
+        </div>
+
+        {/* RESUMO LATERAL E CARDS */}
+        <div className="space-y-4 md:col-start-2 md:row-start-1 md:sticky md:top-6">
+          <div className="rounded-2xl border border-border bg-card p-6 shadow-warm-sm space-y-4">
+            <h2 className="font-display text-lg font-bold text-foreground border-b border-border pb-2">
+              Resumo da Venda
+            </h2>
+
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between text-muted-foreground">
+                <span>Total de itens:</span>
+                <strong className="text-foreground">{itensCalculados.reduce((s, i) => s + i.potes, 0)} potes</strong>
+              </div>
+              <div className="flex justify-between text-base pt-2 border-t border-border">
+                <span className="font-bold">Total Venda:</span>
+                <strong className="font-display text-xl text-primary">{fmtBRL(total)}</strong>
+              </div>
             </div>
+
+            <button
+              type="submit"
+              disabled={mutation.isPending}
+              className="ds-button-primary w-full py-3 text-sm font-bold uppercase tracking-wider"
+            >
+              {mutation.isPending ? "Registrando..." : "Finalizar Venda"}
+            </button>
           </div>
 
-          {statusPagamento === "PENDENTE" && (
-            <div className="order-4">
-              <label className="text-sm font-semibold text-foreground mb-2 block">
-                Data de vencimento *
-              </label>
-              <input
-                type="date"
-                required
-                className="ds-input"
-                value={dataVencimento}
-                onChange={(e) => setDataVencimento(e.target.value)}
-              />
-              <p className="text-[11px] text-muted-foreground mt-1">
-                Se passar dessa data sem pagamento, a venda aparece como "Em atraso" na tela de
-                Vendas.
+          {/* CARD AMARELO DE VENDA PENDENTE */}
+          {temItemPendente && (
+            <div className="rounded-2xl border border-amber-300 bg-amber-50 dark:bg-amber-950/40 dark:border-amber-800 p-4 shadow-warm-sm space-y-1 text-amber-900 dark:text-amber-200">
+              <div className="flex items-center gap-2 font-bold text-sm">
+                <AlertTriangle size={18} className="text-amber-600 dark:text-amber-400 shrink-0" />
+                <span>Venda de produto pendente</span>
+              </div>
+              <p className="text-xs opacity-90 leading-relaxed pl-6">
+                Assim que o produto estiver no estoque, a venda será concluída.
               </p>
             </div>
           )}
-
-          <div className="relative order-1">
-            <label className="text-sm font-semibold text-foreground mb-2 block">Cliente *</label>
-            {clienteId ? (
-              <div className="flex items-center justify-between gap-3 rounded-lg border border-primary/30 bg-secondary/50 px-4 py-3">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                    <Check size={15} className="shrink-0 text-primary" />
-                    <span className="truncate">{cliente}</span>
-                  </div>
-                  <div className="mt-0.5 text-[11px] text-muted-foreground">
-                    Cliente vinculado à venda
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => alterarCliente("")}
-                  className="shrink-0 text-xs font-bold text-primary hover:underline"
-                >
-                  Trocar
-                </button>
-              </div>
-            ) : (
-              <input
-                className="ds-input"
-                value={cliente}
-                onChange={(e) => alterarCliente(e.target.value)}
-                onFocus={() => setMostrarSugestoes(true)}
-                onBlur={() => setTimeout(() => setMostrarSugestoes(false), 150)}
-                onKeyDown={navegarSugestoes}
-                placeholder="Nome, CPF, CNPJ ou e-mail..."
-                autoComplete="off"
-                role="combobox"
-                aria-expanded={mostrarSugestoes}
-                aria-controls="sugestoes-clientes"
-                aria-autocomplete="list"
-              />
-            )}
-            {!clienteId && mostrarSugestoes && cliente.trim().length >= 2 && (
-              <div
-                id="sugestoes-clientes"
-                role="listbox"
-                className="absolute z-30 mt-1 w-full overflow-hidden rounded-lg border border-border bg-card shadow-warm-sm"
-              >
-                {sugestoesCliente.map((c, index) => (
-                  <button
-                    key={c.id}
-                    type="button"
-                    role="option"
-                    aria-selected={index === sugestaoAtiva}
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => selecionarCliente(c)}
-                    onMouseEnter={() => setSugestaoAtiva(index)}
-                    className={[
-                      "w-full px-3 py-2 text-left text-sm",
-                      index === sugestaoAtiva ? "bg-secondary" : "hover:bg-secondary",
-                    ].join(" ")}
-                  >
-                    <div className="font-semibold text-foreground">{c.nome}</div>
-                    <div className="text-[11px] text-muted-foreground">
-                      {[c.documento, c.email, c.telefone].filter(Boolean).join(" · ")}
-                    </div>
-                  </button>
-                ))}
-                {pesquisandoClientes && (
-                  <div className="px-3 py-3 text-xs text-muted-foreground">
-                    Pesquisando clientes...
-                  </div>
-                )}
-                {!pesquisandoClientes && sugestoesCliente.length === 0 && (
-                  <>
-                    <div className="px-3 py-2 text-xs text-muted-foreground">
-                      Nenhum cliente encontrado.
-                    </div>
-                    <button
-                      type="button"
-                      onMouseDown={(e) => e.preventDefault()}
-                      onClick={abrirCadastroCliente}
-                      className="flex w-full items-center gap-2 border-t border-border px-3 py-3 text-left text-sm font-bold text-primary hover:bg-secondary"
-                    >
-                      <UserPlus size={16} /> Criar novo cliente
-                    </button>
-                  </>
-                )}
-              </div>
-            )}
-            {!clienteId && (
-              <p className="mt-1 text-[11px] text-muted-foreground">
-                Digite pelo menos 2 caracteres e selecione um cliente da lista.
-              </p>
-            )}
-          </div>
-
-          <div className="order-5">
-            <label className="text-sm font-semibold text-foreground mb-2 block">
-              Observação (opcional)
-            </label>
-            <textarea
-              className="ds-input"
-              rows={3}
-              maxLength={1000}
-              value={observacao}
-              onChange={(e) => setObservacao(e.target.value)}
-              placeholder="Ex.: Venda no balcão"
-            />
-          </div>
-        </div>
-
-        <div className="vovo-gradient fixed bottom-16 left-4 right-4 z-20 flex items-center justify-between rounded-2xl border border-gold-light/40 p-4 shadow-warm-md md:sticky md:top-6 md:bottom-auto md:left-auto md:right-auto md:col-start-2 md:row-start-1 md:p-5">
-          <div>
-            <div className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
-              Total da venda
-            </div>
-            <div className="font-display text-3xl font-bold text-primary leading-none mt-1">
-              {fmtBRL(total)}
-            </div>
-          </div>
-          <div className="text-right text-xs text-brown-mid font-body">
-            {itens.length} {itens.length === 1 ? "item" : "itens"}
-          </div>
-        </div>
-
-        {erro && (
-          <div className="rounded-md border-l-4 border-error bg-error-bg px-4 py-3 text-sm font-medium text-error md:col-start-1">
-            {erro}
-          </div>
-        )}
-
-        <div className="flex gap-3 md:col-start-1">
-          <button
-            type="button"
-            onClick={() => navigate({ to: "/registrar" })}
-            className="px-6 py-3 rounded-md font-semibold text-sm border border-border bg-card text-brown-mid hover:bg-secondary"
-          >
-            Cancelar
-          </button>
-          <button
-            type="submit"
-            disabled={produtos.length === 0}
-            className="flex-1 px-6 py-3 rounded-md font-semibold text-sm bg-primary text-primary-foreground hover:bg-primary-dark shadow-warm-sm inline-flex items-center justify-center gap-2 disabled:opacity-60"
-          >
-            <Sparkles size={16} /> Conferir com a Vovó
-          </button>
         </div>
       </form>
 
+      {/* MODAL NOVO CLIENTE */}
+      {modalClienteAberto && (
+        <ClienteFormModal
+          aberto={modalClienteAberto}
+          titulo="Cadastrar Novo Cliente"
+          descricao="Preencha os dados abaixo para cadastrar e vincular o cliente à venda."
+          inicial={clienteRapido}
+          salvando={criarClienteMutation.isPending}
+          erroGeral={erroClienteRapido}
+          onClose={() => setModalClienteAberto(false)}
+          onSubmit={salvarClienteRapido}
+        />
+      )}
+
+      {/* MODAL CONFIRMAÇÃO */}
       {confirmar && (
-        <div
-          className="fixed inset-0 z-50 bg-brown/40 backdrop-blur-sm flex items-center justify-center p-4"
-          onClick={() => !mutation.isPending && setConfirmar(false)}
-        >
-          <div
-            className="bg-card rounded-2xl shadow-warm-lg max-w-md w-full overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="text-center pt-7 pb-3 vovo-gradient">
-              <div className="w-14 h-14 mx-auto rounded-full bg-primary text-primary-foreground flex items-center justify-center border-2 border-gold shadow-warm-sm">
-                <Sparkles size={22} />
-              </div>
-              <h2 className="font-display text-2xl font-bold text-primary mt-3">
-                Fale com a IA Assistente
-              </h2>
-              <p className="text-sm text-brown-mid font-body">Confirme os detalhes</p>
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-card border border-border rounded-2xl p-6 max-w-md w-full shadow-warm-lg space-y-4">
+            <h3 className="font-display text-xl font-bold text-foreground">Confirmar Venda</h3>
+            <p className="text-sm text-muted-foreground">
+              Confira os dados da venda antes de confirmar o registro:
+            </p>
+            <div className="bg-secondary/40 p-4 rounded-xl space-y-2 text-sm">
+              <div><strong>Cliente:</strong> {cliente}</div>
+              <div><strong>Itens:</strong> {itensCalculados.map(i => `${i.nome} (${i.potes} potes)`).join(", ")}</div>
+              <div><strong>Total:</strong> {fmtBRL(total)}</div>
+              <div><strong>Pagamento:</strong> {formaLabel[forma]} ({statusPagamento})</div>
+              {temItemPendente && (
+                <div className="text-amber-600 dark:text-amber-400 text-xs font-semibold pt-1">
+                  ⚠️ Esta venda contém itens com estoque insuficiente e ficará pendente de produção.
+                </div>
+              )}
             </div>
-            <div className="p-6 space-y-3">
-              <ul className="text-sm space-y-2">
-                {itensCalculados.map((i, idx) => (
-                  <li
-                    key={idx}
-                    className="flex justify-between bg-secondary/50 rounded-lg px-3 py-2"
-                  >
-                    <span>
-                      <strong>{i.potes}×</strong> {i.nome}
-                      {i.tipo === "caixa" ? ` (${i.qtd} caixa${i.qtd > 1 ? "s" : ""})` : ""}
-                    </span>
-                    <span className="font-display font-bold text-primary">
-                      {fmtBRL(i.subtotal)}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-              <div className="text-xs text-muted-foreground">
-                Pagamento: <strong>{formaLabel[forma]}</strong>
-                {forma === "cartao" && tipoCartao && (
-                  <>
-                    {" "}
-                    (<strong>{tipoCartao === "CREDITO" ? "Crédito" : "Débito"}</strong>
-                    {tipoCartao === "CREDITO" && ` · ${parcelas}x`})
-                  </>
-                )}
-                {cliente && (
-                  <>
-                    {" "}
-                    · Para <strong>{cliente}</strong>
-                  </>
-                )}
-                {statusPagamento === "PENDENTE" && dataVencimento && (
-                  <>
-                    {" "}
-                    · Vence em <strong>{dataVencimento.split("-").reverse().join("/")}</strong>
-                  </>
-                )}
-              </div>
-              <div className="bg-gold-bg rounded-lg px-3 py-2 text-right font-display text-xl font-bold text-primary">
-                {fmtBRL(total)}
-              </div>
-              {mutation.isError && <div className="text-xs text-error">{erro}</div>}
-            </div>
-            <div className="px-6 pb-6 flex gap-3">
+            <div className="flex gap-3 justify-end pt-2">
               <button
+                type="button"
                 onClick={() => setConfirmar(false)}
-                disabled={mutation.isPending || ok}
-                className="flex-1 px-4 py-3 rounded-full border-2 border-primary text-primary font-bold text-sm inline-flex items-center justify-center gap-2"
+                className="ds-button-secondary px-4 py-2 text-xs uppercase"
               >
-                <Pencil size={14} /> Corrigir
+                Voltar
               </button>
               <button
-                onClick={salvar}
-                disabled={mutation.isPending || ok}
-                className="flex-1 px-4 py-3 rounded-full bg-foreground text-card font-bold text-sm inline-flex items-center justify-center gap-2"
+                type="button"
+                onClick={() => {
+                  setConfirmar(false);
+                  salvar();
+                }}
+                className="ds-button-primary px-4 py-2 text-xs uppercase"
               >
-                {ok ? (
-                  <>
-                    <Check size={16} /> Salvo!
-                  </>
-                ) : mutation.isPending ? (
-                  "Salvando..."
-                ) : (
-                  <>
-                    <Check size={14} /> Confirmar
-                  </>
-                )}
+                Confirmar e Salvar
               </button>
             </div>
           </div>
         </div>
       )}
-
-      <ClienteFormModal
-        aberto={modalClienteAberto}
-        titulo="Novo cliente"
-        descricao="O cliente será vinculado automaticamente a esta venda."
-        inicial={clienteRapido}
-        salvando={criarClienteMutation.isPending}
-        erroGeral={erroClienteRapido}
-        onClose={() => setModalClienteAberto(false)}
-        onSubmit={salvarClienteRapido}
-      />
     </div>
   );
 }
