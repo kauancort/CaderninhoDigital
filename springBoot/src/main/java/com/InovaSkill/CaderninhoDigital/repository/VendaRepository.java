@@ -29,6 +29,9 @@ public interface VendaRepository extends JpaRepository<Venda, Long>, JpaSpecific
     List<Venda> findAllByOrderByDataVendaDesc();
     List<Venda> findByDataVendaBetweenOrderByDataVendaDesc(LocalDate inicio, LocalDate fim);
 
+    @EntityGraph(attributePaths = {"cliente", "itens", "itens.produto"})
+    List<Venda> findByAguardandoEstoqueTrueOrderByDataVendaAsc();
+
     @EntityGraph(attributePaths = {"cliente", "gestor", "itens", "itens.produto"})
     @Query("SELECT DISTINCT v FROM Venda v WHERE v.id IN :ids")
     List<Venda> buscarDetalhesPorIds(@Param("ids") List<Long> ids);
@@ -127,6 +130,7 @@ public interface VendaRepository extends JpaRepository<Venda, Long>, JpaSpecific
                 COUNT(v) AS quantidadeCobrancas
             FROM Venda v
             WHERE v.statusPagamento = com.InovaSkill.CaderninhoDigital.enums.StatusPagamento.PENDENTE
+              AND v.aguardandoEstoque = false
               AND (:clienteId IS NULL OR v.cliente.id = :clienteId)
               AND (:inicio IS NULL OR v.dataVencimento >= :inicio)
               AND (:fim IS NULL OR v.dataVencimento <= :fim)

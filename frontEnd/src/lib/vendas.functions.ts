@@ -20,6 +20,7 @@ export const listarVendas = createApiFn({ method: "GET" }).handler(async () => {
     tipo_cartao: v.tipoCartao || null,
     parcelas: v.parcelas || null,
     em_atraso: Boolean(v.emAtraso),
+    aguardando_estoque: Boolean(v.aguardandoEstoque),
     contatos: (v.contatos || []).map((c: any) => ({
       data: c.data,
       tipo: c.tipo,
@@ -33,6 +34,27 @@ export const listarVendas = createApiFn({ method: "GET" }).handler(async () => {
       produtos_finais: {
         nome: i.produtoNome || "Produto",
       },
+    })),
+  }));
+});
+
+export const listarVendasAguardandoEstoque = createApiFn({ method: "GET" }).handler(async () => {
+  const res = await fetch(`${BASE_URL}/vendas/aguardando-estoque`, {});
+  if (!res.ok) throw new Error("Erro ao listar vendas aguardando estoque");
+
+  const data = await res.json();
+
+  return data.map((v: any) => ({
+    id: String(v.id),
+    comprador: v.clienteNome || "Cliente Avulso",
+    status_pagamento: v.statusPagamento,
+    valor_total: v.valorTotal || 0,
+    data_venda: v.dataVenda,
+    itens_venda: (v.itens || []).map((i: any) => ({
+      produto_final_id: String(i.produtoId),
+      quantidade: i.quantidade,
+      preco_unitario: i.valorUnitario,
+      nome: i.produtoNome || "Produto",
     })),
   }));
 });

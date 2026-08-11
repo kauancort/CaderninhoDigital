@@ -98,20 +98,13 @@ public class VendaService {
         }
 
         /*
-         * Se não houver estoque suficiente, a venda fica PENDENTE.
-         */
-        StatusPagamento statusFinal =
-                possuiEstoqueSuficiente
-                        ? statusSolicitado
-                        : StatusPagamento.PENDENTE;
-
-        /*
-         * Se a venda ficou pendente por falta de estoque e não foi informada
-         * data de vencimento, usamos a data da venda.
+         * O status de pagamento é sempre o que a gestora escolheu.
+         * Falta de estoque NUNCA sobrescreve o status de pagamento — isso
+         * é controlado separadamente pelo campo aguardandoEstoque.
          */
         LocalDate dataVencimentoFinal = null;
 
-        if (statusFinal == StatusPagamento.PENDENTE) {
+        if (statusSolicitado == StatusPagamento.PENDENTE) {
 
             dataVencimentoFinal =
                     dto.getDataVencimento() != null
@@ -124,7 +117,8 @@ public class VendaService {
                 .gestor(gestor)
                 .dataVenda(dto.getDataVenda())
                 .formaPagamento(dto.getFormaPagamento())
-                .statusPagamento(statusFinal)
+                .statusPagamento(statusSolicitado)
+                .aguardandoEstoque(!possuiEstoqueSuficiente)
                 .observacao(dto.getObservacao())
                 .dataVencimento(dataVencimentoFinal)
                 .tipoCartao(
@@ -207,7 +201,7 @@ public class VendaService {
                 salva.getValorTotal(),
                 possuiEstoqueSuficiente
                         ? dto.getObservacao()
-                        : "Venda gravada como PENDENTE por falta de estoque",
+                        : "Venda gravada aguardando estoque (produção pendente)",
                 "VENDA"
         );
 
@@ -215,7 +209,8 @@ public class VendaService {
     }
 
     /**
-     * Tenta reprocessar vendas que ficaram pendentes por falta de estoque.
+     * Tenta reprocessar vendas que ficaram aguardando estoque.
+     * Só mexe no campo aguardandoEstoque — nunca no statusPagamento.
      */
     @Transactional
     public void processarVendasPendentesPorEstoque(
@@ -223,15 +218,10 @@ public class VendaService {
             Usuario gestor
     ) {
 
-        List<Venda> vendasPendentes =
-                vendaRepository.findAllByOrderByDataVendaDesc()
-                        .stream()
-                        .filter(v ->
-                                v.getStatusPagamento()
-                                        == StatusPagamento.PENDENTE)
-                        .toList();
+        List<Venda> vendasAguardandoEstoque =
+                vendaRepository.findByAguardandoEstoqueTrueOrderByDataVendaAsc();
 
-        for (Venda venda : vendasPendentes) {
+        for (Venda venda : vendasAguardandoEstoque) {
 
             boolean podeConcluir = true;
 
@@ -272,10 +262,7 @@ public class VendaService {
                     );
                 }
 
-                StatusPagamento statusAnterior =
-                        venda.getStatusPagamento();
-
-                venda.setStatusPagamento(StatusPagamento.PAGO);
+                venda.setAguardandoEstoque(false);
 
                 Venda salva = vendaRepository.save(venda);
 
@@ -284,13 +271,29 @@ public class VendaService {
                         "VENDA",
                         salva.getId(),
                         "BAIXA_AUTOMATICA_PENDENTE",
-                        statusAnterior,
-                        StatusPagamento.PAGO,
-                        "Venda pendente baixada com sucesso após reposição de estoque",
+                        true,
+                        false,
+                        "Venda concluída automaticamente após reposição de estoque",
                         "VENDA"
                 );
             }
         }
+    }
+
+    /**
+     * Lista as vendas registradas sem estoque suficiente, ainda aguardando
+     * produção. Usada para alimentar os cards amarelos em /registrar/venda.
+     */
+    @Transactional(readOnly = true)
+    public List<VendaResponseDTO> listarAguardandoEstoque(Long usuarioId) {
+
+        usuarioAcessoService.buscarGestor(usuarioId);
+
+        return vendaRepository
+                .findByAguardandoEstoqueTrueOrderByDataVendaAsc()
+                .stream()
+                .map(this::toResponse)
+                .toList();
     }
 
     private void validarRegrasNegocio(
@@ -899,7 +902,7 @@ public class VendaService {
                                 avisos.add(
                                         "Estoque insuficiente para "
                                                 + produto.getNome()
-                                                + "; a venda ficará como PENDENTE"
+                                                + "; a venda ficará aguardando estoque"
                                 );
                             }
 
@@ -1044,6 +1047,18 @@ public class VendaService {
                     builder.equal(
                             root.get("statusPagamento"),
                             StatusPagamento.PENDENTE
+                    )
+            );
+
+            /*
+             * Vendas aguardando estoque NUNCA aparecem em "a receber",
+             * mesmo que o pagamento também esteja pendente. Elas só
+             * entram aqui depois que a produção resolver o estoque.
+             */
+            predicates.add(
+                    builder.equal(
+                            root.get("aguardandoEstoque"),
+                            false
                     )
             );
 
@@ -1743,6 +1758,9 @@ public class VendaService {
                 )
                 .emAtraso(
                         calcularEmAtraso(venda)
+                )
+                .aguardandoEstoque(
+                        venda.getAguardandoEstoque()
                 )
                 .contatos(
                         lerContatos(
