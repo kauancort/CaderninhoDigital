@@ -6,7 +6,7 @@ import { AlertTriangle, ArrowLeft, Plus, Trash2, UserPlus } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { obterProduto, pesquisarProdutos } from "@/lib/catalogo.functions";
 import { criarCliente, pesquisarClientes } from "@/lib/clientes.functions";
-import { registrarVenda } from "@/lib/vendas.functions";
+import { registrarVenda, listarVendasAguardandoEstoque } from "@/lib/vendas.functions";
 import { fmtBRL, hojeISO, type FormaPagamento, type StatusPagamento } from "@/lib/format";
 import { consumePrefill, type PrefillVenda } from "@/lib/voz-prefill";
 import { ClienteFormModal } from "@/components/clientes/ClienteFormModal";
@@ -157,6 +157,12 @@ function RegistrarVenda() {
     () => (paginaClientes?.registros ?? []) as Cliente[],
     [paginaClientes?.registros],
   );
+
+  // Vendas já salvas que ficaram aguardando produção (cards amarelos persistentes)
+  const { data: vendasAguardandoEstoque = [] } = useQuery({
+    queryKey: ["vendas", "aguardando-estoque"],
+    queryFn: () => listarVendasAguardandoEstoque(),
+  });
 
   useEffect(() => {
     const pre = consumePrefill<PrefillVenda>("venda");
@@ -352,7 +358,7 @@ function RegistrarVenda() {
       return setErro("A quantidade de potes/caixas é obrigatória.");
     if (itensCalculados.some((i) => i.qtd <= 0 || i.preco <= 0))
       return setErro("Verifique quantidades e preços.");
-    
+
     // Permite a venda mesmo sem estoque! O aviso é exibido dinamicamente no resumo.
 
     if (statusPagamento === "PENDENTE" && !dataVencimento)
@@ -761,7 +767,7 @@ function RegistrarVenda() {
             </button>
           </div>
 
-          {/* CARD AMARELO DE VENDA PENDENTE */}
+          {/* CARD AMARELO DE VENDA PENDENTE (formulário sendo preenchido agora) */}
           {temItemPendente && (
             <div className="rounded-2xl border border-amber-300 bg-amber-50 dark:bg-amber-950/40 dark:border-amber-800 p-4 shadow-warm-sm space-y-1 text-amber-900 dark:text-amber-200">
               <div className="flex items-center gap-2 font-bold text-sm">
@@ -773,6 +779,27 @@ function RegistrarVenda() {
               </p>
             </div>
           )}
+
+          {/* CARDS AMARELOS DE VENDAS JÁ SALVAS AGUARDANDO ESTOQUE */}
+          {vendasAguardandoEstoque.map((v: any) => (
+            <div
+              key={v.id}
+              className="rounded-2xl border border-amber-300 bg-amber-50 dark:bg-amber-950/40 dark:border-amber-800 p-4 shadow-warm-sm space-y-1 text-amber-900 dark:text-amber-200"
+            >
+              <div className="flex items-center gap-2 font-bold text-sm">
+                <AlertTriangle size={18} className="text-amber-600 dark:text-amber-400 shrink-0" />
+                <span>{v.comprador}</span>
+              </div>
+              <div className="text-xs opacity-90 pl-6">
+                {v.itens_venda.map((i: any) => `${i.nome} (${i.quantidade})`).join(", ")}
+                {" · "}
+                {fmtBRL(v.valor_total)}
+              </div>
+              <p className="text-xs opacity-90 leading-relaxed pl-6">
+                A venda será concluída quando o produto estiver no estoque.
+              </p>
+            </div>
+          ))}
         </div>
       </form>
 

@@ -47,6 +47,11 @@ public class VendaController {
         return ResponseEntity.ok(vendaService.listar(usuarioId));
     }
 
+    @GetMapping("/aguardando-estoque")
+    public ResponseEntity<List<VendaResponseDTO>> listarAguardandoEstoque(@UsuarioIdAutenticado Long usuarioId) {
+        return ResponseEntity.ok(vendaService.listarAguardandoEstoque(usuarioId));
+    }
+
     @GetMapping("/pagina")
     public ResponseEntity<PaginaResponseDTO<VendaResponseDTO>> listarPaginado(
             @UsuarioIdAutenticado Long usuarioId,

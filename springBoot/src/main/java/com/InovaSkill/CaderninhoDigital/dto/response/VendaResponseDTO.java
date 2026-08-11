@@ -27,6 +27,7 @@ public class VendaResponseDTO {
     private TipoCartao tipoCartao;
     private Integer parcelas;
     private Boolean emAtraso;
+    private Boolean aguardandoEstoque;
     private List<ContatoDTO> contatos;
     private LocalDateTime criadoEm;
     private List<ItemVendaResponseDTO> itens;

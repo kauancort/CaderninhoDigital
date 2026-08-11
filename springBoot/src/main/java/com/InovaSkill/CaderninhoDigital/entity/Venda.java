@@ -79,6 +79,15 @@ public class Venda {
     @Column(name = "contatos", columnDefinition = "TEXT")
     private String contatos;
 
+    /*
+     * Indica se a venda foi registrada sem estoque suficiente e está
+     * aguardando uma produção para ser concluída. É independente do
+     * statusPagamento (que trata exclusivamente de pagamento/cobrança).
+     */
+    @Column(name = "aguardando_estoque", nullable = false)
+    @Builder.Default
+    private Boolean aguardandoEstoque = false;
+
     @OneToMany(mappedBy = "venda", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<ItemVenda> itens = new ArrayList<>();
@@ -91,6 +100,9 @@ public class Venda {
         this.criadoEm = LocalDateTime.now();
         if (this.statusPagamento == null) {
             this.statusPagamento = StatusPagamento.PENDENTE;
+        }
+        if (this.aguardandoEstoque == null) {
+            this.aguardandoEstoque = false;
         }
     }
 }

@@ -47,6 +47,7 @@ public class ProducaoService {
     private final MovimentacaoEstoqueService movimentacaoEstoqueService;
     private final HistoricoValorService historicoValorService;
     private final AuditoriaService auditoriaService;
+    private final VendaService vendaService;
 
     @Transactional
     public ProducaoResponseDTO criar(Long usuarioId, ProducaoRequestDTO dto) {
@@ -79,6 +80,11 @@ public class ProducaoService {
         historicoValorService.registrarCustoProduto(produto, gestor, custoAnterior, "Custo apurado na produção " + salva.getId(), "PRODUCAO");
         auditoriaService.registrar(gestor, "PRODUCAO", salva.getId(), "CRIACAO", null, salva.getQuantidadeProduzida(), dto.getObservacao(), "PRODUCAO");
         if (valoresDiferentes(custoAnterior, produto.getCustoAtual())) auditoriaService.registrar(gestor, "PRODUTO", produto.getId(), "ALTERACAO_CUSTO", custoAnterior, produto.getCustoAtual(), "Custo apurado na produção", "PRODUCAO");
+
+        // Após reabastecer o estoque, verifica se há vendas pendentes por falta
+        // desse produto que agora podem ser concluídas automaticamente.
+        vendaService.processarVendasPendentesPorEstoque(produto, gestor);
+
         return toResponse(salva);
     }
 
