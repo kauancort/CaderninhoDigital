@@ -1,2 +1,3 @@
-2026/08/01-10:27:46.279 28a8 Creating DB C:\Fernanda\docesvocida\Projeto\CaderninhoDigital\whatsapp-bot\.wwebjs_auth\session-caderninho-teste\Default\shared_proto_db\metadata since it was missing.
-2026/08/01-10:27:46.699 28a8 Reusing MANIFEST C:\Fernanda\docesvocida\Projeto\CaderninhoDigital\whatsapp-bot\.wwebjs_auth\session-caderninho-teste\Default\shared_proto_db\metadata/MANIFEST-000001
+2026/08/10-22:06:32.228 5fcc Reusing MANIFEST C:\Fernanda\docesvocida\Projeto\CaderninhoDigital\whatsapp-bot\.wwebjs_auth\session-caderninho-teste\Default\shared_proto_db\metadata/MANIFEST-000001
+2026/08/10-22:06:32.706 5fcc Recovering log #3
+2026/08/10-22:06:32.724 5fcc Reusing old log C:\Fernanda\docesvocida\Projeto\CaderninhoDigital\whatsapp-bot\.wwebjs_auth\session-caderninho-teste\Default\shared_proto_db\metadata/000003.log 
