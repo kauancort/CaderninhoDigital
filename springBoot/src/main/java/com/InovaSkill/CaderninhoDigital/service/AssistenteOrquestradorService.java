@@ -97,12 +97,16 @@ public class AssistenteOrquestradorService {
             }
             resultados.forEach(resultado -> sessao.ferramenta(resultado.ferramenta().name()));
             Map<String, Object> dados = consolidador.consolidar(resultados);
-            String texto = caminhoRapido ? respostaDeterministica(resultados.getFirst())
+            boolean mercadoComRedacaoIa = resultados.size() == 1
+                    && resultados.getFirst().ferramenta() == FerramentaPermitida.COMPARAR_PRECO_MERCADO
+                    && !"INSUFICIENTE".equals(String.valueOf(
+                            resultados.getFirst().dadosAgregados().get("situacao")));
+            String texto = caminhoRapido && !mercadoComRedacaoIa ? respostaDeterministica(resultados.getFirst())
                     : comparacaoDireta ? respostaDeterministica(resultados, dados)
                     : gerarRespostaOuFallback(resultados, dados, sessao);
             sessao.concluir("SUCESSO", null);
             return resposta(texto, resultados, dados,
-                    caminhoRapido ? "CAMINHO_RAPIDO" : "ORQUESTRADOR", correlacao);
+                    caminhoRapido && !mercadoComRedacaoIa ? "CAMINHO_RAPIDO" : "ORQUESTRADOR", correlacao);
         } catch (OrquestradorException exception) {
             sessao.concluir("ERRO", exception.getCodigo()); throw exception;
         } catch (RuntimeException exception) {
@@ -249,7 +253,10 @@ public class AssistenteOrquestradorService {
             case ANALISE_COMPRAS_INSUMO -> "Foram analisados " + resultado.dadosAgregados().get("insumosAnalisados")
                     + " insumos, com compras que totalizaram R$ " + resultado.dadosAgregados().get("valorTotal")
                     + ". Não é possível afirmar economia futura sem preço, frete ou desconto comparável.";
-            case COMPARAR_PRECO_MERCADO -> respostaMercado(resultado.dadosAgregados());
+            case COMPARAR_PRECO_MERCADO -> "INSUFICIENTE".equals(
+                    String.valueOf(resultado.dadosAgregados().get("situacao")))
+                    && !resultado.avisos().isEmpty() ? resultado.avisos().getFirst()
+                    : respostaMercado(resultado.dadosAgregados());
             default -> "Consulta concluída.";
         };
     }

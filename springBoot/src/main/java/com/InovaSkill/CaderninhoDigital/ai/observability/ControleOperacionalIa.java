@@ -14,6 +14,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
+import com.InovaSkill.CaderninhoDigital.ai.gateway.RespostaModelo;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 
@@ -84,6 +86,16 @@ public class ControleOperacionalIa {
     private synchronized void armazenar(EventoAuditoriaIa evento) {
         while (eventos.size() >= properties.getLimits().getAuditCapacity()) eventos.removeFirst();
         eventos.addLast(evento);
+    }
+
+    public <T> RespostaModelo<T> executarModeloAuxiliar(Long usuarioId,
+            Supplier<RespostaModelo<T>> chamada, String etapa) {
+        autorizarModelo(usuarioId);
+        RespostaModelo<T> resposta = chamada.get();
+        registrarTokens(usuarioId, resposta.metadados());
+        metrics.timer("ai.etapa.latencia", "etapa", etapa)
+                .record(Duration.ofMillis(Math.max(0, resposta.metadados().duracaoMillis())));
+        return resposta;
     }
 
     List<EventoAuditoriaIa> eventos() { synchronized (this) { return List.copyOf(eventos); } }

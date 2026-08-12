@@ -8,6 +8,7 @@ import com.InovaSkill.CaderninhoDigital.ai.gateway.RespostaModelo;
 import com.InovaSkill.CaderninhoDigital.ai.gateway.SolicitacaoModelo;
 import com.InovaSkill.CaderninhoDigital.config.AiOrchestratorProperties;
 import com.InovaSkill.CaderninhoDigital.ai.privacy.PoliticaDadosIa;
+import com.InovaSkill.CaderninhoDigital.ai.search.ExtracaoOfertasMercado;
 import com.InovaSkill.CaderninhoDigital.exception.CodigoErroOrquestrador;
 import com.InovaSkill.CaderninhoDigital.exception.OrquestradorException;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -61,13 +62,21 @@ public class OpenRouterModeloGateway implements ModeloGateway {
 
     @Override
     public RespostaModelo<String> gerarRespostaFinal(SolicitacaoModelo solicitacao) {
-        ParsedResponse response = executar(solicitacao, false);
+        ParsedResponse response = executar(solicitacao, false, null,
+                Duration.ofMillis(properties.getLimits().getReadTimeoutMs()));
         return new RespostaModelo<>(response.content(), response.metadata());
     }
 
     @Override
     public <T> RespostaModelo<T> gerarEstruturado(SolicitacaoModelo solicitacao, Class<T> tipoResposta) {
-        ParsedResponse response = executar(solicitacao, true);
+        return gerarEstruturado(solicitacao, tipoResposta,
+                Duration.ofMillis(properties.getLimits().getReadTimeoutMs()));
+    }
+
+    @Override
+    public <T> RespostaModelo<T> gerarEstruturado(SolicitacaoModelo solicitacao, Class<T> tipoResposta,
+            Duration timeout) {
+        ParsedResponse response = executar(solicitacao, true, tipoResposta, timeout);
         try {
             T parsed = contractMapper.readValue(removerCercaMarkdown(response.content()), tipoResposta);
             if (!validator.validate(parsed).isEmpty()) {
@@ -83,17 +92,18 @@ public class OpenRouterModeloGateway implements ModeloGateway {
         }
     }
 
-    private ParsedResponse executar(SolicitacaoModelo solicitacao, boolean jsonEstruturado) {
+    private ParsedResponse executar(SolicitacaoModelo solicitacao, boolean jsonEstruturado, Class<?> tipoResposta,
+            Duration timeout) {
         politicaDados.validarSolicitacaoModelo(solicitacao);
         validarConfiguracao();
         long inicio = System.nanoTime();
-        ObjectNode body = criarBody(solicitacao, jsonEstruturado);
+        ObjectNode body = criarBody(solicitacao, jsonEstruturado, tipoResposta);
         OpenRouterHttpRequest request = new OpenRouterHttpRequest(
                 URI.create(properties.getProvider().getUrl()),
                 Map.of("Authorization", "Bearer " + properties.getProvider().getKey(),
                         "Content-Type", "application/json"),
                 serializar(body),
-                Duration.ofMillis(properties.getLimits().getReadTimeoutMs()));
+                timeout);
         OpenRouterHttpResponse response = null;
         int tentativa = 0;
         do {
@@ -108,7 +118,7 @@ public class OpenRouterModeloGateway implements ModeloGateway {
     private OpenRouterHttpResponse enviarUmaVez(OpenRouterHttpRequest request) {
         CompletableFuture<OpenRouterHttpResponse> future = transport.enviar(request);
         try {
-            return future.get(tempoLimiteMillis(), TimeUnit.MILLISECONDS);
+            return future.get(request.timeout().toMillis(), TimeUnit.MILLISECONDS);
         } catch (TimeoutException exception) {
             future.cancel(true);
             throw erro(CodigoErroOrquestrador.TIMEOUT, HttpStatus.GATEWAY_TIMEOUT,
@@ -135,7 +145,7 @@ public class OpenRouterModeloGateway implements ModeloGateway {
         return status == 500 || status == 502 || status == 503 || status == 504;
     }
 
-    private ObjectNode criarBody(SolicitacaoModelo solicitacao, boolean jsonEstruturado) {
+    private ObjectNode criarBody(SolicitacaoModelo solicitacao, boolean jsonEstruturado, Class<?> tipoResposta) {
         ObjectNode body = objectMapper.createObjectNode();
         body.put("model", properties.getProvider().getModel());
         body.put("max_tokens", properties.getLimits().getMaxOutputTokens());
@@ -149,9 +159,11 @@ public class OpenRouterModeloGateway implements ModeloGateway {
             ObjectNode format = body.putObject("response_format");
             format.put("type", "json_schema");
             ObjectNode jsonSchema = format.putObject("json_schema");
-            jsonSchema.put("name", "plano_orquestracao");
+            jsonSchema.put("name", tipoResposta == ExtracaoOfertasMercado.class
+                    ? "extracao_ofertas_mercado" : "plano_orquestracao");
             jsonSchema.put("strict", true);
-            jsonSchema.set("schema", criarSchemaPlano());
+            jsonSchema.set("schema", tipoResposta == ExtracaoOfertasMercado.class
+                    ? criarSchemaExtracaoOfertas() : criarSchemaPlano());
         }
         return body;
     }
@@ -181,6 +193,69 @@ public class OpenRouterModeloGateway implements ModeloGateway {
                 List.of("TEXTO_SIMPLES", "TEXTO_COM_DADOS", "ANALITICA")));
         obrigatorios(schema, "schemaVersion", "intencao", "chamadas", "modoResposta");
         return schema;
+    }
+
+    private ObjectNode criarSchemaExtracaoOfertas() {
+        ObjectNode schema = objetoFechado();
+        ObjectNode properties = schema.putObject("properties");
+        ObjectNode ofertas = properties.putObject("ofertas");
+        ofertas.put("type", "array");
+        ofertas.put("maxItems", 15);
+        ObjectNode oferta = objetoFechado();
+        ObjectNode campos = oferta.putObject("properties");
+        campos.set("fonteId", textoLimitado(40, false));
+        campos.set("produto", textoLimitado(120, false));
+        campos.set("precoAnunciado", numeroPositivo(false));
+        campos.set("tipoPreco", enumTexto(List.of("UNITARIO", "TOTAL_EMBALAGEM")));
+        campos.set("unidadePreco", enumOuNulo(List.of("KG", "G", "L", "ML", "UNIDADE")));
+        campos.set("quantidadeEmbalagem", numeroPositivo(true));
+        campos.set("unidadeEmbalagem", enumOuNulo(List.of("KG", "G", "L", "ML", "UNIDADE")));
+        campos.set("pedidoMinimo", numeroPositivo(true));
+        campos.set("unidadePedidoMinimo", enumOuNulo(List.of("KG", "G", "L", "ML", "UNIDADE")));
+        campos.set("frete", numeroPositivo(true));
+        ObjectNode validade = objectMapper.createObjectNode();
+        ArrayNode tiposValidade = validade.putArray("type"); tiposValidade.add("string"); tiposValidade.add("null");
+        validade.put("format", "date"); campos.set("validade", validade);
+        campos.set("localizacao", textoLimitado(120, true));
+        campos.set("evidenciaPreco", textoLimitado(240, false));
+        campos.set("evidenciaPedidoMinimo", textoLimitado(240, true));
+        campos.set("confianca", enumTexto(List.of("ALTA", "MEDIA", "BAIXA")));
+        obrigatorios(oferta, "fonteId", "produto", "precoAnunciado", "tipoPreco", "unidadePreco",
+                "quantidadeEmbalagem", "unidadeEmbalagem", "pedidoMinimo", "unidadePedidoMinimo",
+                "frete", "validade", "localizacao", "evidenciaPreco", "evidenciaPedidoMinimo", "confianca");
+        ofertas.set("items", oferta);
+        obrigatorios(schema, "ofertas");
+        return schema;
+    }
+
+    private ObjectNode numeroPositivo(boolean aceitaNulo) {
+        ObjectNode node = objectMapper.createObjectNode();
+        if (aceitaNulo) {
+            ArrayNode tipos = node.putArray("type");
+            tipos.add("number"); tipos.add("null");
+        } else node.put("type", "number");
+        node.put("exclusiveMinimum", 0);
+        return node;
+    }
+
+    private ObjectNode textoLimitado(int maximo, boolean aceitaNulo) {
+        ObjectNode node = objectMapper.createObjectNode();
+        if (aceitaNulo) {
+            ArrayNode tipos = node.putArray("type");
+            tipos.add("string"); tipos.add("null");
+        } else node.put("type", "string");
+        node.put("maxLength", maximo);
+        if (!aceitaNulo) node.put("minLength", 1);
+        return node;
+    }
+
+    private ObjectNode enumOuNulo(List<String> valores) {
+        ObjectNode node = objectMapper.createObjectNode();
+        ArrayNode tipos = node.putArray("type");
+        tipos.add("string"); tipos.add("null");
+        ArrayNode valoresNode = node.putArray("enum");
+        valores.forEach(valoresNode::add); valoresNode.addNull();
+        return node;
     }
 
     private ObjectNode schemaChamada(String ferramenta, String tipo, List<String> campos) {

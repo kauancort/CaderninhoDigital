@@ -21,7 +21,7 @@ public class PoliticaDadosIa {
             Pattern.compile("(?<!\\d)\\d{2}\\.?\\d{3}\\.?\\d{3}/?\\d{4}-?\\d{2}(?!\\d)"),
             Pattern.compile("(?i)\\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}\\b"),
             Pattern.compile("(?<!\\d)(?:\\+?55\\s*)?(?:\\(?\\d{2}\\)?\\s*)?9?\\d{4}[-\\s]?\\d{4}(?!\\d)"),
-            Pattern.compile("(?i)\\b(?:rua|avenida|av\\.|travessa|alameda|rodovia)\\s+[\\p{L}0-9 .,'-]{2,}"),
+            Pattern.compile("(?i)\\b(?:rua|avenida|av\\.|travessa|alameda|rodovia)\\s+[\\p{L}0-9 .,'-]{2,120}"),
             Pattern.compile("\\b(?:cliente|comprador|fornecedor|usuário|usuario)\\s*[:=-]?\\s+[A-ZÀ-Ý][\\p{L}'-]{1,}(?:\\s+[A-ZÀ-Ý][\\p{L}'-]{1,})*"),
             Pattern.compile("\\beyJ[A-Za-z0-9_-]{8,}\\.[A-Za-z0-9_-]{8,}\\.[A-Za-z0-9_-]{8,}\\b"),
             Pattern.compile("(?i)\\b(?:sk|api)[-_]?(?:key|token)[=: ]+[A-Za-z0-9._-]{8,}"),
@@ -61,6 +61,16 @@ public class PoliticaDadosIa {
             resultado = pattern.matcher(resultado).replaceAll("[DADO_RESTRITO_REMOVIDO]");
         }
         return resultado;
+    }
+
+    public String sanitizarConteudoExterno(String texto) {
+        if (texto == null) return "";
+        String resultado = texto;
+        for (Pattern pattern : DADOS_RESTRITOS) {
+            resultado = pattern.matcher(resultado).replaceAll("[DADO_RESTRITO_REMOVIDO]");
+        }
+        return resultado.length() <= properties.getLimits().getContextStringCharacters()
+                ? resultado : resultado.substring(0, properties.getLimits().getContextStringCharacters());
     }
 
     public boolean rotuloOperacionalPermitido(String texto) {

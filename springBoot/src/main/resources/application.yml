@@ -56,9 +56,10 @@ app:
       key: ${TAVILY_API_KEY:}
       url: ${TAVILY_API_URL:https://api.tavily.com/search}
       timeout-ms: ${TAVILY_TIMEOUT_MS:35000}
+      interpretation-timeout-ms: ${AI_SEARCH_INTERPRETATION_TIMEOUT_MS:60000}
       max-results: ${TAVILY_MAX_RESULTS:3}
       max-query-characters: ${TAVILY_MAX_QUERY_CHARACTERS:180}
-      max-snippet-characters: ${TAVILY_MAX_SNIPPET_CHARACTERS:300}
+      max-snippet-characters: ${TAVILY_MAX_SNIPPET_CHARACTERS:4000}
       default-city: ${AI_SEARCH_DEFAULT_CITY:Marília}
       default-state: ${AI_SEARCH_DEFAULT_STATE:SP}
     limits:
@@ -76,7 +77,7 @@ app:
       max-output-tokens: ${AI_MAX_OUTPUT_TOKENS:1000}
       connect-timeout-ms: ${AI_CONNECT_TIMEOUT_MS:5000}
       read-timeout-ms: ${AI_READ_TIMEOUT_MS:20000}
-      request-budget-millis: ${AI_REQUEST_BUDGET_MILLIS:50000}
+      request-budget-millis: ${AI_REQUEST_BUDGET_MILLIS:70000}
       requests-per-user-window: ${AI_REQUESTS_PER_USER_WINDOW:20}
       requests-global-window: ${AI_REQUESTS_GLOBAL_WINDOW:100}
       rate-window-seconds: ${AI_RATE_WINDOW_SECONDS:60}

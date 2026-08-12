@@ -101,7 +101,9 @@ public class MapeadorDadosAssistente {
                         ? (List<com.InovaSkill.CaderninhoDigital.ai.search.ComparacaoMercadoService.Oferta>) lista
                         : List.of();
         var ofertas = origem.stream().map(o -> new DadosAssistenteDTO.OfertaMercado(o.titulo(), o.url(),
-                o.dominio(), o.precoUnitario(), o.quantidadeCalculada(), o.custoTotal(), o.freteIncluido())).toList();
+                o.dominio(), o.precoUnitario(), o.quantidadeCalculada(), o.custoTotal(), o.freteIncluido(),
+                o.pedidoMinimo(), o.compativelQuantidadeAlvo(), o.localizacao(), o.validade(), o.evidenciaPreco(),
+                o.evidenciaPedidoMinimo(), o.confianca())).toList();
         return new DadosAssistenteDTO.ComparacaoMercado("COMPARACAO_MERCADO", longoNulo(d.get("materiaPrimaId")),
                 texto(d,"unidade"), decimalNulo(d.get("quantidadeAlvo")), decimalNulo(d.get("precoInternoUnitario")),
                 decimalNulo(d.get("custoInternoComparavel")),

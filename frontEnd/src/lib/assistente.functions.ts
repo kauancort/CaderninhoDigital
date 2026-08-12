@@ -67,7 +67,9 @@ const comprasSchema = z.object({ tipo: z.literal("COMPRAS_INSUMO"), materiaPrima
     limitacao: z.string() }).strict() }).strict();
 const ofertaMercadoSchema = z.object({ titulo: z.string(), url: z.string().url(), dominio: z.string(),
   precoUnitario: dinheiro, quantidadeCalculada: dinheiro, custoTotal: dinheiro,
-  freteIncluido: z.boolean() }).strict();
+  freteIncluido: z.boolean(), pedidoMinimo: dinheiro.nullable(), compativelQuantidadeAlvo: z.boolean(),
+  localizacao: z.string().nullable(), validade: z.string().date().nullable(), evidenciaPreco: z.string(), evidenciaPedidoMinimo: z.string().nullable(),
+  confianca: z.enum(["ALTA", "MEDIA"]) }).strict();
 const comparacaoMercadoSchema = z.object({ tipo: z.literal("COMPARACAO_MERCADO"),
   materiaPrimaId: z.number().int().positive().nullable(), unidade: z.string(), quantidadeAlvo: dinheiro,
   precoInternoUnitario: dinheiro.nullable(), custoInternoComparavel: dinheiro.nullable(),
@@ -126,7 +128,8 @@ export async function conversarComAssistente(data: {
 }): Promise<AssistenteResposta> {
   const parsedData = conversaSchema.parse(data);
   const controller = new AbortController();
-  const timeout = globalThis.setTimeout(() => controller.abort(), 90_000);
+  // Pesquisa externa inclui descoberta, estruturação e redação; o backend mantém limites próprios por etapa.
+  const timeout = globalThis.setTimeout(() => controller.abort(), 130_000);
   let response: unknown;
   try {
     response = await apiRequest<unknown>("/assistente/conversa", {
