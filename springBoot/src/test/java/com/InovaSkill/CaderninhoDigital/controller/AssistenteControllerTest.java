@@ -100,4 +100,17 @@ class AssistenteControllerTest {
                 .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isUnauthorized());
     }
+
+    @Test
+    void metricasSemAutenticacaoDevemRetornar401() throws Exception {
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/actuator/metrics"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @WithUserDetails("adm@gmail.com")
+    void metricasAutenticadasDevemSerProtegidasEAcessiveis() throws Exception {
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/actuator/metrics"))
+                .andExpect(status().isOk());
+    }
 }

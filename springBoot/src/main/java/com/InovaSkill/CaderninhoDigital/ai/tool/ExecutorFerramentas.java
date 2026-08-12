@@ -2,6 +2,7 @@ package com.InovaSkill.CaderninhoDigital.ai.tool;
 
 import com.InovaSkill.CaderninhoDigital.ai.contract.ArgumentosFerramenta;
 import com.InovaSkill.CaderninhoDigital.ai.contract.ArgumentosPeriodo;
+import com.InovaSkill.CaderninhoDigital.ai.contract.ArgumentosCompraInsumo;
 import com.InovaSkill.CaderninhoDigital.ai.contract.ChamadaFerramenta;
 import com.InovaSkill.CaderninhoDigital.ai.contract.ResultadoFerramenta;
 import com.InovaSkill.CaderninhoDigital.config.AiOrchestratorProperties;
@@ -74,6 +75,13 @@ public class ExecutorFerramentas {
         if (argumentos instanceof ArgumentosPeriodo periodo) {
             if (periodo.inicio().isAfter(periodo.fim())
                     || ChronoUnit.DAYS.between(periodo.inicio(), periodo.fim())
+                    > properties.getLimits().getMaxPeriodDays()) {
+                throw argumentosInvalidos();
+            }
+        }
+        if (argumentos instanceof ArgumentosCompraInsumo compra) {
+            if (compra.inicio().isAfter(compra.fim())
+                    || ChronoUnit.DAYS.between(compra.inicio(), compra.fim())
                     > properties.getLimits().getMaxPeriodDays()) {
                 throw argumentosInvalidos();
             }

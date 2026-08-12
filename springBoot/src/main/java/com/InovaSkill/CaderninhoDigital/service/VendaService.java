@@ -655,6 +655,20 @@ public class VendaService {
     }
 
     @Transactional(readOnly = true)
+    public ResumoHistoricoVendasResponseDTO resumirVendasIa(
+            Long usuarioId, LocalDate inicio, LocalDate fim
+    ) {
+        usuarioAcessoService.buscarGestor(usuarioId);
+        ResumoHistoricoVendasProjection valores = vendaRepository.resumirVendasIa(inicio, fim);
+        BigDecimal itens = vendaRepository.totalItensVendasIa(inicio, fim);
+        return new ResumoHistoricoVendasResponseDTO(
+                decimal(valores.getFaturamento()),
+                numero(valores.getQuantidadeVendas()),
+                itens != null ? itens : BigDecimal.ZERO,
+                decimal(valores.getTicketMedio()));
+    }
+
+    @Transactional(readOnly = true)
     public Page<CobrancaResponseDTO> listarCobrancas(
             Long usuarioId,
             int pagina,
@@ -796,6 +810,29 @@ public class VendaService {
                 numero(valores.getQuantidadeAtrasadas()),
                 numero(valores.getQuantidadeCobrancas())
         );
+    }
+
+    @Transactional(readOnly = true)
+    public ResumoCobrancasResponseDTO resumirRecebiveisIa(
+            Long usuarioId, LocalDate inicio, LocalDate fim, SituacaoCobranca situacao
+    ) {
+        usuarioAcessoService.buscarGestor(usuarioId);
+        LocalDate hoje = classificadorCobrancaService.hoje();
+        ResumoCobrancasProjection valores = vendaRepository.resumirRecebiveisIa(
+                hoje,
+                hoje.minusDays(1),
+                hoje.minusDays(ClassificadorCobrancaService.LIMITE_ATRASO_RECENTE_DIAS),
+                hoje.minusDays(ClassificadorCobrancaService.LIMITE_ATRASO_RECENTE_DIAS + 1L),
+                hoje.minusDays(ClassificadorCobrancaService.LIMITE_ATRASO_MEDIO_DIAS),
+                situacao != null ? situacao.name() : "",
+                inicio,
+                fim);
+        return new ResumoCobrancasResponseDTO(
+                decimal(valores.getTotalReceber()),
+                decimal(valores.getTotalVencido()),
+                decimal(valores.getTotalEmDia()),
+                numero(valores.getQuantidadeAtrasadas()),
+                numero(valores.getQuantidadeCobrancas()));
     }
 
     @Transactional

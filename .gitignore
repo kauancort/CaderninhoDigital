@@ -79,3 +79,6 @@ postgres-data/
 !README.md
 !frontEnd/README.md
 !springBoot/FUNCIONALIDADES.md
+
+# Documentação operacional local da IA
+docs/

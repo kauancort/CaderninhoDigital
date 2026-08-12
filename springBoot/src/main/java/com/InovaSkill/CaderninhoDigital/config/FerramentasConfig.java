@@ -4,6 +4,12 @@ import com.InovaSkill.CaderninhoDigital.ai.tool.CatalogoFerramentas;
 import com.InovaSkill.CaderninhoDigital.ai.tool.ContextoFerramentaFactory;
 import com.InovaSkill.CaderninhoDigital.ai.tool.ExecutorFerramentas;
 import com.InovaSkill.CaderninhoDigital.ai.stock.ConsultarEstoqueCriticoFerramenta;
+import com.InovaSkill.CaderninhoDigital.ai.finance.ConsultarResumoGastosFerramenta;
+import com.InovaSkill.CaderninhoDigital.ai.finance.ConsultarResumoRecebiveisFerramenta;
+import com.InovaSkill.CaderninhoDigital.ai.finance.ConsultarResumoVendasFerramenta;
+import com.InovaSkill.CaderninhoDigital.ai.cost.AnalisarComprasInsumoFerramenta;
+import com.InovaSkill.CaderninhoDigital.ai.cost.AnalisarCustoProdutoFerramenta;
+import com.InovaSkill.CaderninhoDigital.ai.search.CompararPrecoMercadoFerramenta;
 import jakarta.validation.Validator;
 import java.time.Clock;
 import java.util.List;
@@ -16,8 +22,15 @@ import org.springframework.context.annotation.Configuration;
 public class FerramentasConfig {
 
     @Bean
-    CatalogoFerramentas catalogoFerramentas(ConsultarEstoqueCriticoFerramenta estoqueCritico) {
-        return new CatalogoFerramentas(List.of(estoqueCritico));
+    CatalogoFerramentas catalogoFerramentas(ConsultarEstoqueCriticoFerramenta estoqueCritico,
+            ConsultarResumoVendasFerramenta vendas, ConsultarResumoGastosFerramenta gastos,
+            ConsultarResumoRecebiveisFerramenta recebiveis, AnalisarCustoProdutoFerramenta custoProduto,
+            AnalisarComprasInsumoFerramenta comprasInsumo, CompararPrecoMercadoFerramenta mercado,
+            AiOrchestratorProperties properties) {
+        var ferramentas = new java.util.ArrayList<com.InovaSkill.CaderninhoDigital.ai.tool.FerramentaLeitura<?>>(
+                List.of(estoqueCritico, vendas, gastos, recebiveis, custoProduto, comprasInsumo));
+        if (properties.getFeatures().isSearch()) ferramentas.add(mercado);
+        return new CatalogoFerramentas(ferramentas);
     }
 
     @Bean(destroyMethod = "close")

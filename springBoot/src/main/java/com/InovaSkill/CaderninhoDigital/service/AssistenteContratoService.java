@@ -23,7 +23,8 @@ public class AssistenteContratoService {
         String version = request.getVersaoContrato();
         if (version == null || version.isBlank()) {
             request.setVersaoContrato(AiOrchestratorProperties.CONTRACT_VERSION);
-        } else if (!AiOrchestratorProperties.CONTRACT_VERSION.equals(version)) {
+        } else if (!AiOrchestratorProperties.CONTRACT_VERSION.equals(version)
+                && !AiOrchestratorProperties.LEGACY_CONTRACT_VERSION.equals(version)) {
             throw entradaInvalida("Versão de contrato não suportada");
         }
 
@@ -57,7 +58,7 @@ public class AssistenteContratoService {
     }
 
     public ConversaResponseDTO finalizar(ConversaResponseDTO response, ConversaRequestDTO request) {
-        response.setVersaoContrato(AiOrchestratorProperties.CONTRACT_VERSION);
+        response.setVersaoContrato(request.getVersaoContrato());
         response.setCorrelacao(request.getCorrelacao());
         return response;
     }
@@ -67,6 +68,7 @@ public class AssistenteContratoService {
             case RESUMIR_NEGOCIO -> "Apresente um resumo do negócio";
             case VERIFICAR_ESTOQUE -> "Como está o estoque?";
             case RESUMIR_VENDAS -> "Apresente um resumo das vendas";
+            case RESUMIR_GASTOS -> "Apresente um resumo dos gastos";
             case VERIFICAR_RECEBIVEIS -> "Como estão os valores a receber?";
         };
     }

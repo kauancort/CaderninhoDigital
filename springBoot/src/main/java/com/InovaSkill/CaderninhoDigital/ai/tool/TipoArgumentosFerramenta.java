@@ -2,5 +2,8 @@ package com.InovaSkill.CaderninhoDigital.ai.tool;
 
 public enum TipoArgumentosFerramenta {
     SEM_FILTRO,
-    PERIODO
+    PERIODO,
+    PRODUTO,
+    COMPRA_INSUMO,
+    COMPARACAO_MERCADO
 }

@@ -18,6 +18,7 @@ import java.net.URI;
 import java.net.http.HttpTimeoutException;
 import java.time.Duration;
 import java.util.Map;
+import java.util.List;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -93,10 +94,21 @@ public class OpenRouterModeloGateway implements ModeloGateway {
                         "Content-Type", "application/json"),
                 serializar(body),
                 Duration.ofMillis(properties.getLimits().getReadTimeoutMs()));
+        OpenRouterHttpResponse response = null;
+        int tentativa = 0;
+        do {
+            response = enviarUmaVez(request);
+            if (!statusTransitorio(response.statusCode()) || tentativa >= properties.getLimits().getTransientRetries()) break;
+            tentativa++;
+        } while (true);
+        classificarStatus(response.statusCode());
+        return interpretarResposta(response.body(), inicio);
+    }
+
+    private OpenRouterHttpResponse enviarUmaVez(OpenRouterHttpRequest request) {
         CompletableFuture<OpenRouterHttpResponse> future = transport.enviar(request);
-        OpenRouterHttpResponse response;
         try {
-            response = future.get(tempoLimiteMillis(), TimeUnit.MILLISECONDS);
+            return future.get(tempoLimiteMillis(), TimeUnit.MILLISECONDS);
         } catch (TimeoutException exception) {
             future.cancel(true);
             throw erro(CodigoErroOrquestrador.TIMEOUT, HttpStatus.GATEWAY_TIMEOUT,
@@ -117,8 +129,10 @@ public class OpenRouterModeloGateway implements ModeloGateway {
             throw erro(CodigoErroOrquestrador.PROVEDOR_INDISPONIVEL, HttpStatus.SERVICE_UNAVAILABLE,
                     "Não foi possível acessar o provedor");
         }
-        classificarStatus(response.statusCode());
-        return interpretarResposta(response.body(), inicio);
+    }
+
+    private boolean statusTransitorio(int status) {
+        return status == 500 || status == 502 || status == 503 || status == 504;
     }
 
     private ObjectNode criarBody(SolicitacaoModelo solicitacao, boolean jsonEstruturado) {
@@ -132,9 +146,114 @@ public class OpenRouterModeloGateway implements ModeloGateway {
             item.put("content", mensagem.conteudo());
         }
         if (jsonEstruturado) {
-            body.putObject("response_format").put("type", "json_object");
+            ObjectNode format = body.putObject("response_format");
+            format.put("type", "json_schema");
+            ObjectNode jsonSchema = format.putObject("json_schema");
+            jsonSchema.put("name", "plano_orquestracao");
+            jsonSchema.put("strict", true);
+            jsonSchema.set("schema", criarSchemaPlano());
         }
         return body;
+    }
+
+    private ObjectNode criarSchemaPlano() {
+        ObjectNode schema = objetoFechado();
+        ObjectNode properties = schema.putObject("properties");
+        properties.set("schemaVersion", enumTexto(List.of(propertiesProviderSchemaVersion())));
+        properties.set("intencao", enumTexto(List.of(
+                "CONSULTAR_ESTOQUE", "CONSULTAR_VENDAS", "CONSULTAR_GASTOS",
+                "CONSULTAR_RECEBIVEIS", "ANALISAR_CUSTO_PRODUTO",
+                "ANALISAR_COMPRAS_INSUMO", "COMPARAR_VENDAS_GASTOS",
+                "COMPARAR_VENDAS_PERIODOS", "COMPARAR_PRECO_MERCADO", "DESCONHECIDA")));
+        ObjectNode chamadas = properties.putObject("chamadas");
+        chamadas.put("type", "array");
+        chamadas.put("minItems", 1);
+        chamadas.put("maxItems", 2);
+        ArrayNode alternativas = chamadas.putObject("items").putArray("anyOf");
+        alternativas.add(schemaChamada("RESUMO_ESTOQUE", "SEM_FILTRO", List.of()));
+        alternativas.add(schemaChamada("RESUMO_VENDAS", "PERIODO", List.of("inicio", "fim")));
+        alternativas.add(schemaChamada("RESUMO_GASTOS", "PERIODO", List.of("inicio", "fim")));
+        alternativas.add(schemaChamada("RESUMO_RECEBIVEIS", "PERIODO", List.of("inicio", "fim")));
+        alternativas.add(schemaChamada("ANALISE_CUSTO_PRODUTO", "PRODUTO", List.of("produtoId")));
+        alternativas.add(schemaChamadaCompraInsumo());
+        if (this.properties.getFeatures().isSearch()) alternativas.add(schemaChamadaComparacaoMercado());
+        properties.set("modoResposta", enumTexto(
+                List.of("TEXTO_SIMPLES", "TEXTO_COM_DADOS", "ANALITICA")));
+        obrigatorios(schema, "schemaVersion", "intencao", "chamadas", "modoResposta");
+        return schema;
+    }
+
+    private ObjectNode schemaChamada(String ferramenta, String tipo, List<String> campos) {
+        ObjectNode chamada = objetoFechado();
+        ObjectNode propriedades = chamada.putObject("properties");
+        propriedades.set("ferramenta", enumTexto(List.of(ferramenta)));
+        ObjectNode argumentos = objetoFechado();
+        ObjectNode argumentosProperties = argumentos.putObject("properties");
+        argumentosProperties.set("tipo", enumTexto(List.of(tipo)));
+        for (String campo : campos) {
+            ObjectNode propriedade = argumentosProperties.putObject(campo);
+            if (campo.endsWith("Id")) {
+                propriedade.put("type", "integer");
+                propriedade.put("minimum", 1);
+            } else {
+                propriedade.put("type", "string");
+                propriedade.put("format", "date");
+            }
+        }
+        List<String> requeridos = new java.util.ArrayList<>();
+        requeridos.add("tipo");
+        requeridos.addAll(campos);
+        obrigatorios(argumentos, requeridos.toArray(String[]::new));
+        propriedades.set("argumentos", argumentos);
+        obrigatorios(chamada, "ferramenta", "argumentos");
+        return chamada;
+    }
+
+    private ObjectNode schemaChamadaCompraInsumo() {
+        ObjectNode chamada = schemaChamada("ANALISE_COMPRAS_INSUMO", "COMPRA_INSUMO",
+                List.of("materiaPrimaId", "inicio", "fim"));
+        ObjectNode id = (ObjectNode) chamada.path("properties").path("argumentos")
+                .path("properties").path("materiaPrimaId");
+        ArrayNode tipos = id.putArray("type");
+        tipos.add("integer"); tipos.add("null");
+        return chamada;
+    }
+
+    private ObjectNode schemaChamadaComparacaoMercado() {
+        ObjectNode chamada = schemaChamada("COMPARAR_PRECO_MERCADO", "COMPARACAO_MERCADO",
+                List.of("materiaPrimaId", "inicio", "fim"));
+        ObjectNode props = (ObjectNode) chamada.path("properties").path("argumentos").path("properties");
+        props.putObject("unidade").put("type", "string").put("maxLength", 30);
+        props.putObject("quantidadeAlvo").put("type", "number").put("exclusiveMinimum", 0);
+        props.putObject("cidade").put("type", "string").put("maxLength", 100);
+        props.putObject("uf").put("type", "string").put("pattern", "^[A-Z]{2}$");
+        ObjectNode args = (ObjectNode) chamada.path("properties").path("argumentos");
+        obrigatorios(args, "tipo", "materiaPrimaId", "inicio", "fim", "unidade", "quantidadeAlvo", "cidade", "uf");
+        return chamada;
+    }
+
+    private ObjectNode objetoFechado() {
+        ObjectNode node = objectMapper.createObjectNode();
+        node.put("type", "object");
+        node.put("additionalProperties", false);
+        return node;
+    }
+
+    private ObjectNode enumTexto(List<String> valores) {
+        ObjectNode node = objectMapper.createObjectNode();
+        node.put("type", "string");
+        ArrayNode valoresNode = node.putArray("enum");
+        valores.forEach(valoresNode::add);
+        return node;
+    }
+
+    private void obrigatorios(ObjectNode node, String... campos) {
+        ArrayNode required = node.putArray("required");
+        for (String campo : campos) required.add(campo);
+    }
+
+    private String propertiesProviderSchemaVersion() {
+        return properties.getSchemaVersion();
     }
 
     private ParsedResponse interpretarResposta(String rawBody, long inicio) {
@@ -176,7 +295,7 @@ public class OpenRouterModeloGateway implements ModeloGateway {
                     "O provedor rejeitou a solicitação");
         }
         if (status == 401 || status == 403) {
-            throw erro(CodigoErroOrquestrador.PROVEDOR_INDISPONIVEL, HttpStatus.SERVICE_UNAVAILABLE,
+            throw erro(CodigoErroOrquestrador.NAO_AUTORIZADO, HttpStatus.SERVICE_UNAVAILABLE,
                     "O provedor não autorizou a integração");
         }
         if (status == 429) {

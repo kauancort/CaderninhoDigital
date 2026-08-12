@@ -27,6 +27,20 @@ services:
         sync: false
       - key: OPENROUTER_MODEL
         value: openrouter/free
+      - key: TAVILY_API_KEY
+        sync: false
+      - key: TAVILY_API_URL
+        value: https://api.tavily.com/search
+      - key: TAVILY_TIMEOUT_MS
+        value: "35000"
+      - key: TAVILY_MAX_RESULTS
+        value: "3"
+      - key: AI_SEARCH_DEFAULT_CITY
+        value: Marília
+      - key: AI_SEARCH_DEFAULT_STATE
+        value: SP
+      - key: APP_TIME_ZONE
+        value: America/Sao_Paulo
       - key: AI_MAX_PERIOD_DAYS
         value: "366"
       - key: AI_MAX_CONTEXT_ITEMS
@@ -37,6 +51,26 @@ services:
         value: "40"
       - key: AI_MAX_PROVIDER_PAYLOAD_CHARACTERS
         value: "30000"
+      - key: AI_REQUESTS_PER_USER_WINDOW
+        value: "20"
+      - key: AI_REQUESTS_GLOBAL_WINDOW
+        value: "100"
+      - key: AI_RATE_WINDOW_SECONDS
+        value: "60"
+      - key: AI_MODEL_CALLS_PER_USER_DAY
+        value: "100"
+      - key: AI_MODEL_CALLS_GLOBAL_DAY
+        value: "500"
+      - key: AI_MODEL_TOKENS_PER_USER_DAY
+        value: "100000"
+      - key: AI_MODEL_TOKENS_GLOBAL_DAY
+        value: "500000"
+      - key: AI_AUDIT_CAPACITY
+        value: "1000"
+      - key: AI_TRANSIENT_RETRIES
+        value: "1"
+      - key: AI_REQUEST_BUDGET_MILLIS
+        value: "50000"
       - key: AI_FEATURE_ORCHESTRATOR
         value: "true"
       - key: AI_FEATURE_TOOLS
