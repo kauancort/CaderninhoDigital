@@ -70,7 +70,9 @@ services:
       - key: AI_TRANSIENT_RETRIES
         value: "1"
       - key: AI_REQUEST_BUDGET_MILLIS
-        value: "50000"
+        value: "105000"
+      - key: AI_SEARCH_INTERPRETATION_TIMEOUT_MS
+        value: "60000"
       - key: AI_FEATURE_ORCHESTRATOR
         value: "true"
       - key: AI_FEATURE_TOOLS

@@ -109,12 +109,9 @@ public class TavilyPesquisaPrecosGateway implements PesquisaPrecosGateway {
 
     private String trechoUtil(JsonNode item) {
         String resumo=item.path("content").asText("");
-        if (PRECO.matcher(resumo).find()) return limitar(resumo,properties.getSearch().getMaxSnippetCharacters());
-        String bruto=item.path("raw_content").asText(""); var preco=PRECO.matcher(bruto);
-        if (!preco.find()) return limitar(resumo,properties.getSearch().getMaxSnippetCharacters());
-        int metade=properties.getSearch().getMaxSnippetCharacters()/2;
-        int inicio=Math.max(0,preco.start()-metade), fim=Math.min(bruto.length(),inicio+properties.getSearch().getMaxSnippetCharacters());
-        return bruto.substring(inicio,fim).replaceAll("\\s+"," ").trim();
+        String bruto=item.path("raw_content").asText("");
+        String preferido = !bruto.isBlank() && PRECO.matcher(bruto).find() ? bruto : resumo;
+        return limitar(preferido.replaceAll("\\s+"," ").trim(),properties.getSearch().getMaxSnippetCharacters());
     }
 
     private URI urlSegura(String valor) {

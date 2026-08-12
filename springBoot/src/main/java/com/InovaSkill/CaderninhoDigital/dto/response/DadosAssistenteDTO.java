@@ -48,7 +48,9 @@ public sealed interface DadosAssistenteDTO permits DadosAssistenteDTO.Estoque,
             SimulacaoComprasMensal simulacaoMensal) implements DadosAssistenteDTO {}
 
     record OfertaMercado(String titulo, String url, String dominio, BigDecimal precoUnitario,
-            BigDecimal quantidadeCalculada, BigDecimal custoTotal, boolean freteIncluido) {}
+            BigDecimal quantidadeCalculada, BigDecimal custoTotal, boolean freteIncluido,
+            BigDecimal pedidoMinimo, boolean compativelQuantidadeAlvo, String localizacao,
+            LocalDate validade, String evidenciaPreco, String evidenciaPedidoMinimo, String confianca) {}
 
     record ComparacaoMercado(String tipo, Long materiaPrimaId, String unidade, BigDecimal quantidadeAlvo,
             BigDecimal precoInternoUnitario, BigDecimal custoInternoComparavel, BigDecimal menorCustoExterno,

@@ -13,6 +13,7 @@ import com.InovaSkill.CaderninhoDigital.ai.gateway.RespostaModelo;
 import com.InovaSkill.CaderninhoDigital.ai.gateway.SolicitacaoModelo;
 import com.InovaSkill.CaderninhoDigital.config.AiOrchestratorProperties;
 import com.InovaSkill.CaderninhoDigital.ai.privacy.PoliticaDadosIa;
+import com.InovaSkill.CaderninhoDigital.ai.search.ExtracaoOfertasMercado;
 import com.InovaSkill.CaderninhoDigital.exception.CodigoErroOrquestrador;
 import com.InovaSkill.CaderninhoDigital.exception.OrquestradorException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -84,6 +85,21 @@ class OpenRouterModeloGatewayTest {
                 .contains("\"response_format\":{\"type\":\"json_schema\"")
                 .contains("\"strict\":true")
                 .contains("\"maxItems\":2")
+                .contains("\"additionalProperties\":false");
+    }
+
+    @Test
+    void usaSchemaFechadoEspecificoParaExtracaoDeOfertas() {
+        String extracao = "{\"ofertas\":[]}";
+        transport.complete(200, resposta(extracao, "modelo-solicitado", false));
+
+        var response = gateway.gerarEstruturado(solicitacao(), ExtracaoOfertasMercado.class);
+
+        assertThat(response.conteudo().ofertas()).isEmpty();
+        assertThat(transport.request.body())
+                .contains("\"name\":\"extracao_ofertas_mercado\"")
+                .contains("\"evidenciaPreco\"")
+                .contains("\"pedidoMinimo\"")
                 .contains("\"additionalProperties\":false");
     }
 

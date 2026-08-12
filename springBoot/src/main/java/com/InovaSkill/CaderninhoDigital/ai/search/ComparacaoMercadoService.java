@@ -11,25 +11,23 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
-import java.util.regex.Pattern;
 import org.springframework.stereotype.Service;
+import lombok.extern.slf4j.Slf4j;
 
 @Service
+@Slf4j
 public class ComparacaoMercadoService {
-    private static final Pattern PRECO = Pattern.compile("(?i)R\\$\\s*(\\d{1,6}(?:[.,]\\d{1,2})?)");
-    private static final Pattern VALIDADE = Pattern.compile("(?i)v[aá]lid[oa]\\s+at[eé]\\s+(\\d{2})/(\\d{2})/(\\d{4})");
-    private static final Pattern FRETE = Pattern.compile("(?i)frete\\s*(?:de|:)?\\s*R\\$\\s*(\\d{1,6}(?:[.,]\\d{1,2})?)");
-    private static final Pattern MINIMO = Pattern.compile("(?i)(?:pedido|compra)\\s+m[ií]nim[oa]\\s*(?:de|:)?\\s*(\\d{1,6}(?:[.,]\\d{1,3})?)\\s*([\\p{L}]+)");
-    private static final Pattern EMBALAGEM = Pattern.compile("(?i)(\\d+(?:[.,]\\d{1,3})?)\\s*(kg|g|l|ml|unidade(?:s)?)\\b");
     private final AnaliseComprasInsumoService analiseInterna;
     private final MateriaPrimaRepository materias;
     private final PesquisaPrecosGateway pesquisa;
+    private final InterpretadorOfertasMercado interpretador;
     private final Clock clock;
 
     public ComparacaoMercadoService(AnaliseComprasInsumoService analiseInterna,
-            MateriaPrimaRepository materias, PesquisaPrecosGateway pesquisa, Clock clock) {
-        this.analiseInterna = analiseInterna; this.materias = materias; this.pesquisa = pesquisa; this.clock = clock;
+            MateriaPrimaRepository materias, PesquisaPrecosGateway pesquisa,
+            InterpretadorOfertasMercado interpretador, Clock clock) {
+        this.analiseInterna = analiseInterna; this.materias = materias; this.pesquisa = pesquisa;
+        this.interpretador = interpretador; this.clock = clock;
     }
 
     public Resultado comparar(Long usuarioId, Long materiaPrimaId, LocalDate inicio, LocalDate fim,
@@ -53,13 +51,45 @@ public class ComparacaoMercadoService {
                     precoInterno == null ? QualidadeResultado.INSUFICIENTE : QualidadeResultado.PARCIAL);
         }
         List<Oferta> ofertas = new ArrayList<>(); List<String> descartes = new ArrayList<>();
-        for (var fonte : externa.fontes()) {
-            var oferta = extrair(fonte, unidade, quantidade);
-            if (oferta == null) descartes.add(fonte.dominio() + ": preço/unidade ausente, incompatível ou promoção vencida.");
+        List<InterpretadorOfertasMercado.OfertaInterpretada> interpretadas;
+        try {
+            interpretadas = interpretador.interpretar(externa.fontes(), materia.getNome(), usuarioId);
+        } catch (OrquestradorException exception) {
+            log.warn("Interpretação de ofertas não concluída: codigo={} fontes={}",
+                    exception.getCodigo(), externa.fontes().size());
+            String motivo = switch (exception.getCodigo()) {
+                case LIMITE_EXCEDIDO -> "Encontrei " + externa.fontes().size()
+                        + " fontes, mas não consegui confirmar os preços porque o limite de uso do serviço de IA do OpenRouter foi atingido. "
+                        + "Os valores não foram comparados para evitar uma resposta incorreta. Tente novamente mais tarde.";
+                case TIMEOUT -> "Encontrei " + externa.fontes().size()
+                        + " fontes, mas o serviço de IA do OpenRouter demorou além do limite ao interpretar os preços. "
+                        + "Os valores não foram comparados para evitar uma resposta incorreta. Tente novamente.";
+                case PLANO_INVALIDO -> "Encontrei " + externa.fontes().size()
+                        + " fontes, mas o serviço de IA não conseguiu organizar os preços e as unidades no formato esperado. "
+                        + "Os valores não foram comparados para evitar uma resposta incorreta.";
+                case PROVEDOR_INDISPONIVEL -> "Encontrei " + externa.fontes().size()
+                        + " fontes, mas o serviço de IA do OpenRouter está temporariamente indisponível. "
+                        + "Os valores não foram comparados para evitar uma resposta incorreta. Tente novamente mais tarde.";
+                default -> "Encontrei " + externa.fontes().size()
+                        + " fontes, mas não foi possível validar seus preços com segurança. "
+                        + "Os valores não foram comparados para evitar uma resposta incorreta.";
+            };
+            return new Resultado(materiaPrimaId, unidade, quantidade, precoInterno,
+                    precoInterno == null ? null : precoInterno.multiply(quantidade).setScale(2, RoundingMode.HALF_UP),
+                    null, null, null, null, "INSUFICIENTE", externa.pesquisadoEm(), List.of(),
+                    List.of(motivo),
+                    precoInterno == null ? QualidadeResultado.INSUFICIENTE : QualidadeResultado.PARCIAL);
+        }
+        for (var interpretada : interpretadas) {
+            var oferta = normalizar(interpretada, unidade, quantidade);
+            if (oferta == null) descartes.add(interpretada.fonte().dominio()
+                    + ": oferta ambígua ou unidade incompatível.");
             else ofertas.add(oferta);
         }
-        ofertas.sort(java.util.Comparator.comparing(Oferta::custoTotal));
-        BigDecimal melhor = ofertas.stream().map(Oferta::custoTotal).findFirst().orElse(null);
+        ofertas.sort(java.util.Comparator.comparing((Oferta o) -> !o.compativelQuantidadeAlvo())
+                .thenComparing(Oferta::custoTotal));
+        BigDecimal melhor = ofertas.stream().filter(Oferta::compativelQuantidadeAlvo)
+                .map(Oferta::custoTotal).findFirst().orElse(null);
         BigDecimal custoAtual = precoInterno == null ? null : precoInterno.multiply(quantidade).setScale(2, RoundingMode.HALF_UP);
         BigDecimal economia = custoAtual == null || melhor == null ? null
                 : custoAtual.subtract(melhor).max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
@@ -79,53 +109,64 @@ public class ComparacaoMercadoService {
                 externa.pesquisadoEm(), List.copyOf(ofertas), List.copyOf(avisos), qualidade);
     }
 
-    private Oferta extrair(FontePesquisaPreco fonte, String unidade, BigDecimal quantidade) {
-        String texto = fonte.titulo()+" "+fonte.trecho();
-        var validade = VALIDADE.matcher(texto);
-        if (validade.find() && LocalDate.of(Integer.parseInt(validade.group(3)),
-                Integer.parseInt(validade.group(2)), Integer.parseInt(validade.group(1)))
-                .isBefore(LocalDate.now(clock))) return null;
-        var preco = PRECO.matcher(texto); if (!preco.find()) return null;
-        BigDecimal valorAnunciado = moeda(preco.group(1));
-        BigDecimal tamanhoEmUnidade = tamanhoComparavel(texto, unidade);
-        if (tamanhoEmUnidade == null || tamanhoEmUnidade.signum() <= 0) return null;
-        BigDecimal unitario = valorAnunciado.divide(tamanhoEmUnidade, 4, RoundingMode.HALF_UP);
-        BigDecimal quantidadeCalculada = quantidade;
-        var minimo = MINIMO.matcher(texto);
-        if (minimo.find()) {
-            if (!minimo.group(2).equalsIgnoreCase(unidade)) return null;
-            quantidadeCalculada = quantidade.max(new BigDecimal(minimo.group(1).replace(',', '.')));
+    private Oferta normalizar(InterpretadorOfertasMercado.OfertaInterpretada interpretada,
+            String unidadeAlvo, BigDecimal quantidadeAlvo) {
+        var dados = interpretada.dados();
+        if (dados.validade() != null && dados.validade().isBefore(LocalDate.now(clock))) return null;
+        ExtracaoOfertasMercado.Unidade alvo = unidade(unidadeAlvo);
+        if (alvo == null) return null;
+        BigDecimal unitario;
+        if (dados.tipoPreco() == ExtracaoOfertasMercado.TipoPreco.UNITARIO) {
+            BigDecimal fator = fatorParaUnidadeAlvo(dados.unidadePreco(), alvo);
+            if (fator == null) return null;
+            unitario = dados.precoAnunciado().divide(fator, 6, RoundingMode.HALF_UP);
+        } else {
+            if (dados.quantidadeEmbalagem() == null || dados.unidadeEmbalagem() == null) return null;
+            BigDecimal embalagem = converter(dados.quantidadeEmbalagem(), dados.unidadeEmbalagem(), alvo);
+            if (embalagem == null || embalagem.signum() <= 0) return null;
+            unitario = dados.precoAnunciado().divide(embalagem, 6, RoundingMode.HALF_UP);
         }
-        BigDecimal freteValor = BigDecimal.ZERO; var frete = FRETE.matcher(texto);
-        boolean freteConhecido = frete.find();
-        if (freteConhecido) freteValor = new BigDecimal(frete.group(1).replace(',', '.'));
-        return new Oferta(fonte.titulo(), fonte.url().toString(), fonte.dominio(), unitario,
-                quantidadeCalculada, unitario.multiply(quantidadeCalculada).add(freteValor)
-                        .setScale(2, RoundingMode.HALF_UP), freteConhecido);
+        BigDecimal minimo = dados.pedidoMinimo() == null ? null
+                : converter(dados.pedidoMinimo(), dados.unidadePedidoMinimo(), alvo);
+        if (dados.pedidoMinimo() != null && minimo == null) return null;
+        boolean compativel = minimo == null || minimo.compareTo(quantidadeAlvo) <= 0;
+        BigDecimal frete = dados.frete() == null ? BigDecimal.ZERO : dados.frete();
+        BigDecimal custo = unitario.multiply(quantidadeAlvo).add(frete).setScale(2, RoundingMode.HALF_UP);
+        return new Oferta(interpretada.fonte().titulo(), interpretada.fonte().url().toString(),
+                interpretada.fonte().dominio(), unitario.setScale(4, RoundingMode.HALF_UP), quantidadeAlvo,
+                custo, dados.frete() != null, minimo, compativel, dados.localizacao(),
+                dados.validade(), dados.evidenciaPreco(), dados.evidenciaPedidoMinimo(), dados.confianca().name());
     }
 
-    private BigDecimal tamanhoComparavel(String texto,String unidadeAlvo){
-        String normalizada=unidadeAlvo.toLowerCase(Locale.ROOT);
-        if(texto.toLowerCase(Locale.ROOT).matches(".*(?:/|por\\s+)"+Pattern.quote(normalizada)+"(?:\\b|\\.).*")) return BigDecimal.ONE;
-        var embalagem=EMBALAGEM.matcher(texto);
-        while(embalagem.find()){
-            BigDecimal quantidade=new BigDecimal(embalagem.group(1).replace(',','.'));
-            String unidade=embalagem.group(2).toLowerCase(Locale.ROOT);
-            if(normalizada.equals("kg")&&unidade.equals("g")) return quantidade.divide(BigDecimal.valueOf(1000));
-            if(normalizada.equals("kg")&&unidade.equals("kg")) return quantidade;
-            if(normalizada.equals("l")&&unidade.equals("ml")) return quantidade.divide(BigDecimal.valueOf(1000));
-            if(normalizada.equals("l")&&unidade.equals("l")) return quantidade;
-            if(normalizada.equals("unidade")&&unidade.startsWith("unidade")) return quantidade;
-        }
-        return null;
+    private ExtracaoOfertasMercado.Unidade unidade(String unidade) {
+        try { return ExtracaoOfertasMercado.Unidade.valueOf(unidade.trim().toUpperCase()); }
+        catch (RuntimeException exception) { return null; }
     }
-    private BigDecimal moeda(String valor){
-        String normalizado=valor.contains(",")?valor.replace(".","").replace(',','.'):valor;
-        return new BigDecimal(normalizado).setScale(2,RoundingMode.HALF_UP);
+
+    private BigDecimal fatorParaUnidadeAlvo(ExtracaoOfertasMercado.Unidade origem,
+            ExtracaoOfertasMercado.Unidade alvo) {
+        return converter(BigDecimal.ONE, origem, alvo);
+    }
+
+    private BigDecimal converter(BigDecimal valor, ExtracaoOfertasMercado.Unidade origem,
+            ExtracaoOfertasMercado.Unidade alvo) {
+        if (valor == null || origem == null || alvo == null) return null;
+        if (origem == alvo) return valor;
+        if (origem == ExtracaoOfertasMercado.Unidade.G && alvo == ExtracaoOfertasMercado.Unidade.KG)
+            return valor.divide(BigDecimal.valueOf(1000), 6, RoundingMode.HALF_UP);
+        if (origem == ExtracaoOfertasMercado.Unidade.KG && alvo == ExtracaoOfertasMercado.Unidade.G)
+            return valor.multiply(BigDecimal.valueOf(1000));
+        if (origem == ExtracaoOfertasMercado.Unidade.ML && alvo == ExtracaoOfertasMercado.Unidade.L)
+            return valor.divide(BigDecimal.valueOf(1000), 6, RoundingMode.HALF_UP);
+        if (origem == ExtracaoOfertasMercado.Unidade.L && alvo == ExtracaoOfertasMercado.Unidade.ML)
+            return valor.multiply(BigDecimal.valueOf(1000));
+        return null;
     }
 
     public record Oferta(String titulo, String url, String dominio, BigDecimal precoUnitario,
-            BigDecimal quantidadeCalculada, BigDecimal custoTotal, boolean freteIncluido) {}
+            BigDecimal quantidadeCalculada, BigDecimal custoTotal, boolean freteIncluido,
+            BigDecimal pedidoMinimo, boolean compativelQuantidadeAlvo, String localizacao,
+            LocalDate validade, String evidenciaPreco, String evidenciaPedidoMinimo, String confianca) {}
     public record Resultado(Long materiaPrimaId, String unidade, BigDecimal quantidadeAlvo,
             BigDecimal precoInternoUnitario, BigDecimal custoInternoComparavel, BigDecimal menorCustoExterno,
             BigDecimal economiaEstimada, BigDecimal diferencaExternaMenosInterna,

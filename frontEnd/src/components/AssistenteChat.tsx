@@ -167,12 +167,16 @@ function DadosResultado({ dados }: { dados: NonNullable<AssistenteResposta["dado
         {dados.ofertas.length > 0 && <details className="rounded-xl border border-border bg-card px-4 py-3">
           <summary className="cursor-pointer font-semibold min-h-11 flex items-center">Ver fontes pesquisadas</summary>
           <ul className="mt-2 space-y-3">{dados.ofertas.map((oferta, indice) => <li key={oferta.url} className="rounded-lg border border-border p-3">
-            {indice === 0 && <span className="mb-1 inline-block rounded-full bg-primary px-2 py-1 text-xs font-bold text-primary-foreground">Melhor oferta encontrada</span>}
+            {indice === 0 && oferta.compativelQuantidadeAlvo && <span className="mb-1 inline-block rounded-full bg-primary px-2 py-1 text-xs font-bold text-primary-foreground">Melhor oferta compatível</span>}
             <a href={oferta.url} target="_blank" rel="noreferrer" className="font-semibold underline">
               {oferta.titulo}
             </a>
             <span className="block">Preço convertido: {formatarMoeda(oferta.precoUnitario)} por {dados.unidade}</span>
             <span className="block">Total para {formatarNumero(oferta.quantidadeCalculada)} {dados.unidade}: {formatarMoeda(oferta.custoTotal)}</span>
+            {oferta.localizacao && <span className="block">Localização: {oferta.localizacao}</span>}
+            {oferta.pedidoMinimo !== null && <span className="block font-medium">Pedido mínimo: {formatarNumero(oferta.pedidoMinimo)} {dados.unidade}</span>}
+            {!oferta.compativelQuantidadeAlvo && <span className="block font-semibold text-warning-foreground">Não atende à quantidade solicitada sem aumentar o pedido.</span>}
+            <span className="block text-muted-foreground">Evidência: “{oferta.evidenciaPreco}”</span>
             <span className="block text-muted-foreground">{oferta.freteIncluido ? "Frete identificado e incluído." : "Frete não informado na fonte."}</span>
           </li>)}</ul>
         </details>}

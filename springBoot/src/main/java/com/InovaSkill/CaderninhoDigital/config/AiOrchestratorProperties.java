@@ -36,9 +36,10 @@ public class AiOrchestratorProperties {
         private String key = "";
         @NotBlank private String url = "https://api.tavily.com/search";
         @Min(100) private int timeoutMs = 35_000;
+        @Min(100) private int interpretationTimeoutMs = 60_000;
         @Min(1) @Max(5) private int maxResults = 3;
         @Min(20) @Max(500) private int maxQueryCharacters = 180;
-        @Min(20) @Max(1_000) private int maxSnippetCharacters = 300;
+        @Min(100) @Max(4_000) private int maxSnippetCharacters = 4_000;
         @NotBlank private String defaultCity = "Marília";
         @NotBlank private String defaultState = "SP";
     }
@@ -59,7 +60,7 @@ public class AiOrchestratorProperties {
         @Min(1) private int maxOutputTokens = 1_000;
         @Min(100) private int connectTimeoutMs = 5_000;
         @Min(100) private int readTimeoutMs = 20_000;
-        @Min(0) private long requestBudgetMillis = 50_000;
+        @Min(0) private long requestBudgetMillis = 70_000;
         @Min(1) private int requestsPerUserWindow = 20;
         @Min(1) private int requestsGlobalWindow = 100;
         @Min(1) private int rateWindowSeconds = 60;

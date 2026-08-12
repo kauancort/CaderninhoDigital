@@ -16,7 +16,7 @@ public class CompararPrecoMercadoFerramenta implements FerramentaLeitura<Argumen
     public TipoArgumentosFerramenta tipoArgumentos() { return TipoArgumentosFerramenta.COMPARACAO_MERCADO; }
     public Class<ArgumentosComparacaoMercado> classeArgumentos() { return ArgumentosComparacaoMercado.class; }
     public PerfilUsuario permissaoNecessaria() { return PerfilUsuario.GESTOR; }
-    public Duration timeout() { return Duration.ofSeconds(40); }
+    public Duration timeout() { return Duration.ofSeconds(100); }
     public ResultadoFerramenta executar(ArgumentosComparacaoMercado a, ContextoExecucaoFerramenta c) {
         var r=service.comparar(c.identidade().usuarioId(),a.materiaPrimaId(),a.inicio(),a.fim(),
                 a.unidade(),a.quantidadeAlvo(),a.cidade(),a.uf());
