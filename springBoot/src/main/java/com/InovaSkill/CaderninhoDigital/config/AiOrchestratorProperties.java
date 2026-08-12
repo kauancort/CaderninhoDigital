@@ -14,9 +14,11 @@ import org.springframework.validation.annotation.Validated;
 @Component
 @ConfigurationProperties(prefix = "app.ai")
 public class AiOrchestratorProperties {
-    public static final String CONTRACT_VERSION = "1.0";
+    public static final String CONTRACT_VERSION = "1.1";
+    public static final String LEGACY_CONTRACT_VERSION = "1.0";
 
     @Valid private Provider provider = new Provider();
+    @Valid private Search search = new Search();
     @Valid private Limits limits = new Limits();
     @Valid private Features features = new Features();
     @NotBlank private String promptVersion = "1.0";
@@ -30,12 +32,24 @@ public class AiOrchestratorProperties {
     }
 
     @Data
+    public static class Search {
+        private String key = "";
+        @NotBlank private String url = "https://api.tavily.com/search";
+        @Min(100) private int timeoutMs = 35_000;
+        @Min(1) @Max(5) private int maxResults = 3;
+        @Min(20) @Max(500) private int maxQueryCharacters = 180;
+        @Min(20) @Max(1_000) private int maxSnippetCharacters = 300;
+        @NotBlank private String defaultCity = "Marília";
+        @NotBlank private String defaultState = "SP";
+    }
+
+    @Data
     public static class Limits {
         @Min(1) @Max(20_000) private int messageCharacters = 2_000;
         @Min(0) @Max(100) private int historyMessages = 30;
         @Min(1) @Max(20_000) private int historyMessageCharacters = 4_000;
-        @Min(0) @Max(20) private int toolsPerPlan = 5;
-        @Min(0) @Max(20) private int toolCalls = 5;
+        @Min(1) @Max(2) private int toolsPerPlan = 2;
+        @Min(1) @Max(2) private int toolCalls = 2;
         @Min(0) @Max(5) private int planRepairs = 1;
         @Min(1) @Max(3_650) private int maxPeriodDays = 366;
         @Min(1) @Max(1_000) private int contextItems = 200;
@@ -45,7 +59,16 @@ public class AiOrchestratorProperties {
         @Min(1) private int maxOutputTokens = 1_000;
         @Min(100) private int connectTimeoutMs = 5_000;
         @Min(100) private int readTimeoutMs = 20_000;
-        @Min(0) private long requestBudgetMillis = 30_000;
+        @Min(0) private long requestBudgetMillis = 50_000;
+        @Min(1) private int requestsPerUserWindow = 20;
+        @Min(1) private int requestsGlobalWindow = 100;
+        @Min(1) private int rateWindowSeconds = 60;
+        @Min(1) private int modelCallsPerUserDay = 100;
+        @Min(1) private int modelCallsGlobalDay = 500;
+        @Min(1) private long modelTokensPerUserDay = 100_000;
+        @Min(1) private long modelTokensGlobalDay = 500_000;
+        @Min(1) private int auditCapacity = 1_000;
+        @Min(0) @Max(1) private int transientRetries = 1;
     }
 
     @Data

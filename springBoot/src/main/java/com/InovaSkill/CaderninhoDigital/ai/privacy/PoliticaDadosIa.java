@@ -32,6 +32,8 @@ public class PoliticaDadosIa {
     private static final List<Pattern> EXFILTRACAO = List.of(
             Pattern.compile("(?i)ignore (?:todas? )?(?:as )?instruções? (?:anteriores|acima)"),
             Pattern.compile("(?i)(?:revele|mostre|retorne|imprima).{0,40}(?:mensagem|prompt) (?:de )?sistema"),
+            Pattern.compile("(?i)(?:revele|mostre|retorne|liste|informe|quais?).{0,50}"
+                    + "(?:tabelas?|estrutura (?:do )?banco|schema|endpoints?|rotas? (?:da )?api)"),
             Pattern.compile("(?i)(?:revele|mostre|retorne|liste|obtenha|extraia).{0,50}"
                     + "(?:credenciais?|senhas?|tokens?|chaves? de api|dados pessoais|cpf|cnpj)"),
             Pattern.compile("(?i)\\b(?:select|insert|update|delete|drop|alter)\\b.{0,80}\\b(?:from|into|table|database|schema)\\b"),

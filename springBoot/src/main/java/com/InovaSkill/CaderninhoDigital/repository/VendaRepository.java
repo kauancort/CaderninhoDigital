@@ -84,6 +84,29 @@ public interface VendaRepository extends JpaRepository<Venda, Long>, JpaSpecific
     );
 
     @Query("""
+            SELECT
+                COALESCE(SUM(v.valorTotal), 0) AS faturamento,
+                COUNT(v) AS quantidadeVendas,
+                COALESCE(AVG(v.valorTotal), 0) AS ticketMedio
+            FROM Venda v
+            WHERE v.dataVenda BETWEEN :inicio AND :fim
+            """)
+    ResumoHistoricoVendasProjection resumirVendasIa(
+            @Param("inicio") LocalDate inicio,
+            @Param("fim") LocalDate fim
+    );
+
+    @Query("""
+            SELECT COALESCE(SUM(i.quantidade), 0)
+            FROM ItemVenda i
+            WHERE i.venda.dataVenda BETWEEN :inicio AND :fim
+            """)
+    BigDecimal totalItensVendasIa(
+            @Param("inicio") LocalDate inicio,
+            @Param("fim") LocalDate fim
+    );
+
+    @Query("""
             SELECT COALESCE(SUM(i.quantidade), 0)
             FROM ItemVenda i
             JOIN i.venda v
@@ -173,5 +196,31 @@ public interface VendaRepository extends JpaRepository<Venda, Long>, JpaSpecific
             @Param("fim") LocalDate fim,
             @Param("forma") com.InovaSkill.CaderninhoDigital.enums.FormaPagamento forma,
             @Param("parcelada") Boolean parcelada
+    );
+    @Query("""
+            SELECT
+                COALESCE(SUM(v.valorTotal), 0) AS totalReceber,
+                COALESCE(SUM(CASE WHEN v.dataVencimento < :hoje THEN v.valorTotal ELSE 0 END), 0) AS totalVencido,
+                COALESCE(SUM(CASE WHEN v.dataVencimento >= :hoje THEN v.valorTotal ELSE 0 END), 0) AS totalEmDia,
+                COALESCE(SUM(CASE WHEN v.dataVencimento < :hoje THEN 1 ELSE 0 END), 0) AS quantidadeAtrasadas,
+                COUNT(v) AS quantidadeCobrancas
+            FROM Venda v
+            WHERE v.statusPagamento = com.InovaSkill.CaderninhoDigital.enums.StatusPagamento.PENDENTE
+              AND v.dataVencimento BETWEEN :inicio AND :fim
+              AND (:situacao = '' OR
+                    (:situacao = 'EM_DIA' AND v.dataVencimento >= :hoje) OR
+                    (:situacao = 'ATRASO_RECENTE' AND v.dataVencimento BETWEEN :limiteRecente AND :ontem) OR
+                    (:situacao = 'ATRASO_MEDIO' AND v.dataVencimento BETWEEN :limiteMedio AND :antesRecente) OR
+                    (:situacao = 'MUITO_ATRASADO' AND v.dataVencimento < :limiteMedio))
+            """)
+    ResumoCobrancasProjection resumirRecebiveisIa(
+            @Param("hoje") LocalDate hoje,
+            @Param("ontem") LocalDate ontem,
+            @Param("limiteRecente") LocalDate limiteRecente,
+            @Param("antesRecente") LocalDate antesRecente,
+            @Param("limiteMedio") LocalDate limiteMedio,
+            @Param("situacao") String situacao,
+            @Param("inicio") LocalDate inicio,
+            @Param("fim") LocalDate fim
     );
 }

@@ -17,7 +17,7 @@ class AssistenteContratoServiceTest {
     private final AssistenteContratoService service = new AssistenteContratoService(properties);
 
     @Test
-    void mantemCompatibilidadeComContratoAntigo() {
+    void usaContratoAtualQuandoVersaoNaoFoiInformada() {
         ConversaRequestDTO request = new ConversaRequestDTO();
         request.setMensagem("  Como estão as vendas?  ");
         request.setHistorico(List.of());
@@ -25,7 +25,15 @@ class AssistenteContratoServiceTest {
         ConversaRequestDTO preparada = service.preparar(request);
 
         assertThat(preparada.getMensagem()).isEqualTo("Como estão as vendas?");
-        assertThat(preparada.getVersaoContrato()).isEqualTo("1.0");
+        assertThat(preparada.getVersaoContrato()).isEqualTo("1.1");
+    }
+
+    @Test
+    void aceitaExplicitamenteContratoLegado() {
+        ConversaRequestDTO request = new ConversaRequestDTO();
+        request.setMensagem("Resumo");
+        request.setVersaoContrato("1.0");
+        assertThat(service.preparar(request).getVersaoContrato()).isEqualTo("1.0");
     }
 
     @Test

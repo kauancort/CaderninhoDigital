@@ -10,7 +10,25 @@ export const API_URL = (
   import.meta.env.PROD && isLocalApiUrl ? RENDER_API_URL : configuredApiUrl || DEFAULT_API_URL
 ).replace(/\/$/, "");
 
-type ApiErrorBody = { message?: string; mensagem?: string; error?: string };
+type ApiErrorBody = {
+  message?: string;
+  mensagem?: string;
+  error?: string;
+  code?: string;
+  correlationId?: string;
+};
+
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    public readonly status: number,
+    public readonly code?: string,
+    public readonly correlationId?: string,
+  ) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
 
 function authHeaders(headers: Headers, publicRequest: boolean) {
   headers.set("Accept", "application/json");
@@ -32,7 +50,12 @@ async function handleAuthError(response: Response) {
       .clone()
       .json()
       .catch(() => null)) as ApiErrorBody | null;
-    throw new Error(body?.message ?? "Você não possui permissão para esta operação.");
+    throw new ApiError(
+      body?.message ?? "Você não possui permissão para esta operação.",
+      403,
+      body?.code,
+      body?.correlationId,
+    );
   }
 }
 
@@ -62,18 +85,23 @@ export async function apiRequest<T>(
   let response: Response;
   try {
     response = await fetch(`${API_URL}${path}`, { ...init, headers });
-  } catch {
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError")
+      throw new ApiError("A consulta excedeu o tempo de espera.", 504, "TIMEOUT");
     throw new Error("Não foi possível conectar ao servidor. Verifique se a API está ativa.");
   }
   await handleAuthError(response);
   const body = response.status === 204 ? null : await response.json().catch(() => null);
   if (!response.ok) {
     const error = body as ApiErrorBody | null;
-    throw new Error(
+    throw new ApiError(
       error?.message ??
         error?.mensagem ??
         error?.error ??
         `Erro na requisição (${response.status}).`,
+      response.status,
+      error?.code,
+      error?.correlationId,
     );
   }
   return body as T;

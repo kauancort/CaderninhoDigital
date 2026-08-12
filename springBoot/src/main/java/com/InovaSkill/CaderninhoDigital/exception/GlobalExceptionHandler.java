@@ -21,7 +21,10 @@ public class GlobalExceptionHandler {
             OrquestradorException ex,
             HttpServletRequest request
     ) {
-        return buildError(ex.getStatus(), ex.getMessage(), request.getRequestURI(), ex.getCodigo().name(), correlacao(request));
+        String correlationId = correlacao(request);
+        log.warn("Falha controlada da IA em {}: codigo={} status={} correlacao={}",
+                request.getRequestURI(), ex.getCodigo().name(), ex.getStatus().value(), correlationId);
+        return buildError(ex.getStatus(), ex.getMessage(), request.getRequestURI(), ex.getCodigo().name(), correlationId);
     }
 
     @ExceptionHandler(BusinessException.class)

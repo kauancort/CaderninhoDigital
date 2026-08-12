@@ -1,1 +1,0 @@
-ALTER TABLE vendas ADD COLUMN aguardando_estoque BOOLEAN NOT NULL DEFAULT FALSE;

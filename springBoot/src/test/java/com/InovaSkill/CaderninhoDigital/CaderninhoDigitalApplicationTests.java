@@ -10,6 +10,8 @@ import org.springframework.boot.testcontainers.service.connection.ServiceConnect
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
+import com.InovaSkill.CaderninhoDigital.repository.VendaRepository;
+import java.time.LocalDate;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -28,6 +30,9 @@ class CaderninhoDigitalApplicationTests {
 
 	@Autowired
 	private JdbcTemplate jdbcTemplate;
+
+	@Autowired
+	private VendaRepository vendaRepository;
 
 	@Test
 	void contextLoads() {
@@ -65,6 +70,17 @@ class CaderninhoDigitalApplicationTests {
 				"SELECT COUNT(*) FROM materias_primas WHERE gestor_id IS NULL", Integer.class)).isEqualTo(7);
 		assertThat(jdbcTemplate.queryForObject(
 				"SELECT COUNT(*) FROM produto_gabarito_itens", Integer.class)).isEqualTo(16);
+	}
+
+	@Test
+	void executaAgregacoesFinanceirasDaIaNoPostgresql() {
+		LocalDate inicio = LocalDate.of(2026, 8, 1);
+		LocalDate fim = LocalDate.of(2026, 8, 7);
+		assertThat(vendaRepository.resumirVendasIa(inicio, fim)).isNotNull();
+		assertThat(vendaRepository.totalItensVendasIa(inicio, fim)).isNotNull();
+		assertThat(vendaRepository.resumirRecebiveisIa(
+				fim, fim.minusDays(1), fim.minusDays(7), fim.minusDays(8),
+				fim.minusDays(30), "", inicio, fim)).isNotNull();
 	}
 
 	@Test

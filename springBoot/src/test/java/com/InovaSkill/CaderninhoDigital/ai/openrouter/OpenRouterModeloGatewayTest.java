@@ -80,7 +80,11 @@ class OpenRouterModeloGatewayTest {
         var response = gateway.gerarPlano(solicitacao());
 
         assertThat(response.conteudo().intencao()).isEqualTo(IntencaoOrquestrador.RESUMO_NEGOCIO);
-        assertThat(transport.request.body()).contains("\"response_format\":{\"type\":\"json_object\"}");
+        assertThat(transport.request.body())
+                .contains("\"response_format\":{\"type\":\"json_schema\"")
+                .contains("\"strict\":true")
+                .contains("\"maxItems\":2")
+                .contains("\"additionalProperties\":false");
     }
 
     @Test
@@ -107,8 +111,8 @@ class OpenRouterModeloGatewayTest {
     @Test
     void classifica400AutenticacaoLimiteEServidorSemExporCorpo() {
         assertStatus(400, CodigoErroOrquestrador.ARGUMENTOS_INVALIDOS);
-        assertStatus(401, CodigoErroOrquestrador.PROVEDOR_INDISPONIVEL);
-        assertStatus(403, CodigoErroOrquestrador.PROVEDOR_INDISPONIVEL);
+        assertStatus(401, CodigoErroOrquestrador.NAO_AUTORIZADO);
+        assertStatus(403, CodigoErroOrquestrador.NAO_AUTORIZADO);
         assertStatus(429, CodigoErroOrquestrador.LIMITE_EXCEDIDO);
         assertStatus(500, CodigoErroOrquestrador.PROVEDOR_INDISPONIVEL);
     }
@@ -147,6 +151,19 @@ class OpenRouterModeloGatewayTest {
         assertThat(metadata.tokensSaida()).isNull();
         assertThat(metadata.tokensTotais()).isNull();
         assertThat(metadata.modeloDivergente()).isFalse();
+    }
+
+    @Test
+    void repeteUmaVezSomenteFalhaTransitoria() {
+        transport.sequence(new OpenRouterHttpResponse(503, "indisponivel"),
+                new OpenRouterHttpResponse(200, resposta("recuperado", null, false)));
+        assertThat(gateway.gerarRespostaFinal(solicitacao()).conteudo()).isEqualTo("recuperado");
+        assertThat(transport.chamadas).isEqualTo(2);
+
+        transport.chamadas = 0;
+        transport.complete(429, "limite");
+        assertErro(() -> gateway.gerarRespostaFinal(solicitacao()), CodigoErroOrquestrador.LIMITE_EXCEDIDO);
+        assertThat(transport.chamadas).isEqualTo(1);
     }
 
     @Test
@@ -206,15 +223,23 @@ class OpenRouterModeloGatewayTest {
     private static final class CapturingTransport implements OpenRouterTransport {
         private CompletableFuture<OpenRouterHttpResponse> future;
         private OpenRouterHttpRequest request;
+        private final java.util.ArrayDeque<CompletableFuture<OpenRouterHttpResponse>> sequencia = new java.util.ArrayDeque<>();
+        private int chamadas;
 
         @Override
         public CompletableFuture<OpenRouterHttpResponse> enviar(OpenRouterHttpRequest request) {
             this.request = request;
-            return future;
+            chamadas++;
+            return sequencia.isEmpty() ? future : sequencia.removeFirst();
         }
 
         void complete(int status, String body) {
             future = CompletableFuture.completedFuture(new OpenRouterHttpResponse(status, body));
+        }
+
+        void sequence(OpenRouterHttpResponse... responses) {
+            sequencia.clear();
+            for (var response : responses) sequencia.add(CompletableFuture.completedFuture(response));
         }
 
         void pending() {

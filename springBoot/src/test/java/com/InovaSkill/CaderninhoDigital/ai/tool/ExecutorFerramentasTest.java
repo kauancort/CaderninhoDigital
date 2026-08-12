@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.InovaSkill.CaderninhoDigital.ai.contract.ArgumentosPeriodo;
 import com.InovaSkill.CaderninhoDigital.ai.contract.ArgumentosSemFiltro;
+import com.InovaSkill.CaderninhoDigital.ai.contract.ArgumentosCompraInsumo;
 import com.InovaSkill.CaderninhoDigital.ai.contract.ChamadaFerramenta;
 import com.InovaSkill.CaderninhoDigital.ai.contract.FerramentaPermitida;
 import com.InovaSkill.CaderninhoDigital.ai.contract.QualidadeResultado;
@@ -132,6 +133,26 @@ class ExecutorFerramentasTest {
                         new ArgumentosPeriodo(LocalDate.parse("2026-01-01"),
                                 LocalDate.parse("2026-08-01"))), null),
                 CodigoErroOrquestrador.ARGUMENTOS_INVALIDOS);
+    }
+
+    @Test
+    void rejeitaPeriodoDeCompraDeInsumoForaDoLimite() {
+        FerramentaLeitura<ArgumentosCompraInsumo> compra = new FerramentaLeitura<>() {
+            public FerramentaPermitida identificador() { return FerramentaPermitida.ANALISE_COMPRAS_INSUMO; }
+            public String descricao() { return "Compra falsa para teste"; }
+            public TipoArgumentosFerramenta tipoArgumentos() { return TipoArgumentosFerramenta.COMPRA_INSUMO; }
+            public Class<ArgumentosCompraInsumo> classeArgumentos() { return ArgumentosCompraInsumo.class; }
+            public PerfilUsuario permissaoNecessaria() { return PerfilUsuario.GESTOR; }
+            public Duration timeout() { return Duration.ofSeconds(1); }
+            public ResultadoFerramenta executar(ArgumentosCompraInsumo a, ContextoExecucaoFerramenta c) {
+                throw new AssertionError("não deve executar");
+            }
+        };
+        ExecutorFerramentas executorCompra = criarExecutor(new CatalogoFerramentas(List.of(compra)));
+        assertErro(() -> executorCompra.executar(new ChamadaFerramenta(
+                FerramentaPermitida.ANALISE_COMPRAS_INSUMO,
+                new ArgumentosCompraInsumo(3L, LocalDate.parse("2026-01-01"),
+                        LocalDate.parse("2026-08-01"))), null), CodigoErroOrquestrador.ARGUMENTOS_INVALIDOS);
     }
 
     @Test
