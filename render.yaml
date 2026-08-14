@@ -26,7 +26,9 @@ services:
       - key: OPENROUTER_API_KEY
         sync: false
       - key: OPENROUTER_MODEL
-        value: openrouter/free
+        value: google/gemma-4-26b-a4b-it:free
+      - key: OPENROUTER_FALLBACK_MODEL
+        value: openai/gpt-oss-20b:free
       - key: TAVILY_API_KEY
         sync: false
       - key: TAVILY_API_URL
@@ -73,12 +75,14 @@ services:
         value: "105000"
       - key: AI_SEARCH_INTERPRETATION_TIMEOUT_MS
         value: "60000"
+      - key: AI_SEARCH_INTERPRETATION_MAX_OUTPUT_TOKENS
+        value: "4000"
       - key: AI_FEATURE_ORCHESTRATOR
         value: "true"
       - key: AI_FEATURE_TOOLS
         value: "true"
       - key: AI_FEATURE_SEARCH
-        value: "false"
+        value: "true"
       - key: AI_FEATURE_CHARTS
         value: "false"
       - key: AI_FEATURE_WRITES

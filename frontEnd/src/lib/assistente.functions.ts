@@ -70,6 +70,8 @@ const ofertaMercadoSchema = z.object({ titulo: z.string(), url: z.string().url()
   freteIncluido: z.boolean(), pedidoMinimo: dinheiro.nullable(), compativelQuantidadeAlvo: z.boolean(),
   localizacao: z.string().nullable(), validade: z.string().date().nullable(), evidenciaPreco: z.string(), evidenciaPedidoMinimo: z.string().nullable(),
   confianca: z.enum(["ALTA", "MEDIA"]) }).strict();
+const fonteMercadoSchema = z.object({ fonteId: z.string(), titulo: z.string(), url: z.string().url(),
+  dominio: z.string(), status: z.enum(["VALIDADA", "REJEITADA", "NAO_CONCLUIDA"]), motivo: z.string().nullable() }).strict();
 const comparacaoMercadoSchema = z.object({ tipo: z.literal("COMPARACAO_MERCADO"),
   materiaPrimaId: z.number().int().positive().nullable(), unidade: z.string(), quantidadeAlvo: dinheiro,
   precoInternoUnitario: dinheiro.nullable(), custoInternoComparavel: dinheiro.nullable(),
@@ -77,6 +79,7 @@ const comparacaoMercadoSchema = z.object({ tipo: z.literal("COMPARACAO_MERCADO")
   diferencaExternaMenosInterna: dinheiro.nullable(), percentualDiferenca: dinheiro.nullable(),
   situacao: z.enum(["CUSTO_INTERNO_MENOR","OFERTA_EXTERNA_MENOR","EQUIVALENTE","INSUFICIENTE"]),
   pesquisadoEm: z.string().datetime({ offset: true }),
+  fontes: z.array(fonteMercadoSchema).max(5).default([]),
   ofertas: z.array(ofertaMercadoSchema).max(5) }).strict();
 const comparacaoFinanceiraSchema = z.object({ tipo: z.literal("COMPARACAO_VENDAS_GASTOS"),
   vendas: vendasSchema, gastos: gastosSchema, comparacao: z.object({ vendas: dinheiro, gastos: dinheiro,

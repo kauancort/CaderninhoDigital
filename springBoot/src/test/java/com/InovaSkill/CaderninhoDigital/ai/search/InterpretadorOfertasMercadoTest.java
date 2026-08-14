@@ -14,6 +14,8 @@ import com.InovaSkill.CaderninhoDigital.ai.gateway.SolicitacaoModelo;
 import com.InovaSkill.CaderninhoDigital.ai.privacy.PoliticaDadosIa;
 import com.InovaSkill.CaderninhoDigital.config.AiOrchestratorProperties;
 import com.InovaSkill.CaderninhoDigital.ai.observability.ControleOperacionalIa;
+import com.InovaSkill.CaderninhoDigital.exception.CodigoErroOrquestrador;
+import com.InovaSkill.CaderninhoDigital.exception.OrquestradorException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
 import java.net.URI;
@@ -22,6 +24,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.Clock;
+import org.springframework.http.HttpStatus;
 
 class InterpretadorOfertasMercadoTest {
     private final ModeloGateway gateway = mock(ModeloGateway.class);
@@ -60,6 +63,49 @@ class InterpretadorOfertasMercadoTest {
         verify(gateway).gerarEstruturado(captor.capture(), eq(ExtracaoOfertasMercado.class), any());
         assertThat(captor.getValue().mensagens().get(1).conteudo())
                 .doesNotContain("teste@loja.example").contains("[DADO_RESTRITO_REMOVIDO]");
+    }
+
+    @Test void preservaCoberturaDeTodasAsFontesMesmoQuandoUmaERejeitada() {
+        var oferta = oferta("fonte-1", "10.00", ExtracaoOfertasMercado.TipoPreco.UNITARIO,
+                ExtracaoOfertasMercado.Unidade.KG, null, "R$ 10,00 por kg");
+        when(gateway.gerarEstruturado(any(), eq(ExtracaoOfertasMercado.class), any())).thenReturn(new RespostaModelo<>(
+                new ExtracaoOfertasMercado(List.of(
+                        new ExtracaoOfertasMercado.Fonte("fonte-1", ExtracaoOfertasMercado.Status.ACEITA, null, List.of(oferta)),
+                        new ExtracaoOfertasMercado.Fonte("fonte-2", ExtracaoOfertasMercado.Status.REJEITADA, "sem preço", List.of()))),
+                new MetadadosModelo("m", "m", null, null, null, 1, false)));
+        var primeira = new FontePesquisaPreco("Loja 1", URI.create("https://loja1.example/item"), "loja1.example", "R$ 10/kg");
+        var segunda = new FontePesquisaPreco("Loja 2", URI.create("https://loja2.example/item"), "loja2.example", "sem preço");
+
+        var resultado = interpretador.interpretarDetalhado(List.of(primeira, segunda), "Açúcar", 1L);
+
+        assertThat(resultado.ofertas()).hasSize(1);
+        assertThat(resultado.fontes()).extracting(ResultadoFontePesquisa::status)
+                .containsExactly(ResultadoFontePesquisa.Status.VALIDADA, ResultadoFontePesquisa.Status.REJEITADA);
+        assertThat(resultado.fontes().get(1).motivo()).isEqualTo("sem preço");
+    }
+
+    @Test void recuperaAnuncioExplicitoQuandoModeloNaoEntregaJsonValido() {
+        when(gateway.gerarEstruturado(any(), eq(ExtracaoOfertasMercado.class), any()))
+                .thenThrow(new OrquestradorException(CodigoErroOrquestrador.PLANO_INVALIDO,
+                        HttpStatus.BAD_GATEWAY, "formato inválido"));
+        var primeira = new FontePesquisaPreco("Açúcar Demerara - Loja", URI.create("https://loja.example/acucar"),
+                "loja.example", "Açúcar Demerara em pacote de 10 kg por R$ 95,29.");
+        var segunda = new FontePesquisaPreco("Açúcar Demerara atacado", URI.create("https://atacado.example/acucar"),
+                "atacado.example", "Açúcar Demerara por R$ 9,53 por kg.");
+
+        var resultado = interpretador.interpretarDetalhado(List.of(primeira, segunda), "Açúcar Demerara", 1L);
+
+        assertThat(resultado.ofertas()).hasSize(2);
+        assertThat(resultado.fontes()).extracting(ResultadoFontePesquisa::status)
+                .containsExactly(ResultadoFontePesquisa.Status.VALIDADA, ResultadoFontePesquisa.Status.VALIDADA);
+        assertThat(resultado.ofertas().get(0).dados().tipoPreco())
+                .isEqualTo(ExtracaoOfertasMercado.TipoPreco.TOTAL_EMBALAGEM);
+        assertThat(resultado.ofertas().get(0).dados().precoAnunciado()).isEqualByComparingTo("95.29");
+        assertThat(resultado.ofertas().get(0).dados().quantidadeEmbalagem()).isEqualByComparingTo("10");
+        assertThat(resultado.ofertas().get(1).dados().tipoPreco())
+                .isEqualTo(ExtracaoOfertasMercado.TipoPreco.UNITARIO);
+        assertThat(resultado.ofertas().get(1).dados().unidadePreco())
+                .isEqualTo(ExtracaoOfertasMercado.Unidade.KG);
     }
 
     private ExtracaoOfertasMercado.Oferta oferta(String fonte, String preco,

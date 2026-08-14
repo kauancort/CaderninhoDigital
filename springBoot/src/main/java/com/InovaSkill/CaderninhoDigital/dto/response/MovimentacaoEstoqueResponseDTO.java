@@ -18,6 +18,7 @@ public class MovimentacaoEstoqueResponseDTO {
     private String unidadeMedida;
     private TipoMovimentacaoEstoque tipoMovimentacao;
     private OrigemMovimentacaoEstoque origem;
+    private Long origemId;
     private BigDecimal quantidade;
     private BigDecimal saldoAnterior;
     private BigDecimal saldoPosterior;

@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.validation.Validator;
 import java.net.URI;
 import java.net.http.HttpTimeoutException;
+import java.text.Normalizer;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -28,6 +29,11 @@ import io.micrometer.core.instrument.MeterRegistry;
 public class TavilyPesquisaPrecosGateway implements PesquisaPrecosGateway {
     private static final int MAX_RESPONSE_CHARACTERS = 500_000;
     private static final Pattern PRECO = Pattern.compile("(?i)R\\$\\s*\\d");
+    private static final Pattern SINAL_COMERCIAL_FORTE = Pattern.compile(
+            "(?i)\\b(loja|comprar|compra|venda|oferta|atacado|distribuidor|fornecedor|catalogo|pacote|saco|"
+                    + "embalagem|marketplace|e[ -]?commerce|mercado livre|online|shop|store)\\b");
+    private static final Pattern QUANTIDADE_COMERCIAL = Pattern.compile(
+            "(?i)\\b\\d+(?:[.,]\\d+)?\\s*(kg|quilo(?:s)?|g|grama(?:s)?|l|litro(?:s)?|ml|mililitro(?:s)?|unidade(?:s)?)\\b");
     private static final Pattern INJECAO = Pattern.compile("(?i)(ignore.{0,30}instru|system prompt|mensagem de sistema|execute.{0,20}tool|<script)");
     private final AiOrchestratorProperties properties;
     private final ObjectMapper mapper;
@@ -61,14 +67,15 @@ public class TavilyPesquisaPrecosGateway implements PesquisaPrecosGateway {
         if (config.getKey()==null || config.getKey().isBlank()) throw erro(
                 CodigoErroOrquestrador.PROVEDOR_INDISPONIVEL, HttpStatus.SERVICE_UNAVAILABLE,
                 "Pesquisa externa não configurada");
-        String consulta = "%s preço %s %s %s %s".formatted(solicitacao.insumo(), solicitacao.quantidade(),
-                solicitacao.unidade(), solicitacao.cidade(), solicitacao.uf());
+        String consulta = montarConsulta(solicitacao, config.getMaxQueryCharacters());
         if (consulta.length()>config.getMaxQueryCharacters()) throw erro(CodigoErroOrquestrador.LIMITE_EXCEDIDO,
                 HttpStatus.PAYLOAD_TOO_LARGE, "Consulta excede o limite permitido");
         String body;
         try {
             var json=mapper.createObjectNode(); json.put("query",consulta); json.put("search_depth","basic");
-            json.put("max_results",config.getMaxResults()); json.put("include_answer",false);
+            // Busca mais candidatos para que páginas informativas mal ranqueadas não
+            // ocupem todas as vagas antes do filtro comercial local.
+            json.put("max_results",Math.min(10, config.getMaxResults() * 3)); json.put("include_answer",false);
             json.put("include_raw_content","text"); body=mapper.writeValueAsString(json);
         } catch (Exception e) { throw erro(CodigoErroOrquestrador.ERRO_INTERNO,
                 HttpStatus.INTERNAL_SERVER_ERROR,"Não foi possível preparar a pesquisa"); }
@@ -98,10 +105,12 @@ public class TavilyPesquisaPrecosGateway implements PesquisaPrecosGateway {
                 String titulo=limitar(item.path("title").asText("Fonte sem título"),120);
                 String trecho=trechoUtil(item);
                 URI url=urlSegura(item.path("url").asText(null));
-                if (url==null || trecho.isBlank() || INJECAO.matcher(trecho).find()) continue;
+                if (url==null || trecho.isBlank() || INJECAO.matcher(trecho).find()
+                        || !sinalComercial(titulo, url, item)) continue;
                 fontes.add(new FontePesquisaPreco(titulo,url,url.getHost().toLowerCase(Locale.ROOT),trecho));
             }
-            List<String> avisos=fontes.isEmpty()?List.of("Nenhuma fonte segura e utilizável foi encontrada."):List.of();
+            List<String> avisos=fontes.isEmpty()
+                    ? List.of("Nenhuma fonte comercial ou catálogo de produto utilizável foi encontrado.") : List.of();
             return new ResultadoPesquisaPrecos(consulta,Instant.now(clock),List.copyOf(fontes),avisos);
         } catch (Exception e) { throw erro(CodigoErroOrquestrador.PROVEDOR_INDISPONIVEL,
                 HttpStatus.BAD_GATEWAY,"Resposta inválida da pesquisa externa"); }
@@ -112,6 +121,34 @@ public class TavilyPesquisaPrecosGateway implements PesquisaPrecosGateway {
         String bruto=item.path("raw_content").asText("");
         String preferido = !bruto.isBlank() && PRECO.matcher(bruto).find() ? bruto : resumo;
         return limitar(preferido.replaceAll("\\s+"," ").trim(),properties.getSearch().getMaxSnippetCharacters());
+    }
+
+    private boolean sinalComercial(String titulo, URI url, JsonNode item) {
+        String identificador = semAcentos(titulo + " " + url);
+        if (SINAL_COMERCIAL_FORTE.matcher(identificador).find()) return true;
+        String conteudo = item.path("content").asText("") + " " + item.path("raw_content").asText("");
+        String combinado = identificador + " " + semAcentos(conteudo);
+        return PRECO.matcher(conteudo).find()
+                && (SINAL_COMERCIAL_FORTE.matcher(combinado).find()
+                        || QUANTIDADE_COMERCIAL.matcher(combinado).find());
+    }
+
+    private String montarConsulta(SolicitacaoPesquisaPrecos solicitacao, int maximo) {
+        String intencao = "%s melhor preço %s %s compra comercial fornecedor loja".formatted(
+                solicitacao.insumo(), solicitacao.quantidade(), solicitacao.unidade());
+        if (intencao.length() > maximo) {
+            throw erro(CodigoErroOrquestrador.LIMITE_EXCEDIDO, HttpStatus.PAYLOAD_TOO_LARGE,
+                    "Consulta excede o limite permitido");
+        }
+        String local = " %s %s".formatted(solicitacao.cidade(), solicitacao.uf());
+        if (intencao.length() + local.length() <= maximo) return intencao + local;
+        String estado = " " + solicitacao.uf();
+        return intencao.length() + estado.length() <= maximo ? intencao + estado : intencao;
+    }
+
+    private String semAcentos(String valor) {
+        return Normalizer.normalize(valor == null ? "" : valor, Normalizer.Form.NFD)
+                .replaceAll("\\p{M}+", "").toLowerCase(Locale.ROOT);
     }
 
     private URI urlSegura(String valor) {

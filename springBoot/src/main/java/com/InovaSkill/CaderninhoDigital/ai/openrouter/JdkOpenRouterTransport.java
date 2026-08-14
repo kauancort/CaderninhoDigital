@@ -23,6 +23,11 @@ class JdkOpenRouterTransport implements OpenRouterTransport {
                 .POST(HttpRequest.BodyPublishers.ofString(request.body()));
         request.headers().forEach(builder::header);
         return httpClient.sendAsync(builder.build(), HttpResponse.BodyHandlers.ofString())
-                .thenApply(response -> new OpenRouterHttpResponse(response.statusCode(), response.body()));
+                .thenApply(response -> new OpenRouterHttpResponse(response.statusCode(), response.body(),
+                        response.headers().map().entrySet().stream()
+                                .collect(java.util.stream.Collectors.toUnmodifiableMap(
+                                        java.util.Map.Entry::getKey,
+                                        entry -> entry.getValue().isEmpty() ? "" : entry.getValue().getFirst(),
+                                        (first, ignored) -> first))));
     }
 }

@@ -52,11 +52,14 @@ public sealed interface DadosAssistenteDTO permits DadosAssistenteDTO.Estoque,
             BigDecimal pedidoMinimo, boolean compativelQuantidadeAlvo, String localizacao,
             LocalDate validade, String evidenciaPreco, String evidenciaPedidoMinimo, String confianca) {}
 
+    record FonteMercado(String fonteId, String titulo, String url, String dominio,
+            String status, String motivo) {}
+
     record ComparacaoMercado(String tipo, Long materiaPrimaId, String unidade, BigDecimal quantidadeAlvo,
             BigDecimal precoInternoUnitario, BigDecimal custoInternoComparavel, BigDecimal menorCustoExterno,
             BigDecimal economiaEstimada, BigDecimal diferencaExternaMenosInterna,
             BigDecimal percentualDiferenca, String situacao,
-            Instant pesquisadoEm, List<OfertaMercado> ofertas) implements DadosAssistenteDTO {}
+            Instant pesquisadoEm, List<FonteMercado> fontes, List<OfertaMercado> ofertas) implements DadosAssistenteDTO {}
 
     record ComparacaoFinanceira(BigDecimal vendas, BigDecimal gastos, BigDecimal diferenca,
             BigDecimal percentualVendasSobreGastos) {}

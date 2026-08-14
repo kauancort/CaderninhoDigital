@@ -47,9 +47,10 @@ public class MovimentacaoEstoqueService {
             BigDecimal saldoPosterior,
             TipoMovimentacaoEstoque tipo,
             OrigemMovimentacaoEstoque origem,
+            Long origemId,
             String observacao
     ) {
-        registrar(produto, null, usuario, saldoAnterior, saldoPosterior, tipo, origem, observacao);
+        registrar(produto, null, usuario, saldoAnterior, saldoPosterior, tipo, origem, origemId, observacao, false);
     }
 
     @Transactional
@@ -60,9 +61,36 @@ public class MovimentacaoEstoqueService {
             BigDecimal saldoPosterior,
             TipoMovimentacaoEstoque tipo,
             OrigemMovimentacaoEstoque origem,
+            Long origemId,
             String observacao
     ) {
-        registrar(null, materiaPrima, usuario, saldoAnterior, saldoPosterior, tipo, origem, observacao);
+        registrar(null, materiaPrima, usuario, saldoAnterior, saldoPosterior, tipo, origem, origemId, observacao, false);
+    }
+
+    @Transactional
+    public void registrarRemocaoMateriaPrima(
+            MateriaPrima materiaPrima,
+            Usuario usuario,
+            BigDecimal saldoAnterior,
+            String motivo
+    ) {
+        registrar(
+                null, materiaPrima, usuario, saldoAnterior, BigDecimal.ZERO,
+                TipoMovimentacaoEstoque.SAIDA, OrigemMovimentacaoEstoque.REMOCAO_MANUAL,
+                null, motivo, true);
+    }
+
+    @Transactional
+    public void registrarRemocaoProduto(
+            Produto produto,
+            Usuario usuario,
+            BigDecimal saldoAnterior,
+            String motivo
+    ) {
+        registrar(
+                produto, null, usuario, saldoAnterior, BigDecimal.ZERO,
+                TipoMovimentacaoEstoque.SAIDA, OrigemMovimentacaoEstoque.REMOCAO_MANUAL,
+                null, motivo, true);
     }
 
     private void registrar(
@@ -73,10 +101,12 @@ public class MovimentacaoEstoqueService {
             BigDecimal saldoPosterior,
             TipoMovimentacaoEstoque tipo,
             OrigemMovimentacaoEstoque origem,
-            String observacao
+            Long origemId,
+            String observacao,
+            boolean registrarSaldoSemQuantidade
     ) {
         BigDecimal quantidade = saldoPosterior.subtract(saldoAnterior).abs();
-        if (quantidade.compareTo(BigDecimal.ZERO) == 0) {
+        if (!registrarSaldoSemQuantidade && quantidade.compareTo(BigDecimal.ZERO) == 0) {
             return;
         }
         boolean isProduto = produto != null;
@@ -88,6 +118,7 @@ public class MovimentacaoEstoqueService {
                 .unidadeMedida(isProduto ? produto.getUnidadeMedida() : materiaPrima.getUnidadeMedida())
                 .tipoMovimentacao(tipo)
                 .origem(origem)
+                .origemId(origemId)
                 .quantidade(quantidade)
                 .saldoAnterior(saldoAnterior)
                 .saldoPosterior(saldoPosterior)
@@ -197,6 +228,7 @@ public class MovimentacaoEstoqueService {
                 .unidadeMedida(movimento.getUnidadeMedida())
                 .tipoMovimentacao(movimento.getTipoMovimentacao())
                 .origem(movimento.getOrigem())
+                .origemId(movimento.getOrigemId())
                 .quantidade(movimento.getQuantidade())
                 .saldoAnterior(movimento.getSaldoAnterior())
                 .saldoPosterior(movimento.getSaldoPosterior())

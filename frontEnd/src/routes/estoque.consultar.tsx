@@ -10,6 +10,9 @@ import {
   Cookie,
   Search,
   AlertCircle,
+  Eye,
+  Plus,
+  PackagePlus,
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import {
@@ -19,6 +22,12 @@ import {
 } from "@/lib/catalogo.functions";
 import { fmtBRL } from "@/lib/format";
 import { PageHeader } from "@/components/DesignSystem";
+import { CadastroEstoqueDialog } from "@/components/estoque/CadastroEstoqueDialog";
+import type { ItemEdicaoEstoque } from "@/components/estoque/CadastroEstoqueDialog";
+import {
+  EstoqueItemDetalhesDialog,
+  type ItemConsultaEstoque,
+} from "@/components/estoque/EstoqueItemDetalhesDialog";
 
 export const Route = createFileRoute("/estoque/consultar")({
   component: () => (
@@ -34,6 +43,9 @@ function Estoque() {
   const [buscaDebounced, setBuscaDebounced] = useState("");
   const [pagina, setPagina] = useState(0);
   const [soAlerta, setSoAlerta] = useState(false);
+  const [cadastro, setCadastro] = useState<"PRODUTO" | "MATERIA_PRIMA" | null>(null);
+  const [itemEditando, setItemEditando] = useState<ItemEdicaoEstoque | null>(null);
+  const [itemSelecionado, setItemSelecionado] = useState<ItemConsultaEstoque | null>(null);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -69,14 +81,12 @@ function Estoque() {
     placeholderData: (anterior) => anterior,
   });
 
-  const mpsBruto = paginaMps?.registros ?? [];
-  const produtosBruto = paginaProdutos?.registros ?? [];
   const baixos = resumoMps?.itensEmAlerta ?? 0;
   const paginaAtiva = aba === "mp" ? paginaMps : paginaProdutos;
 
   // 1. Ordenação de Matéria-Prima: Do mais crítico (menor % em relação ao estoque mínimo) para o menos crítico
   const mps = useMemo(() => {
-    return [...mpsBruto].sort((a: any, b: any) => {
+    return [...(paginaMps?.registros ?? [])].sort((a: any, b: any) => {
       const qta = Number(a.quantidade_estoque);
       const mina = Math.max(Number(a.estoque_minimo), 0.01);
       const ratioA = qta / mina;
@@ -87,16 +97,16 @@ function Estoque() {
 
       return ratioA - ratioB;
     });
-  }, [mpsBruto]);
+  }, [paginaMps?.registros]);
 
   // 2. Ordenação de Produtos Finais: Do menor estoque para o maior estoque
   const produtos = useMemo(() => {
-    return [...produtosBruto].sort((a: any, b: any) => {
+    return [...(paginaProdutos?.registros ?? [])].sort((a: any, b: any) => {
       const qta = Number(a.quantidade_estoque);
       const qtb = Number(b.quantidade_estoque);
       return qta - qtb;
     });
-  }, [produtosBruto]);
+  }, [paginaProdutos?.registros]);
 
   function abrirAlertas() {
     if (baixos === 0) return;
@@ -120,6 +130,51 @@ function Estoque() {
           <ArrowLeft size={18} />
         </Link>
         <PageHeader title="Consultar estoque" description="Ingredientes e produtos finais." />
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <button
+          type="button"
+          onClick={() => {
+            setItemEditando(null);
+            setCadastro("PRODUTO");
+          }}
+          className="group flex min-h-24 items-center gap-4 rounded-2xl border border-primary/25 bg-card p-4 text-left shadow-warm-sm transition hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-warm-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        >
+          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary-bg text-primary transition-transform group-hover:scale-105">
+            <PackagePlus size={23} />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block font-display text-lg font-bold text-foreground">
+              Adicionar produto
+            </span>
+            <span className="mt-0.5 block text-xs text-muted-foreground">
+              Cadastre um novo produto final
+            </span>
+          </span>
+          <ChevronRight size={20} className="shrink-0 text-primary" />
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setItemEditando(null);
+            setCadastro("MATERIA_PRIMA");
+          }}
+          className="group flex min-h-24 items-center gap-4 rounded-2xl border border-gold/35 bg-gold-bg/35 p-4 text-left shadow-warm-sm transition hover:-translate-y-0.5 hover:border-gold/60 hover:shadow-warm-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        >
+          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-card text-gold-dark shadow-warm-sm transition-transform group-hover:scale-105">
+            <Plus size={24} />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block font-display text-lg font-bold text-foreground">
+              Adicionar matéria-prima
+            </span>
+            <span className="mt-0.5 block text-xs text-muted-foreground">
+              Inclua um novo ingrediente no estoque
+            </span>
+          </span>
+          <ChevronRight size={20} className="shrink-0 text-gold-dark" />
+        </button>
       </div>
 
       <div className="flex flex-wrap gap-2 bg-card border border-border rounded-2xl md:rounded-full p-1 shadow-warm-sm w-full md:w-fit">
@@ -195,9 +250,21 @@ function Estoque() {
               />
             ) : (
               mps.map((i: any) => (
-                <div key={i.id}>
-                  <RowMP item={i} />
-                </div>
+                <RowMP
+                  key={i.id}
+                  item={i}
+                  onClick={() =>
+                    setItemSelecionado({
+                      id: String(i.id),
+                      nome: i.nome,
+                      tipo: "MATERIA_PRIMA",
+                      unidade: i.unidade,
+                      quantidade: Number(i.quantidade_estoque),
+                      custoMedio: Number(i.custo_medio),
+                      estoqueMinimo: Number(i.estoque_minimo),
+                    })
+                  }
+                />
               ))
             )}
           </div>
@@ -213,9 +280,21 @@ function Estoque() {
               <Empty msg="Nenhum produto cadastrado." />
             ) : (
               produtos.map((p: any) => (
-                <div key={p.id}>
-                  <RowPF produto={p} />
-                </div>
+                <RowPF
+                  key={p.id}
+                  produto={p}
+                  onClick={() =>
+                    setItemSelecionado({
+                      id: String(p.id),
+                      nome: p.nome,
+                      tipo: "PRODUTO",
+                      unidade: p.unidade || "un",
+                      quantidade: Number(p.quantidade_estoque),
+                      precoVenda: Number(p.preco_venda),
+                      sku: p.sku,
+                    })
+                  }
+                />
               ))
             )}
           </div>
@@ -245,11 +324,38 @@ function Estoque() {
           </button>
         </nav>
       )}
+
+      <CadastroEstoqueDialog
+        tipo={cadastro ?? "PRODUTO"}
+        open={cadastro !== null}
+        item={itemEditando}
+        onClose={() => {
+          setCadastro(null);
+          setItemEditando(null);
+        }}
+      />
+      <EstoqueItemDetalhesDialog
+        item={itemSelecionado}
+        onClose={() => setItemSelecionado(null)}
+        onEdit={(item) => {
+          setItemEditando({
+            id: item.id,
+            nome: item.nome,
+            tipo: item.tipo,
+            unidade: item.unidade,
+            estoqueMinimo: item.estoqueMinimo,
+            precoVenda: item.precoVenda,
+            sku: item.sku,
+          });
+          setItemSelecionado(null);
+          setCadastro(item.tipo);
+        }}
+      />
     </div>
   );
 }
 
-function RowMP({ item }: { item: any }) {
+function RowMP({ item, onClick }: { item: any; onClick: () => void }) {
   const estoque = Number(item.quantidade_estoque);
   const min = Number(item.estoque_minimo);
   const pct = Math.min(100, (estoque / Math.max(min * 2, 0.01)) * 100);
@@ -283,8 +389,10 @@ function RowMP({ item }: { item: any }) {
           : "Ok";
 
   return (
-    <div
-      className={`bg-card border ${cardBorder} rounded-2xl p-5 shadow-warm-sm flex flex-col md:flex-row md:items-center gap-4 transition-all`}
+    <button
+      type="button"
+      onClick={onClick}
+      className={`w-full bg-card border ${cardBorder} rounded-2xl p-5 text-left shadow-warm-sm flex flex-col md:flex-row md:items-center gap-4 transition-all hover:-translate-y-0.5 hover:shadow-warm-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary`}
     >
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-1">
@@ -308,6 +416,9 @@ function RowMP({ item }: { item: any }) {
         </div>
       </div>
       <div className="flex items-center gap-3 md:gap-4 md:w-64 md:justify-end">
+        <span className="inline-flex items-center gap-1.5 text-sm font-bold text-primary">
+          <Eye size={16} /> Ver detalhes
+        </span>
         <div className="text-right">
           <div
             className={`font-display text-2xl font-bold leading-none ${
@@ -321,11 +432,11 @@ function RowMP({ item }: { item: any }) {
           </div>
         </div>
       </div>
-    </div>
+    </button>
   );
 }
 
-function RowPF({ produto }: { produto: any }) {
+function RowPF({ produto, onClick }: { produto: any; onClick: () => void }) {
   const estoque = Number(produto.quantidade_estoque);
 
   // Definição de níveis de criticidade para produto final (ex: zerado/crítico <= 0, alerta <= 10)
@@ -350,8 +461,10 @@ function RowPF({ produto }: { produto: any }) {
   const pctVisual = Math.min(100, (estoque / 44) * 100);
 
   return (
-    <div
-      className={`bg-card border ${cardBorder} rounded-2xl p-5 shadow-warm-sm flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all`}
+    <button
+      type="button"
+      onClick={onClick}
+      className={`w-full bg-card border ${cardBorder} rounded-2xl p-5 text-left shadow-warm-sm flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all hover:-translate-y-0.5 hover:shadow-warm-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary`}
     >
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-1">
@@ -366,7 +479,8 @@ function RowPF({ produto }: { produto: any }) {
           </span>
         </div>
         <div className="text-xs text-muted-foreground font-body">
-          Preço de venda: <strong className="text-foreground">{fmtBRL(Number(produto.preco_venda))}</strong>
+          Preço de venda:{" "}
+          <strong className="text-foreground">{fmtBRL(Number(produto.preco_venda))}</strong>
         </div>
 
         {/* Barra de Progresso visual */}
@@ -381,6 +495,9 @@ function RowPF({ produto }: { produto: any }) {
       </div>
 
       <div className="flex items-center justify-between md:justify-end gap-3 md:w-48">
+        <span className="inline-flex items-center gap-1.5 text-sm font-bold text-primary">
+          <Eye size={16} /> Ver detalhes
+        </span>
         {isZerado && (
           <div className="flex items-center gap-1 text-xs text-error font-semibold">
             <AlertCircle size={15} /> Requer produção
@@ -397,7 +514,7 @@ function RowPF({ produto }: { produto: any }) {
           </div>
         </div>
       </div>
-    </div>
+    </button>
   );
 }
 

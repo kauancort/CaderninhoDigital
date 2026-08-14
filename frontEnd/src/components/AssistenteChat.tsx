@@ -164,21 +164,30 @@ function DadosResultado({ dados }: { dados: NonNullable<AssistenteResposta["dado
           { rotulo: `Melhor oferta externa (${formatarNumero(dados.quantidadeAlvo)} ${dados.unidade})`, valor: formatarMoeda(dados.menorCustoExterno) },
           { rotulo: dados.situacao === "CUSTO_INTERNO_MENOR" ? "Seu custo é menor por" : "Economia potencial", valor: dados.situacao === "CUSTO_INTERNO_MENOR" ? formatarMoeda(dados.diferencaExternaMenosInterna) : formatarMoeda(dados.economiaEstimada) },
         ]} />
-        {dados.ofertas.length > 0 && <details className="rounded-xl border border-border bg-card px-4 py-3">
+        {(dados.fontes.length > 0 || dados.ofertas.length > 0) && <details className="rounded-xl border border-border bg-card px-4 py-3">
           <summary className="cursor-pointer font-semibold min-h-11 flex items-center">Ver fontes pesquisadas</summary>
-          <ul className="mt-2 space-y-3">{dados.ofertas.map((oferta, indice) => <li key={oferta.url} className="rounded-lg border border-border p-3">
-            {indice === 0 && oferta.compativelQuantidadeAlvo && <span className="mb-1 inline-block rounded-full bg-primary px-2 py-1 text-xs font-bold text-primary-foreground">Melhor oferta compatível</span>}
-            <a href={oferta.url} target="_blank" rel="noreferrer" className="font-semibold underline">
-              {oferta.titulo}
-            </a>
-            <span className="block">Preço convertido: {formatarMoeda(oferta.precoUnitario)} por {dados.unidade}</span>
-            <span className="block">Total para {formatarNumero(oferta.quantidadeCalculada)} {dados.unidade}: {formatarMoeda(oferta.custoTotal)}</span>
-            {oferta.localizacao && <span className="block">Localização: {oferta.localizacao}</span>}
-            {oferta.pedidoMinimo !== null && <span className="block font-medium">Pedido mínimo: {formatarNumero(oferta.pedidoMinimo)} {dados.unidade}</span>}
-            {!oferta.compativelQuantidadeAlvo && <span className="block font-semibold text-warning-foreground">Não atende à quantidade solicitada sem aumentar o pedido.</span>}
-            <span className="block text-muted-foreground">Evidência: “{oferta.evidenciaPreco}”</span>
-            <span className="block text-muted-foreground">{oferta.freteIncluido ? "Frete identificado e incluído." : "Frete não informado na fonte."}</span>
-          </li>)}</ul>
+          {dados.fontes.length > 0 && <ul className="mt-2 space-y-3">{dados.fontes.map((fonte) => <li key={fonte.fonteId} className="rounded-lg border border-border p-3">
+            <a href={fonte.url} target="_blank" rel="noreferrer" className="font-semibold underline">{fonte.titulo}</a>
+            <span className="block text-muted-foreground">{fonte.status === "VALIDADA" ? "Fonte validada" : fonte.status === "REJEITADA" ? "Fonte rejeitada" : "Validação não concluída"}</span>
+            {fonte.motivo && <span className="block text-muted-foreground">{fonte.motivo}</span>}
+          </li>)}</ul>}
+          {dados.ofertas.length > 0 && <>
+            <p className="mt-4 font-semibold">{dados.situacao === "INSUFICIENTE" ? "Ofertas estruturadas (sem conclusão)" : "Ofertas validadas"}</p>
+            <ul className="mt-2 space-y-3">{dados.ofertas.map((oferta, indice) => <li key={`${oferta.url}-${indice}`} className="rounded-lg border border-border p-3">
+              {indice === 0 && oferta.compativelQuantidadeAlvo && <span className="mb-1 inline-block rounded-full bg-primary px-2 py-1 text-xs font-bold text-primary-foreground">Melhor oferta compatível</span>}
+              <a href={oferta.url} target="_blank" rel="noreferrer" className="font-semibold underline">
+                {oferta.titulo}
+              </a>
+              <span className="block">Preço convertido: {formatarMoeda(oferta.precoUnitario)} por {dados.unidade}</span>
+              <span className="block">Total para {formatarNumero(oferta.quantidadeCalculada)} {dados.unidade}: {formatarMoeda(oferta.custoTotal)}</span>
+              {oferta.localizacao && <span className="block">Localização: {oferta.localizacao}</span>}
+              {oferta.pedidoMinimo !== null && <span className="block font-medium">Pedido mínimo: {formatarNumero(oferta.pedidoMinimo)} {dados.unidade}</span>}
+              {!oferta.compativelQuantidadeAlvo && <span className="block font-semibold text-warning-foreground">Não atende à quantidade solicitada sem aumentar o pedido.</span>}
+              <span className="block text-muted-foreground">Evidência: “{oferta.evidenciaPreco}”</span>
+              <span className="block text-muted-foreground">{oferta.freteIncluido ? "Frete identificado e incluído." : "Frete não informado na fonte."}</span>
+            </li>)}</ul>
+          </>}
+          {dados.ofertas.length === 0 && <p className="mt-2 text-muted-foreground">Nenhuma oferta foi validada; os links acima mostram as fontes consultadas.</p>}
         </details>}
       </>;
   }

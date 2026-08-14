@@ -28,7 +28,8 @@ public class AiOrchestratorProperties {
     public static class Provider {
         private String key = "";
         @NotBlank private String url = "https://openrouter.ai/api/v1/chat/completions";
-        @NotBlank private String model = "openrouter/free";
+        @NotBlank private String model = "google/gemma-4-26b-a4b-it:free";
+        private String fallbackModel = "";
     }
 
     @Data
@@ -37,6 +38,8 @@ public class AiOrchestratorProperties {
         @NotBlank private String url = "https://api.tavily.com/search";
         @Min(100) private int timeoutMs = 35_000;
         @Min(100) private int interpretationTimeoutMs = 60_000;
+        /** Orçamentos de extração podem conter várias fontes e muitos campos nulos. */
+        @Min(512) @Max(20_000) private int interpretationMaxOutputTokens = 4_000;
         @Min(1) @Max(5) private int maxResults = 3;
         @Min(20) @Max(500) private int maxQueryCharacters = 180;
         @Min(100) @Max(4_000) private int maxSnippetCharacters = 4_000;

@@ -104,13 +104,22 @@ public class MapeadorDadosAssistente {
                 o.dominio(), o.precoUnitario(), o.quantidadeCalculada(), o.custoTotal(), o.freteIncluido(),
                 o.pedidoMinimo(), o.compativelQuantidadeAlvo(), o.localizacao(), o.validade(), o.evidenciaPreco(),
                 o.evidenciaPedidoMinimo(), o.confianca())).toList();
+        List<com.InovaSkill.CaderninhoDigital.ai.search.ResultadoFontePesquisa> fontesOrigem =
+                d.get("fontes") instanceof List<?> lista
+                        ? lista.stream()
+                                .filter(com.InovaSkill.CaderninhoDigital.ai.search.ResultadoFontePesquisa.class::isInstance)
+                                .map(com.InovaSkill.CaderninhoDigital.ai.search.ResultadoFontePesquisa.class::cast)
+                                .toList()
+                        : List.of();
+        var fontes = fontesOrigem.stream().map(f -> new DadosAssistenteDTO.FonteMercado(f.fonteId(), f.titulo(),
+                f.url(), f.dominio(), f.status().name(), f.motivo())).toList();
         return new DadosAssistenteDTO.ComparacaoMercado("COMPARACAO_MERCADO", longoNulo(d.get("materiaPrimaId")),
                 texto(d,"unidade"), decimalNulo(d.get("quantidadeAlvo")), decimalNulo(d.get("precoInternoUnitario")),
                 decimalNulo(d.get("custoInternoComparavel")),
                 decimalNulo(d.get("menorCustoExterno")), decimalNulo(d.get("economiaEstimada")),
                 decimalNulo(d.get("diferencaExternaMenosInterna")),decimalNulo(d.get("percentualDiferenca")),
                 texto(d,"situacao"),
-                instante(d.get("pesquisadoEm")), ofertas);
+                instante(d.get("pesquisadoEm")), fontes, ofertas);
     }
     private DadosAssistenteDTO.FaixaRecebiveis faixa(Object v) {
         Map<String,Object> d = mapa(v);

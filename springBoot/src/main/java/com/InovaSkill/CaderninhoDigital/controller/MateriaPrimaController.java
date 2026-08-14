@@ -67,8 +67,12 @@ public class MateriaPrimaController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deletar(@UsuarioIdAutenticado Long usuarioId, @PathVariable Long id) {
-        materiaPrimaService.deletar(usuarioId, id);
+    public ResponseEntity<Void> deletar(
+            @UsuarioIdAutenticado Long usuarioId,
+            @PathVariable Long id,
+            @RequestParam(required = false) String motivo
+    ) {
+        materiaPrimaService.deletar(usuarioId, id, motivo);
         return ResponseEntity.noContent().build();
     }
 }

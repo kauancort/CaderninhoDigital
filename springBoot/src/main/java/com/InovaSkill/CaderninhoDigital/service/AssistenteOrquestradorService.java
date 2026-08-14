@@ -97,16 +97,15 @@ public class AssistenteOrquestradorService {
             }
             resultados.forEach(resultado -> sessao.ferramenta(resultado.ferramenta().name()));
             Map<String, Object> dados = consolidador.consolidar(resultados);
-            boolean mercadoComRedacaoIa = resultados.size() == 1
-                    && resultados.getFirst().ferramenta() == FerramentaPermitida.COMPARAR_PRECO_MERCADO
-                    && !"INSUFICIENTE".equals(String.valueOf(
-                            resultados.getFirst().dadosAgregados().get("situacao")));
-            String texto = caminhoRapido && !mercadoComRedacaoIa ? respostaDeterministica(resultados.getFirst())
+            boolean pesquisaMercado = resultados.size() == 1
+                    && resultados.getFirst().ferramenta() == FerramentaPermitida.COMPARAR_PRECO_MERCADO;
+            String texto = pesquisaMercado || (caminhoRapido && !pesquisaMercado)
+                    ? respostaDeterministica(resultados.getFirst())
                     : comparacaoDireta ? respostaDeterministica(resultados, dados)
                     : gerarRespostaOuFallback(resultados, dados, sessao);
             sessao.concluir("SUCESSO", null);
             return resposta(texto, resultados, dados,
-                    caminhoRapido && !mercadoComRedacaoIa ? "CAMINHO_RAPIDO" : "ORQUESTRADOR", correlacao);
+                    pesquisaMercado || caminhoRapido ? "CAMINHO_RAPIDO" : "ORQUESTRADOR", correlacao);
         } catch (OrquestradorException exception) {
             sessao.concluir("ERRO", exception.getCodigo()); throw exception;
         } catch (RuntimeException exception) {

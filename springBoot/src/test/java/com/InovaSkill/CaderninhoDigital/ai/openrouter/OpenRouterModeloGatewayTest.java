@@ -90,7 +90,7 @@ class OpenRouterModeloGatewayTest {
 
     @Test
     void usaSchemaFechadoEspecificoParaExtracaoDeOfertas() {
-        String extracao = "{\"ofertas\":[]}";
+        String extracao = "{\"fontes\":[{\"fonteId\":\"fonte-1\",\"status\":\"REJEITADA\",\"motivo\":\"sem oferta\",\"ofertas\":[]}]}";
         transport.complete(200, resposta(extracao, "modelo-solicitado", false));
 
         var response = gateway.gerarEstruturado(solicitacao(), ExtracaoOfertasMercado.class);
@@ -98,9 +98,40 @@ class OpenRouterModeloGatewayTest {
         assertThat(response.conteudo().ofertas()).isEmpty();
         assertThat(transport.request.body())
                 .contains("\"name\":\"extracao_ofertas_mercado\"")
+                .contains("\"fontes\"")
                 .contains("\"evidenciaPreco\"")
                 .contains("\"pedidoMinimo\"")
                 .contains("\"additionalProperties\":false");
+    }
+
+    @Test
+    void normalizaRespostaLegadaENumerosTextoSemInventarCampos() {
+        String extracao = "{\"ofertas\":[{\"fonteId\":\"fonte-1\",\"produto\":\"Açúcar demerara\","
+                + "\"precoAnunciado\":\"R$ 9,53\",\"tipoPreco\":\"unitário\",\"unidadePreco\":\"kg\","
+                + "\"quantidadeEmbalagem\":\"\",\"unidadeEmbalagem\":\"\",\"pedidoMinimo\":null,"
+                + "\"unidadePedidoMinimo\":null,\"frete\":null,\"validade\":\"\",\"localizacao\":\"\","
+                + "\"evidenciaPreco\":\"R$ 9,53 por kg\",\"evidenciaPedidoMinimo\":\"\",\"confianca\":\"alta\"}]}";
+        transport.complete(200, resposta(extracao, "modelo-solicitado", false));
+
+        var response = gateway.gerarEstruturado(solicitacao(), ExtracaoOfertasMercado.class);
+
+        assertThat(response.conteudo().fontes()).singleElement().satisfies(fonte -> {
+            assertThat(fonte.status()).isEqualTo(ExtracaoOfertasMercado.Status.ACEITA);
+            assertThat(fonte.ofertas()).singleElement().satisfies(oferta -> {
+                assertThat(oferta.precoAnunciado()).isEqualByComparingTo("9.53");
+                assertThat(oferta.tipoPreco()).isEqualTo(ExtracaoOfertasMercado.TipoPreco.UNITARIO);
+                assertThat(oferta.unidadePreco()).isEqualTo(ExtracaoOfertasMercado.Unidade.KG);
+            });
+        });
+    }
+
+    @Test
+    void reservaMaisTokensParaExtracaoDeVariasFontes() throws Exception {
+        transport.complete(200, resposta("{\"fontes\":[]}", "modelo-solicitado", false));
+
+        gateway.gerarEstruturado(solicitacao(), ExtracaoOfertasMercado.class);
+
+        assertThat(mapper.readTree(transport.request.body()).path("max_tokens").asInt()).isEqualTo(4_000);
     }
 
     @Test
@@ -180,6 +211,34 @@ class OpenRouterModeloGatewayTest {
         transport.complete(429, "limite");
         assertErro(() -> gateway.gerarRespostaFinal(solicitacao()), CodigoErroOrquestrador.LIMITE_EXCEDIDO);
         assertThat(transport.chamadas).isEqualTo(1);
+    }
+
+    @Test
+    void tentaModeloReservaQuandoModeloPrincipalAtingeLimite() {
+        properties.getProvider().setFallbackModel("modelo-reserva");
+        transport.sequence(
+                new OpenRouterHttpResponse(429, "{\"error\":{\"metadata\":{\"limit_source\":\"upstream_provider_shared_pool\"}}}"),
+                new OpenRouterHttpResponse(200, resposta("recuperado pelo reserva", "modelo-reserva", false)));
+
+        var response = gateway.gerarRespostaFinal(solicitacao());
+
+        assertThat(response.conteudo()).isEqualTo("recuperado pelo reserva");
+        assertThat(response.metadados().modeloSolicitado()).isEqualTo("modelo-reserva");
+        assertThat(transport.chamadas).isEqualTo(2);
+        assertThat(transport.request.body()).contains("\"model\":\"modelo-reserva\"");
+    }
+
+    @Test
+    void descreveLimiteSemExporCorpoBrutoDoOpenRouter() {
+        String corpo = "{\"error\":{\"message\":\"segredo do provedor\",\"metadata\":{\"limit_source\":\"upstream_provider_shared_pool\"}}}";
+        transport.sequence(new OpenRouterHttpResponse(429, corpo,
+                java.util.Map.of("Retry-After", "15")));
+
+        assertThatThrownBy(() -> gateway.gerarRespostaFinal(solicitacao()))
+                .isInstanceOf(OrquestradorException.class)
+                .hasMessageContaining("pool compartilhado")
+                .hasMessageContaining("15 segundos")
+                .hasMessageNotContaining("segredo do provedor");
     }
 
     @Test

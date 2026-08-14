@@ -60,6 +60,9 @@ public class MovimentacaoEstoque {
     @Column(nullable = false, length = 30)
     private OrigemMovimentacaoEstoque origem;
 
+    @Column(name = "origem_id")
+    private Long origemId;
+
     @Column(nullable = false, precision = 12, scale = 3)
     private BigDecimal quantidade;
 
