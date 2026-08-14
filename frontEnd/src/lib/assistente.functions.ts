@@ -130,14 +130,10 @@ export async function conversarComAssistente(data: {
   correlacao?: string;
 }): Promise<AssistenteResposta> {
   const parsedData = conversaSchema.parse(data);
-<<<<<<< HEAD
   const controller = new AbortController();
   // Pesquisa externa inclui descoberta, estruturação e redação; o backend mantém limites próprios por etapa.
   const timeout = globalThis.setTimeout(() => controller.abort(), 130_000);
   let response: unknown;
-=======
-
->>>>>>> 06db426 (feat: adiciona segurança RLS)
   try {
     response = await apiRequest<unknown>("/assistente/conversa", {
       method: "POST",
@@ -150,7 +146,6 @@ export async function conversarComAssistente(data: {
   return respostaSchema.parse(response);
 }
 
-<<<<<<< HEAD
 export function mensagemErroAssistente(error: unknown): string {
   if (!(error instanceof ApiError)) {
     return error instanceof Error && error.message.includes("conectar ao servidor")
@@ -173,23 +168,4 @@ export function mensagemErroAssistente(error: unknown): string {
   )
     return "Não consegui entender essa consulta. Escolha uma opção rápida ou escreva de outra forma.";
   return "Ocorreu um erro temporário. Tente novamente em instantes.";
-=======
-function obterMockConversa(mensagem: string): string {
-  const msg = mensagem.toLowerCase();
-  if (msg.includes("lucro") || msg.includes("faturamento") || msg.includes("ganh") || msg.includes("rend") || msg.includes("financeiro")) {
-    return "Oi, meu bem! Como a IA do servidor está offline, eu peguei minhas anotações rápidas para você:\n\n" +
-           "- **Faturamento Total**: R$ 1.500,00\n" +
-           "- **Custos Estimados**: R$ 600,00\n" +
-           "- **Lucro Líquido Estimado**: R$ 900,00\n\n" +
-           "Fique à vontade para me perguntar sobre estoque ou receitas, querido!";
-  } else if (msg.includes("estoque") || msg.includes("falta") || msg.includes("compr") || msg.includes("ingrediente")) {
-    return "Meu filho, dei uma olhada rápida nas prateleiras:\n\n" +
-           "- 🥜 **Amendoim**: Baixo (restam apenas 2kg)\n" +
-           "- 🥛 **Leite**: Ok (restam 15L)\n" +
-           "- 🍬 **Açúcar**: Ok (restam 10kg)\n\n" +
-           "Recomendo comprar mais amendoim em breve para não interromper a produção, meu bem!";
-  }
-  
-  return "Oi, querido! Eu sou a Vovó AI. A IA do servidor está temporariamente indisponível no momento, mas você pode me perguntar sobre o **estoque** ou o **lucro** estimado que eu te mostro os dados simulados que tenho aqui com o maior carinho! 💛";
->>>>>>> 06db426 (feat: adiciona segurança RLS)
 }
