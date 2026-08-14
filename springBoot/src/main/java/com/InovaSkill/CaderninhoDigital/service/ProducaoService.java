@@ -62,6 +62,7 @@ public class ProducaoService {
                 .custoEstimado(BigDecimal.ZERO)
                 .insumos(new ArrayList<>())
                 .build();
+        producaoRepository.save(producao);
 
         BigDecimal custoEstimado = possuiInsumosManuais(dto)
                 ? adicionarInsumosManuais(producao, dto.getInsumos(), gestor)
@@ -72,6 +73,7 @@ public class ProducaoService {
         movimentacaoEstoqueService.registrarProduto(
                 produto, gestor, estoqueProdutoAnterior, produto.getEstoqueAtual(),
                 TipoMovimentacaoEstoque.ENTRADA, OrigemMovimentacaoEstoque.PRODUCAO,
+                producao.getId(),
                 dto.getObservacao());
         producao.setCustoEstimado(custoEstimado);
         BigDecimal custoAnterior = produto.getCustoAtual();
@@ -149,12 +151,20 @@ public class ProducaoService {
     private Produto buscarProdutoDoGestor(Long produtoId, Usuario gestor) {
         Produto produto = produtoRepository.findById(produtoId)
                 .orElseThrow(() -> new ResourceNotFoundException("Produto não encontrado"));
+        validarProdutoAtivo(produto);
         return produto;
+    }
+
+    private void validarProdutoAtivo(Produto produto) {
+        if (!Boolean.TRUE.equals(produto.getAtivo())) {
+            throw new BusinessException("O produto está removido e não pode ser usado em novas produções");
+        }
     }
 
     private MateriaPrima buscarMateriaPrimaDoGestor(Long materiaPrimaId, Usuario gestor) {
         MateriaPrima materiaPrima = materiaPrimaRepository.findById(materiaPrimaId)
                 .orElseThrow(() -> new ResourceNotFoundException("Matéria-prima não encontrada"));
+        validarMateriaPrimaAtiva(materiaPrima);
         return materiaPrima;
     }
 
@@ -209,11 +219,13 @@ public class ProducaoService {
     }
 
     private BigDecimal adicionarInsumo(Producao producao, MateriaPrima materiaPrima, BigDecimal quantidadeUtilizada) {
+        validarMateriaPrimaAtiva(materiaPrima);
         BigDecimal estoqueAnterior = materiaPrima.getEstoqueAtual();
         baixarEstoque(materiaPrima, quantidadeUtilizada);
         movimentacaoEstoqueService.registrarMateriaPrima(
                 materiaPrima, producao.getGestor(), estoqueAnterior, materiaPrima.getEstoqueAtual(),
                 TipoMovimentacaoEstoque.SAIDA, OrigemMovimentacaoEstoque.PRODUCAO,
+                producao.getId(),
                 producao.getObservacao());
         BigDecimal custoTotal = materiaPrima.getCustoMedio().multiply(quantidadeUtilizada);
         ItemProducaoMateriaPrima item = ItemProducaoMateriaPrima.builder()
@@ -225,6 +237,13 @@ public class ProducaoService {
                 .build();
         producao.getInsumos().add(item);
         return custoTotal;
+    }
+
+    private void validarMateriaPrimaAtiva(MateriaPrima materiaPrima) {
+        if (!Boolean.TRUE.equals(materiaPrima.getAtivo())) {
+            throw new BusinessException(
+                    "A matéria-prima " + materiaPrima.getNome() + " está removida e não pode ser usada em novas produções");
+        }
     }
 
     private ProducaoResponseDTO toResponse(Producao producao) {

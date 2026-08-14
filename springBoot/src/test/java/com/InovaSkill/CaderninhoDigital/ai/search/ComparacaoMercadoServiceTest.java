@@ -110,6 +110,33 @@ class ComparacaoMercadoServiceTest {
         assertThat(resultado.ofertas()).isEmpty();
         assertThat(resultado.avisos()).singleElement().asString()
                 .contains("3 fontes", "limite de uso", "OpenRouter", "não foram comparados");
+        assertThat(resultado.fontes()).hasSize(3)
+                .allMatch(item -> item.status() == ResultadoFontePesquisa.Status.NAO_CONCLUIDA);
+    }
+
+    @Test void naoConcluiMelhorOfertaQuandoUmaFonteNaoFoiValidada() {
+        FontePesquisaPreco primeira = fonte("R$ 8,00 por kg");
+        FontePesquisaPreco segunda = new FontePesquisaPreco("Outra loja", URI.create("https://outra.example/item"),
+                "outra.example", "preço não identificado");
+        when(pesquisa.pesquisar(any())).thenReturn(new ResultadoPesquisaPrecos(
+                "q", Instant.now(clock), List.of(primeira, segunda), List.of()));
+        var oferta = oferta("8.00", ExtracaoOfertasMercado.TipoPreco.UNITARIO,
+                ExtracaoOfertasMercado.Unidade.KG, null, null, null, null, "R$ 8,00 por kg");
+        when(interpretador.interpretarDetalhado(anyList(), anyString(), anyLong())).thenReturn(
+                new InterpretadorOfertasMercado.ResultadoInterpretacao(
+                        List.of(new InterpretadorOfertasMercado.OfertaInterpretada(primeira, oferta)),
+                        List.of(
+                                new ResultadoFontePesquisa("fonte-1", primeira.titulo(), primeira.url().toString(),
+                                        primeira.dominio(), ResultadoFontePesquisa.Status.VALIDADA, null),
+                                new ResultadoFontePesquisa("fonte-2", segunda.titulo(), segunda.url().toString(),
+                                        segunda.dominio(), ResultadoFontePesquisa.Status.NAO_CONCLUIDA, "não concluída"))));
+
+        var resultado = comparar();
+
+        assertThat(resultado.ofertas()).hasSize(1);
+        assertThat(resultado.situacao()).isEqualTo("INSUFICIENTE");
+        assertThat(resultado.menorCustoExterno()).isNull();
+        assertThat(resultado.avisos()).anyMatch(aviso -> aviso.contains("Nem todas as fontes"));
     }
 
     private ComparacaoMercadoService.Resultado comparar(){return service.comparar(7L,3L,

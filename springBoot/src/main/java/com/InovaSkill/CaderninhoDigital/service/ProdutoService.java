@@ -68,6 +68,7 @@ public class ProdutoService {
         movimentacaoEstoqueService.registrarProduto(
                 salvo, gestor, BigDecimal.ZERO, salvo.getEstoqueAtual(),
                 TipoMovimentacaoEstoque.ENTRADA, OrigemMovimentacaoEstoque.CADASTRO,
+                null,
                 "Saldo inicial no cadastro do produto");
         return toResponse(salvo);
     }
@@ -75,7 +76,7 @@ public class ProdutoService {
     @Transactional(readOnly = true)
     public List<ProdutoResponseDTO> listar(Long usuarioId) {
         Usuario gestor = usuarioAcessoService.buscarGestor(usuarioId);
-        return produtoRepository.findAllByOrderByNomeAsc().stream().map(this::toResponse).toList();
+        return produtoRepository.findAllByAtivoTrueOrderByNomeAsc().stream().map(this::toResponse).toList();
     }
 
     @Transactional(readOnly = true)
@@ -140,20 +141,45 @@ public class ProdutoService {
             movimentacaoEstoqueService.registrarProduto(
                     salvo, gestor, estoqueAnterior, salvo.getEstoqueAtual(),
                     TipoMovimentacaoEstoque.AJUSTE, OrigemMovimentacaoEstoque.AJUSTE_MANUAL,
+                    null,
                     "Estoque alterado na edição do produto");
         }
         return toResponse(salvo);
     }
 
-    public void deletar(Long usuarioId, Long id) {
+    @Transactional
+    public void deletar(Long usuarioId, Long id, String motivo) {
         Usuario gestor = usuarioAcessoService.buscarGestor(usuarioId);
         Produto produto = buscarEntidade(id);
-        produtoRepository.delete(produto);
+        if (!Boolean.TRUE.equals(produto.getAtivo())) {
+            throw new BusinessException("O produto já está removido");
+        }
+        String motivoNormalizado = motivo == null || motivo.isBlank() ? null : motivo.trim();
+        if (motivoNormalizado != null && motivoNormalizado.length() > 500) {
+            throw new BusinessException("O motivo deve ter no máximo 500 caracteres");
+        }
+
+        BigDecimal saldoAnterior = produto.getEstoqueAtual();
+        produto.setAtivo(false);
+        produto.setEstoqueAtual(BigDecimal.ZERO);
+        produtoRepository.save(produto);
+        movimentacaoEstoqueService.registrarRemocaoProduto(
+                produto, gestor, saldoAnterior, motivoNormalizado);
+        auditoriaService.registrar(
+                gestor, "PRODUTO", produto.getId(), "INATIVACAO",
+                saldoAnterior, BigDecimal.ZERO, motivoNormalizado, "REMOCAO_MANUAL");
     }
 
     public Produto buscarProdutoDoGestor(Long produtoId, Usuario gestor) {
         Produto produto = buscarEntidade(produtoId);
+        validarAtivo(produto);
         return produto;
+    }
+
+    private void validarAtivo(Produto produto) {
+        if (!Boolean.TRUE.equals(produto.getAtivo())) {
+            throw new BusinessException("O produto está removido e não pode ser usado em novos lançamentos");
+        }
     }
 
     private Produto buscarEntidade(Long id) {
@@ -185,6 +211,10 @@ public class ProdutoService {
         for (ItemGabaritoProdutoRequestDTO itemDto : gabarito.getItens()) {
             MateriaPrima materiaPrima = materiaPrimaRepository.findById(itemDto.getMateriaPrimaId())
                     .orElseThrow(() -> new ResourceNotFoundException("Matéria-prima não encontrada"));
+            if (!Boolean.TRUE.equals(materiaPrima.getAtivo())) {
+                throw new BusinessException(
+                        "A matéria-prima " + materiaPrima.getNome() + " está removida e não pode entrar em um novo gabarito");
+            }
 
             ProdutoGabaritoItem item = ProdutoGabaritoItem.builder()
                     .gabarito(produtoGabarito)

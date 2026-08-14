@@ -27,7 +27,7 @@ public class CompararPrecoMercadoFerramenta implements FerramentaLeitura<Argumen
         dados.put("menorCustoExterno",r.menorCustoExterno()); dados.put("economiaEstimada",r.economiaEstimada());
         dados.put("diferencaExternaMenosInterna",r.diferencaExternaMenosInterna());
         dados.put("percentualDiferenca",r.percentualDiferenca()); dados.put("situacao",r.situacao());
-        dados.put("pesquisadoEm",r.pesquisadoEm()); dados.put("ofertas",r.ofertas());
+        dados.put("pesquisadoEm",r.pesquisadoEm()); dados.put("fontes",r.fontes()); dados.put("ofertas",r.ofertas());
         return new ResultadoFerramenta(identificador(),StatusResultado.SUCESSO,dados,a.inicio(),a.fim(),
                 c.solicitadoEm(),r.avisos(),r.qualidade());
     }

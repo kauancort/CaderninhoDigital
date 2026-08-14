@@ -1,6 +1,8 @@
 package com.InovaSkill.CaderninhoDigital.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.InovaSkill.CaderninhoDigital.dto.request.ProdutoRequestDTO;
@@ -63,5 +65,34 @@ class ProdutoServiceTest {
         produtoService.atualizar(1L, 10L, dto);
 
         assertThat(produto.getCustoAtual()).isEqualByComparingTo("3.25");
+    }
+
+    @Test
+    void inativaSemExcluirEPreservaConsultaHistorica() {
+        Usuario gestor = Usuario.builder().id(1L).nome("Gestora").build();
+        Produto produto = Produto.builder()
+                .id(10L)
+                .nome("Paçoca")
+                .unidadeMedida("UN")
+                .precoVenda(new BigDecimal("8.00"))
+                .estoqueAtual(new BigDecimal("30.000"))
+                .ativo(true)
+                .gestor(gestor)
+                .build();
+
+        when(usuarioAcessoService.buscarGestor(1L)).thenReturn(gestor);
+        when(produtoRepository.findById(10L)).thenReturn(Optional.of(produto));
+        when(produtoRepository.save(produto)).thenReturn(produto);
+
+        produtoService.deletar(1L, 10L, "Produto fora de linha");
+        var historico = produtoService.buscar(1L, 10L);
+
+        assertThat(produto.getAtivo()).isFalse();
+        assertThat(produto.getEstoqueAtual()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(historico.getNome()).isEqualTo("Paçoca");
+        assertThat(historico.getAtivo()).isFalse();
+        verify(produtoRepository, never()).delete(produto);
+        verify(movimentacaoEstoqueService).registrarRemocaoProduto(
+                produto, gestor, new BigDecimal("30.000"), "Produto fora de linha");
     }
 }

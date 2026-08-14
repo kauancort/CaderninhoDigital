@@ -50,13 +50,14 @@ public class MateriaPrimaService {
         movimentacaoEstoqueService.registrarMateriaPrima(
                 salva, gestor, BigDecimal.ZERO, salva.getEstoqueAtual(),
                 TipoMovimentacaoEstoque.ENTRADA, OrigemMovimentacaoEstoque.CADASTRO,
+                null,
                 "Saldo inicial no cadastro da matéria-prima");
         return toResponse(salva);
     }
 
     public List<MateriaPrimaResponseDTO> listar(Long usuarioId) {
         Usuario gestor = usuarioAcessoService.buscarGestor(usuarioId);
-        return materiaPrimaRepository.findAllByOrderByNomeAsc().stream().map(this::toResponse).toList();
+        return materiaPrimaRepository.findAllByAtivoTrueOrderByNomeAsc().stream().map(this::toResponse).toList();
     }
 
     public Page<MateriaPrimaResponseDTO> pesquisar(
@@ -83,7 +84,8 @@ public class MateriaPrimaService {
     public ResumoMateriaPrimaEstoqueDTO resumirEstoque(Long usuarioId, String busca, Boolean ativo) {
         usuarioAcessoService.buscarGestor(usuarioId);
         String termo = busca == null ? "" : busca.trim().toLowerCase(Locale.ROOT);
-        Object[] valores = materiaPrimaRepository.resumirEstoque("%" + termo + "%", ativo);
+        List<Object[]> linhas = materiaPrimaRepository.resumirEstoque("%" + termo + "%", ativo);
+        Object[] valores = linhas.isEmpty() ? new Object[] {0L, 0L, BigDecimal.ZERO} : linhas.get(0);
         long totalItens = valores[0] == null ? 0 : ((Number) valores[0]).longValue();
         long itensEmAlerta = valores[1] == null ? 0 : ((Number) valores[1]).longValue();
         BigDecimal valorEstoque = valores[2] == null ? BigDecimal.ZERO : (BigDecimal) valores[2];
@@ -118,20 +120,45 @@ public class MateriaPrimaService {
             movimentacaoEstoqueService.registrarMateriaPrima(
                     salva, gestor, estoqueAnterior, salva.getEstoqueAtual(),
                     TipoMovimentacaoEstoque.AJUSTE, OrigemMovimentacaoEstoque.AJUSTE_MANUAL,
+                    null,
                     "Estoque alterado na edição da matéria-prima");
         }
         return toResponse(salva);
     }
 
-    public void deletar(Long usuarioId, Long id) {
+    @Transactional
+    public void deletar(Long usuarioId, Long id, String motivo) {
         Usuario gestor = usuarioAcessoService.buscarGestor(usuarioId);
         MateriaPrima materiaPrima = buscarEntidade(id);
-        materiaPrimaRepository.delete(materiaPrima);
+        if (!Boolean.TRUE.equals(materiaPrima.getAtivo())) {
+            throw new BusinessException("A matéria-prima já está removida");
+        }
+        String motivoNormalizado = motivo == null || motivo.isBlank() ? null : motivo.trim();
+        if (motivoNormalizado != null && motivoNormalizado.length() > 500) {
+            throw new BusinessException("O motivo deve ter no máximo 500 caracteres");
+        }
+
+        BigDecimal saldoAnterior = materiaPrima.getEstoqueAtual();
+        materiaPrima.setAtivo(false);
+        materiaPrima.setEstoqueAtual(BigDecimal.ZERO);
+        materiaPrimaRepository.save(materiaPrima);
+        movimentacaoEstoqueService.registrarRemocaoMateriaPrima(
+                materiaPrima, gestor, saldoAnterior, motivoNormalizado);
+        auditoriaService.registrar(
+                gestor, "MATERIA_PRIMA", materiaPrima.getId(), "INATIVACAO",
+                saldoAnterior, BigDecimal.ZERO, motivoNormalizado, "REMOCAO_MANUAL");
     }
 
     public MateriaPrima buscarMateriaPrimaDoGestor(Long materiaPrimaId, Usuario gestor) {
         MateriaPrima materiaPrima = buscarEntidade(materiaPrimaId);
+        validarAtiva(materiaPrima);
         return materiaPrima;
+    }
+
+    private void validarAtiva(MateriaPrima materiaPrima) {
+        if (!Boolean.TRUE.equals(materiaPrima.getAtivo())) {
+            throw new BusinessException("A matéria-prima está removida e não pode ser usada em novos lançamentos");
+        }
     }
 
     private MateriaPrima buscarEntidade(Long id) {

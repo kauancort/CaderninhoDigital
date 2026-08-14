@@ -51,9 +51,18 @@ public class ComparacaoMercadoService {
                     precoInterno == null ? QualidadeResultado.INSUFICIENTE : QualidadeResultado.PARCIAL);
         }
         List<Oferta> ofertas = new ArrayList<>(); List<String> descartes = new ArrayList<>();
-        List<InterpretadorOfertasMercado.OfertaInterpretada> interpretadas;
+        InterpretadorOfertasMercado.ResultadoInterpretacao interpretacao;
         try {
-            interpretadas = interpretador.interpretar(externa.fontes(), materia.getNome(), usuarioId);
+            interpretacao = interpretador.interpretarDetalhado(externa.fontes(), materia.getNome(), usuarioId);
+            // Mantém compatibilidade com integrações/fixtures que ainda implementam
+            // apenas o contrato plano; o caminho principal sempre usa o detalhado.
+            if (interpretacao == null) {
+                List<InterpretadorOfertasMercado.OfertaInterpretada> ofertasLegadas =
+                        interpretador.interpretar(externa.fontes(), materia.getNome(), usuarioId);
+                interpretacao = new InterpretadorOfertasMercado.ResultadoInterpretacao(
+                        ofertasLegadas == null ? List.of() : List.copyOf(ofertasLegadas),
+                        fontesDerivadas(externa.fontes(), ofertasLegadas));
+            }
         } catch (OrquestradorException exception) {
             log.warn("Interpretação de ofertas não concluída: codigo={} fontes={}",
                     exception.getCodigo(), externa.fontes().size());
@@ -76,11 +85,22 @@ public class ComparacaoMercadoService {
             };
             return new Resultado(materiaPrimaId, unidade, quantidade, precoInterno,
                     precoInterno == null ? null : precoInterno.multiply(quantidade).setScale(2, RoundingMode.HALF_UP),
-                    null, null, null, null, "INSUFICIENTE", externa.pesquisadoEm(), List.of(),
+                    null, null, null, null, "INSUFICIENTE", externa.pesquisadoEm(), fontesNaoConcluidas(externa.fontes(), motivo), List.of(),
+                    List.of(motivo),
+                    precoInterno == null ? QualidadeResultado.INSUFICIENTE : QualidadeResultado.PARCIAL);
+        } catch (RuntimeException exception) {
+            log.warn("Interpretação de ofertas falhou sem código controlado: tipo={} fontes={}",
+                    exception.getClass().getSimpleName(), externa.fontes().size());
+            String motivo = "Encontrei " + externa.fontes().size()
+                    + " fontes, mas não foi possível validar seus preços com segurança. "
+                    + "Os valores não foram comparados para evitar uma resposta incorreta.";
+            return new Resultado(materiaPrimaId, unidade, quantidade, precoInterno,
+                    precoInterno == null ? null : precoInterno.multiply(quantidade).setScale(2, RoundingMode.HALF_UP),
+                    null, null, null, null, "INSUFICIENTE", externa.pesquisadoEm(), fontesNaoConcluidas(externa.fontes(), motivo), List.of(),
                     List.of(motivo),
                     precoInterno == null ? QualidadeResultado.INSUFICIENTE : QualidadeResultado.PARCIAL);
         }
-        for (var interpretada : interpretadas) {
+        for (var interpretada : interpretacao.ofertas()) {
             var oferta = normalizar(interpretada, unidade, quantidade);
             if (oferta == null) descartes.add(interpretada.fonte().dominio()
                     + ": oferta ambígua ou unidade incompatível.");
@@ -88,9 +108,16 @@ public class ComparacaoMercadoService {
         }
         ofertas.sort(java.util.Comparator.comparing((Oferta o) -> !o.compativelQuantidadeAlvo())
                 .thenComparing(Oferta::custoTotal));
+        List<String> avisos = new ArrayList<>(externa.avisos()); avisos.addAll(descartes);
         BigDecimal melhor = ofertas.stream().filter(Oferta::compativelQuantidadeAlvo)
                 .map(Oferta::custoTotal).findFirst().orElse(null);
         BigDecimal custoAtual = precoInterno == null ? null : precoInterno.multiply(quantidade).setScale(2, RoundingMode.HALF_UP);
+        boolean coberturaIncompleta = interpretacao.fontes().stream()
+                .anyMatch(fonte -> fonte.status() == ResultadoFontePesquisa.Status.NAO_CONCLUIDA);
+        if (coberturaIncompleta) {
+            avisos.add(0, "Nem todas as fontes pesquisadas foram validadas; os valores externos foram mantidos apenas para consulta e não houve conclusão de melhor oferta ou economia.");
+        }
+        if (coberturaIncompleta) melhor = null;
         BigDecimal economia = custoAtual == null || melhor == null ? null
                 : custoAtual.subtract(melhor).max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
         BigDecimal diferenca = custoAtual == null || melhor == null ? null
@@ -98,15 +125,38 @@ public class ComparacaoMercadoService {
         BigDecimal percentual = diferenca == null || custoAtual.signum()==0 ? null
                 : diferenca.abs().divide(custoAtual,4,RoundingMode.HALF_UP).multiply(BigDecimal.valueOf(100))
                         .setScale(2,RoundingMode.HALF_UP);
-        String situacao = diferenca==null ? "INSUFICIENTE" : diferenca.signum()>0 ? "CUSTO_INTERNO_MENOR"
+        String situacao = coberturaIncompleta || diferenca == null ? "INSUFICIENTE" : diferenca.signum()>0 ? "CUSTO_INTERNO_MENOR"
                 : diferenca.signum()<0 ? "OFERTA_EXTERNA_MENOR" : "EQUIVALENTE";
-        List<String> avisos = new ArrayList<>(externa.avisos()); avisos.addAll(descartes);
         avisos.add("Frete e pedido mínimo entram no cálculo somente quando aparecem explicitamente na fonte; valores ausentes não foram estimados.");
-        QualidadeResultado qualidade = precoInterno != null && !ofertas.isEmpty()
+        QualidadeResultado qualidade = !coberturaIncompleta && precoInterno != null && !ofertas.isEmpty()
                 ? QualidadeResultado.PARCIAL : QualidadeResultado.INSUFICIENTE;
         return new Resultado(materiaPrimaId, unidade, quantidade, precoInterno, custoAtual, melhor, economia,
                 diferenca, percentual, situacao,
-                externa.pesquisadoEm(), List.copyOf(ofertas), List.copyOf(avisos), qualidade);
+                externa.pesquisadoEm(), interpretacao.fontes(), List.copyOf(ofertas), List.copyOf(avisos), qualidade);
+    }
+
+    private List<ResultadoFontePesquisa> fontesNaoConcluidas(List<FontePesquisaPreco> fontes, String motivo) {
+        List<ResultadoFontePesquisa> resultado = new ArrayList<>();
+        for (int i = 0; i < fontes.size(); i++) {
+            FontePesquisaPreco fonte = fontes.get(i);
+            resultado.add(new ResultadoFontePesquisa("fonte-" + (i + 1), fonte.titulo(), fonte.url().toString(),
+                    fonte.dominio(), ResultadoFontePesquisa.Status.NAO_CONCLUIDA, motivo));
+        }
+        return List.copyOf(resultado);
+    }
+
+    private List<ResultadoFontePesquisa> fontesDerivadas(List<FontePesquisaPreco> fontes,
+            List<InterpretadorOfertasMercado.OfertaInterpretada> ofertas) {
+        List<ResultadoFontePesquisa> resultado = new ArrayList<>();
+        for (int i = 0; i < fontes.size(); i++) {
+            FontePesquisaPreco fonte = fontes.get(i);
+            boolean validada = ofertas != null && ofertas.stream().anyMatch(item -> item.fonte().equals(fonte));
+            resultado.add(new ResultadoFontePesquisa("fonte-" + (i + 1), fonte.titulo(), fonte.url().toString(),
+                    fonte.dominio(), validada ? ResultadoFontePesquisa.Status.VALIDADA
+                            : ResultadoFontePesquisa.Status.REJEITADA,
+                    validada ? null : "Nenhuma oferta foi retornada pela interpretação."));
+        }
+        return List.copyOf(resultado);
     }
 
     private Oferta normalizar(InterpretadorOfertasMercado.OfertaInterpretada interpretada,
@@ -171,6 +221,17 @@ public class ComparacaoMercadoService {
             BigDecimal precoInternoUnitario, BigDecimal custoInternoComparavel, BigDecimal menorCustoExterno,
             BigDecimal economiaEstimada, BigDecimal diferencaExternaMenosInterna,
             BigDecimal percentualDiferenca, String situacao,
-            java.time.Instant pesquisadoEm, List<Oferta> ofertas, List<String> avisos,
-            QualidadeResultado qualidade) {}
+            java.time.Instant pesquisadoEm, List<ResultadoFontePesquisa> fontes, List<Oferta> ofertas,
+            List<String> avisos, QualidadeResultado qualidade) {
+        public Resultado(Long materiaPrimaId, String unidade, BigDecimal quantidadeAlvo,
+                BigDecimal precoInternoUnitario, BigDecimal custoInternoComparavel, BigDecimal menorCustoExterno,
+                BigDecimal economiaEstimada, BigDecimal diferencaExternaMenosInterna,
+                BigDecimal percentualDiferenca, String situacao,
+                java.time.Instant pesquisadoEm, List<Oferta> ofertas, List<String> avisos,
+                QualidadeResultado qualidade) {
+            this(materiaPrimaId, unidade, quantidadeAlvo, precoInternoUnitario, custoInternoComparavel,
+                    menorCustoExterno, economiaEstimada, diferencaExternaMenosInterna, percentualDiferenca,
+                    situacao, pesquisadoEm, List.of(), ofertas, avisos, qualidade);
+        }
+    }
 }

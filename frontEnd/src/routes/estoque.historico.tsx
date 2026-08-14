@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import {
@@ -9,10 +9,13 @@ import {
   ChevronLeft,
   ChevronRight,
   ClipboardList,
+  ExternalLink,
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { FiltrosRecolhiveis } from "@/components/FiltrosRecolhiveis";
 import { PageHeader } from "@/components/DesignSystem";
+import { OrigemMovimentacaoDialog } from "@/components/estoque/OrigemMovimentacaoDialog";
+import { VendaDetalhesDialog } from "@/components/vendas/VendaDetalhesDialog";
 import { pesquisarMateriasPrimas, pesquisarProdutos } from "@/lib/catalogo.functions";
 import {
   listarMovimentacoes,
@@ -20,6 +23,7 @@ import {
   resumirMovimentacoes,
   type TipoItemEstoque,
   type TipoMovimentacaoEstoque,
+  type MovimentacaoEstoque,
 } from "@/lib/estoque.functions";
 
 export const Route = createFileRoute("/estoque/historico")({
@@ -49,6 +53,7 @@ const filtrosIniciais: Filtros = {
 };
 
 function HistoricoEstoque() {
+  const navigate = useNavigate();
   const [filtros, setFiltros] = useState<Filtros>(filtrosIniciais);
   const [pagina, setPagina] = useState(0);
   const [ordem, setOrdem] = useState<"ASC" | "DESC">("DESC");
@@ -56,6 +61,10 @@ function HistoricoEstoque() {
   const [buscaDebounced, setBuscaDebounced] = useState("");
   const [grupoItem, setGrupoItem] = useState<TipoItemEstoque>("PRODUTO");
   const [itemSelecionado, setItemSelecionado] = useState<any | null>(null);
+  const [movimentoSelecionado, setMovimentoSelecionado] = useState<MovimentacaoEstoque | null>(
+    null,
+  );
+  const [vendaSelecionada, setVendaSelecionada] = useState<number | null>(null);
   const [tipoItem, itemId] = filtros.item.split(":") as [TipoItemEstoque | "", string?];
 
   const parametros = {
@@ -113,6 +122,18 @@ function HistoricoEstoque() {
     setOrdem("DESC");
     setBuscaItem("");
     setItemSelecionado(null);
+  }
+
+  function abrirOrigem(movimento: MovimentacaoEstoque) {
+    if (movimento.origem === "PRODUCAO" && movimento.origemId) {
+      navigate({ to: "/producao/$id", params: { id: String(movimento.origemId) } });
+      return;
+    }
+    if (movimento.origem === "VENDA" && movimento.origemId) {
+      setVendaSelecionada(movimento.origemId);
+      return;
+    }
+    setMovimentoSelecionado(movimento);
   }
 
   const filtrosAtivos =
@@ -260,6 +281,7 @@ function HistoricoEstoque() {
               <option value="PRODUCAO">Produção</option>
               <option value="VENDA">Venda</option>
               <option value="AJUSTE_MANUAL">Ajuste manual</option>
+              <option value="REMOCAO_MANUAL">Remoção manual</option>
             </select>
           </Campo>
         </div>
@@ -302,9 +324,11 @@ function HistoricoEstoque() {
                 ? "bg-success-bg text-success"
                 : "bg-error-bg text-error";
             return (
-              <article
+              <button
+                type="button"
                 key={movimento.id}
-                className="grid gap-4 rounded-2xl border border-border bg-card p-4 shadow-warm-sm md:grid-cols-[auto_minmax(0,1fr)_auto] md:items-center md:p-5"
+                onClick={() => abrirOrigem(movimento)}
+                className="grid w-full gap-4 rounded-2xl border border-border bg-card p-4 text-left shadow-warm-sm transition-all hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-warm-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary md:grid-cols-[auto_minmax(0,1fr)_auto] md:items-center md:p-5"
               >
                 <div className={`flex h-11 w-11 items-center justify-center rounded-xl ${tone}`}>
                   <Icon size={20} />
@@ -312,7 +336,7 @@ function HistoricoEstoque() {
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <h2 className="font-display text-lg font-bold text-foreground">
-                      {movimento.itemNome}
+                      {tituloMovimentacao(movimento)}
                     </h2>
                     <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${tone}`}>
                       {rotuloTipo(movimento.tipoMovimentacao)}
@@ -336,8 +360,15 @@ function HistoricoEstoque() {
                   <div className="text-[11px] text-muted-foreground">
                     Saldo: {Number(movimento.saldoAnterior)} → {Number(movimento.saldoPosterior)}
                   </div>
+                  <div className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-primary">
+                    {movimento.origemId &&
+                    ["PRODUCAO", "VENDA", "COMPRA"].includes(movimento.origem)
+                      ? "Ver operação"
+                      : "Ver detalhes"}
+                    <ExternalLink size={12} />
+                  </div>
                 </div>
-              </article>
+              </button>
             );
           })}
         </div>
@@ -368,6 +399,12 @@ function HistoricoEstoque() {
           </button>
         </nav>
       )}
+
+      <OrigemMovimentacaoDialog
+        movimento={movimentoSelecionado}
+        onClose={() => setMovimentoSelecionado(null)}
+      />
+      <VendaDetalhesDialog vendaId={vendaSelecionada} onClose={() => setVendaSelecionada(null)} />
     </div>
   );
 }
@@ -419,5 +456,16 @@ function rotuloOrigem(origem: string) {
     PRODUCAO: "Produção",
     VENDA: "Venda",
     AJUSTE_MANUAL: "Ajuste manual",
+    REMOCAO_MANUAL: "Remoção manual",
   }[origem];
+}
+
+function tituloMovimentacao(movimento: MovimentacaoEstoque) {
+  if (movimento.origem === "REMOCAO_MANUAL") {
+    return `Remoção manual de ${movimento.itemNome}`;
+  }
+  if (movimento.origem === "AJUSTE_MANUAL") {
+    return `Ajuste manual de ${movimento.itemNome}`;
+  }
+  return `${rotuloTipo(movimento.tipoMovimentacao)} de ${movimento.itemNome}`;
 }

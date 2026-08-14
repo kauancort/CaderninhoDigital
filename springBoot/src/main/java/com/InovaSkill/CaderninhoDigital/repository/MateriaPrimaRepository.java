@@ -19,6 +19,7 @@ public interface MateriaPrimaRepository extends JpaRepository<MateriaPrima, Long
 
     List<MateriaPrima> findByGestorOrderByNomeAsc(Usuario gestor);
     List<MateriaPrima> findAllByOrderByNomeAsc();
+    List<MateriaPrima> findAllByAtivoTrueOrderByNomeAsc();
 
     @Query("""
             SELECT COUNT(m),
@@ -28,7 +29,7 @@ public interface MateriaPrimaRepository extends JpaRepository<MateriaPrima, Long
              WHERE (:ativo IS NULL OR m.ativo = :ativo)
                AND (LOWER(m.nome) LIKE :termoLike OR LOWER(COALESCE(m.descricao, '')) LIKE :termoLike)
             """)
-    Object[] resumirEstoque(
+    List<Object[]> resumirEstoque(
             @Param("termoLike") String termoLike,
             @Param("ativo") Boolean ativo
     );

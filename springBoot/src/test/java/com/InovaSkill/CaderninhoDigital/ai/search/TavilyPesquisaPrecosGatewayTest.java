@@ -42,7 +42,9 @@ class TavilyPesquisaPrecosGatewayTest {
         });
         verify(transport).enviar(eq(java.net.URI.create("https://api.tavily.com/search")),
                 argThat(h -> h.get("Authorization").equals("Bearer tvly-chave-falsa")),
-                argThat(b -> b.contains("\"include_answer\":false") && b.contains("\"include_raw_content\":\"text\"")), any());
+                argThat(b -> b.contains("\"include_answer\":false") && b.contains("\"include_raw_content\":\"text\"")
+                        && b.contains("\"max_results\":9") && b.contains("melhor preço")
+                        && b.contains("compra comercial") && b.contains("fornecedor")), any());
     }
 
     @Test void descartaInjecaoEUrlPrivada() {
@@ -53,6 +55,26 @@ class TavilyPesquisaPrecosGatewayTest {
                 """);
         var resultado=gateway.pesquisar(solicitacao());
         assertThat(resultado.fontes()).isEmpty(); assertThat(resultado.avisos()).isNotEmpty();
+    }
+
+    @Test void descartaPaginasInformativasQueNaoSaoOfertasComerciais() {
+        resposta(200, """
+                {"results":[
+                  {"title":"Açúcar – Wikipédia, a enciclopédia livre","url":"https://pt.wikipedia.org/wiki/A%C3%A7%C3%BAcar","content":"Tipos de açúcar e sua composição."},
+                  {"title":"Tipos de açúcar: saiba escolher o mais saudável","url":"https://www.santacasa.example/acucar","content":"Informações de saúde e nutrição."},
+                  {"title":"Tudo sobre o açúcar na gastronomia","url":"https://gastronomia.example/acucar","content":"Como utilizar açúcar em receitas."},
+                  {"title":"Produto: informações sobre açúcar","url":"https://artigo.example/acucar","content":"Conheça o produto e sua composição."},
+                  {"title":"Açúcar Demerara - Ingredientes Online","url":"https://ingredientes.example/acucar-demerara","content":"Açúcar Demerara em pacote de 1 kg por R$ 9,53."}
+                ]}
+                """);
+
+        var resultado = gateway.pesquisar(new SolicitacaoPesquisaPrecos(
+                "açúcar", "kg", new BigDecimal("10"), "Belo Horizonte", "MG"));
+
+        assertThat(resultado.fontes()).singleElement().satisfies(fonte -> {
+            assertThat(fonte.titulo()).contains("Ingredientes Online");
+            assertThat(fonte.trecho()).contains("R$ 9,53");
+        });
     }
 
     @Test void aceitaFonteSemPrecoComoEvidenciaIncompletaSemInventarValor() {

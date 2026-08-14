@@ -51,6 +51,7 @@ public class CompraMateriaPrimaService {
                 .valorTotal(BigDecimal.ZERO)
                 .itens(new ArrayList<>())
                 .build();
+        compraRepository.save(compra);
 
         BigDecimal total = BigDecimal.ZERO;
         for (ItemCompraMateriaPrimaRequestDTO itemDto : dto.getItens()) {
@@ -65,6 +66,7 @@ public class CompraMateriaPrimaService {
             movimentacaoEstoqueService.registrarMateriaPrima(
                     materiaPrima, gestor, estoqueAnterior, materiaPrima.getEstoqueAtual(),
                     TipoMovimentacaoEstoque.ENTRADA, OrigemMovimentacaoEstoque.COMPRA,
+                    compra.getId(),
                     dto.getObservacao());
             ItemCompraMateriaPrima item = ItemCompraMateriaPrima.builder()
                     .compra(compra)
@@ -106,6 +108,9 @@ public class CompraMateriaPrimaService {
     private MateriaPrima buscarMateriaPrimaDoGestor(Long materiaPrimaId, Usuario gestor) {
         MateriaPrima materiaPrima = materiaPrimaRepository.findById(materiaPrimaId)
                 .orElseThrow(() -> new ResourceNotFoundException("Matéria-prima não encontrada"));
+        if (!Boolean.TRUE.equals(materiaPrima.getAtivo())) {
+            throw new BusinessException("A matéria-prima está removida e não pode receber novas compras");
+        }
         return materiaPrima;
     }
 

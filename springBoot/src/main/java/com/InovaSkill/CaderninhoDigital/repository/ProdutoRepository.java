@@ -17,6 +17,8 @@ public interface ProdutoRepository extends JpaRepository<Produto, Long>, JpaSpec
     @EntityGraph(attributePaths = {"gabarito", "gabarito.itens", "gabarito.itens.materiaPrima"})
     List<Produto> findAllByOrderByNomeAsc();
     @EntityGraph(attributePaths = {"gabarito", "gabarito.itens", "gabarito.itens.materiaPrima"})
+    List<Produto> findAllByAtivoTrueOrderByNomeAsc();
+    @EntityGraph(attributePaths = {"gabarito", "gabarito.itens", "gabarito.itens.materiaPrima"})
     @Query("SELECT p FROM Produto p WHERE p.id = :id")
     Optional<Produto> findComGabaritoById(@Param("id") Long id);
 }

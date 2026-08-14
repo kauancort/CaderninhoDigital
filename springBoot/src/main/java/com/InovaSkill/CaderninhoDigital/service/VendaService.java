@@ -132,6 +132,7 @@ public class VendaService {
                 .valorTotal(BigDecimal.ZERO)
                 .itens(new ArrayList<>())
                 .build();
+        vendaRepository.save(venda);
 
         BigDecimal total = BigDecimal.ZERO;
 
@@ -170,6 +171,7 @@ public class VendaService {
                         produto.getEstoqueAtual(),
                         TipoMovimentacaoEstoque.SAIDA,
                         OrigemMovimentacaoEstoque.VENDA,
+                        venda.getId(),
                         dto.getObservacao()
                 );
             }
@@ -258,6 +260,7 @@ public class VendaService {
                             produtoVenda.getEstoqueAtual(),
                             TipoMovimentacaoEstoque.SAIDA,
                             OrigemMovimentacaoEstoque.VENDA,
+                            venda.getId(),
                             "Baixa automática de Venda Pendente por reabastecimento"
                     );
                 }
@@ -1018,13 +1021,19 @@ public class VendaService {
             Usuario gestor
     ) {
 
-        return produtoRepository
+        Produto produto = produtoRepository
                 .findById(produtoId)
                 .orElseThrow(
                         () -> new ResourceNotFoundException(
                                 "Produto não encontrado"
                         )
                 );
+        if (!Boolean.TRUE.equals(produto.getAtivo())) {
+            throw new BusinessException(
+                    "O produto está removido e não pode ser usado em novas vendas"
+            );
+        }
+        return produto;
     }
 
     private void baixarEstoque(

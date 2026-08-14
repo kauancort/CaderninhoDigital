@@ -60,6 +60,7 @@ export const pesquisarProdutos = createApiFn({ method: "GET" })
         nome: p.nome,
         sku: p.sku || "",
         categoria: p.categoria || "",
+        unidade: p.unidadeMedida || "un",
         preco_venda: p.precoVenda,
         quantidade_estoque: p.estoqueAtual || 0,
       })),
@@ -93,6 +94,7 @@ export const criarProduto = createApiFn({ method: "POST" })
         sku: z.string().max(60).optional().nullable(),
         categoria_id: z.union([z.string(), z.number()]).optional().nullable(),
         imagem: z.enum(["pacoca", "biriba", "fondant"]).nullish(),
+        estoque_inicial: z.number().min(0).default(0),
       })
       .parse(d),
   )
@@ -110,7 +112,7 @@ export const criarProduto = createApiFn({ method: "POST" })
         custoAtual: data.custo_atual ?? null,
         sku: data.sku || null,
         categoriaId: data.categoria_id ? Number(data.categoria_id) : null,
-        estoqueAtual: 0,
+        estoqueAtual: data.estoque_inicial,
         ativo: true,
       }),
     });
@@ -118,7 +120,44 @@ export const criarProduto = createApiFn({ method: "POST" })
       const err = await res.json().catch(() => ({ message: "Erro ao criar produto" }));
       throw new Error(err.message || "Erro ao criar produto");
     }
-    return { ok: true };
+    return res.json();
+  });
+
+export const atualizarProdutoBasico = createApiFn({ method: "PUT" })
+  .inputValidator((d) =>
+    z
+      .object({
+        id: z.union([z.string(), z.number()]),
+        nome: z.string().min(1).max(120),
+        preco_venda: z.number().positive(),
+        sku: z.string().max(60).optional().nullable(),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data }) => {
+    const atualRes = await fetch(`${BASE_URL}/produtos/${data.id}`, {});
+    if (!atualRes.ok) throw new Error("Erro ao carregar produto");
+    const atual = await atualRes.json();
+    const res = await fetch(`${BASE_URL}/produtos/${data.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        nome: data.nome,
+        descricao: atual.descricao || "",
+        sku: data.sku || null,
+        categoriaId: atual.categoriaId ?? null,
+        unidadeMedida: atual.unidadeMedida || "UN",
+        precoVenda: data.preco_venda,
+        custoAtual: atual.custoAtual ?? null,
+        estoqueAtual: atual.estoqueAtual,
+        ativo: atual.ativo,
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ message: "Erro ao atualizar produto" }));
+      throw new Error(err.message || "Erro ao atualizar produto");
+    }
+    return res.json();
   });
 
 export const listarMateriaPrima = createApiFn({ method: "GET" }).handler(async () => {
@@ -206,6 +245,7 @@ export const criarMateriaPrima = createApiFn({ method: "POST" })
         nome: z.string().min(1).max(120),
         unidade: z.string().min(1).max(10),
         estoque_minimo: z.number().min(0).default(0),
+        estoque_inicial: z.number().min(0).default(0),
       })
       .parse(d),
   )
@@ -219,7 +259,7 @@ export const criarMateriaPrima = createApiFn({ method: "POST" })
         nome: data.nome,
         descricao: "",
         unidadeMedida: data.unidade,
-        estoqueAtual: 0,
+        estoqueAtual: data.estoque_inicial,
         estoqueMinimo: data.estoque_minimo,
         custoMedio: 0,
         ativo: true,
@@ -238,6 +278,41 @@ export const criarMateriaPrima = createApiFn({ method: "POST" })
       quantidade_estoque: row.estoqueAtual,
       custo_medio: row.custoMedio,
     };
+  });
+
+export const atualizarMateriaPrimaBasica = createApiFn({ method: "PUT" })
+  .inputValidator((d) =>
+    z
+      .object({
+        id: z.union([z.string(), z.number()]),
+        nome: z.string().min(1).max(120),
+        unidade: z.string().min(1).max(10),
+        estoque_minimo: z.number().min(0),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data }) => {
+    const atualRes = await fetch(`${BASE_URL}/materias-primas/${data.id}`, {});
+    if (!atualRes.ok) throw new Error("Erro ao carregar matéria-prima");
+    const atual = await atualRes.json();
+    const res = await fetch(`${BASE_URL}/materias-primas/${data.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        nome: data.nome,
+        descricao: atual.descricao || "",
+        unidadeMedida: data.unidade,
+        estoqueAtual: atual.estoqueAtual,
+        estoqueMinimo: data.estoque_minimo,
+        custoMedio: atual.custoMedio,
+        ativo: atual.ativo,
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ message: "Erro ao atualizar matéria-prima" }));
+      throw new Error(err.message || "Erro ao atualizar matéria-prima");
+    }
+    return res.json();
   });
 
 export const ajustarEstoqueMP = createApiFn({ method: "POST" })

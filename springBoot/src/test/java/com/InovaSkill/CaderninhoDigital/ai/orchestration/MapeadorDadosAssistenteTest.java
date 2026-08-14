@@ -34,6 +34,27 @@ class MapeadorDadosAssistenteTest {
         assertThat(json).doesNotContain("sql", "endpoint", "repository");
     }
 
+    @Test
+    void preservaFontesDoMercadoMesmoSemOfertaValidada() throws Exception {
+        var fonte = new com.InovaSkill.CaderninhoDigital.ai.search.ResultadoFontePesquisa(
+                "fonte-1", "Loja", "https://loja.example/item", "loja.example",
+                com.InovaSkill.CaderninhoDigital.ai.search.ResultadoFontePesquisa.Status.NAO_CONCLUIDA,
+                "limite do OpenRouter");
+        Map<String, Object> dados = new java.util.LinkedHashMap<>();
+        dados.put("materiaPrimaId", 3L); dados.put("unidade", "kg");
+        dados.put("quantidadeAlvo", new BigDecimal("10")); dados.put("situacao", "INSUFICIENTE");
+        dados.put("pesquisadoEm", Instant.parse("2026-08-12T20:00:00Z"));
+        dados.put("fontes", List.of(fonte)); dados.put("ofertas", List.of());
+        var resultado = resultado(FerramentaPermitida.COMPARAR_PRECO_MERCADO, dados);
+
+        var dto = mapper.mapear(List.of(resultado), dados);
+        String json = new ObjectMapper().findAndRegisterModules().writeValueAsString(dto);
+
+        assertThat(dto).isInstanceOf(DadosAssistenteDTO.ComparacaoMercado.class);
+        assertThat(json).contains("\"fontes\"", "NAO_CONCLUIDA", "limite do OpenRouter")
+                .doesNotContain("\"ofertas\":[{");
+    }
+
     private ResultadoFerramenta resultado(FerramentaPermitida ferramenta, Map<String,Object> dados) {
         return new ResultadoFerramenta(ferramenta, StatusResultado.SUCESSO, dados,
                 LocalDate.parse("2026-07-01"), LocalDate.parse("2026-07-31"),
