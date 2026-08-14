@@ -40,7 +40,7 @@ class CaderninhoDigitalApplicationTests {
 
 	@Test
 	void contextLoads() {
-		assertThat(flyway.info().applied()).hasSize(20);
+		assertThat(flyway.info().applied()).hasSize(21);
 		assertThat(jdbcTemplate.queryForObject(
 				"SELECT senha LIKE '$2%' FROM usuarios WHERE email = 'adm@gmail.com'", Boolean.class)).isTrue();
 		assertThat(jdbcTemplate.queryForObject(
@@ -79,6 +79,26 @@ class CaderninhoDigitalApplicationTests {
 				 WHERE tablename = 'movimentacoes_estoque'
 				   AND indexname = 'idx_movimentacoes_origem_id'
 				""", Integer.class)).isEqualTo(1);
+	}
+
+	@Test
+	void habilitaRlsNasTabelasDaAplicacao() {
+		assertThat(jdbcTemplate.queryForObject("""
+				SELECT COUNT(*)
+				  FROM pg_class c
+				  JOIN pg_namespace n ON n.oid = c.relnamespace
+				 WHERE n.nspname = 'public'
+				   AND c.relrowsecurity = TRUE
+				   AND c.relname IN (
+				       'usuarios', 'clientes', 'fornecedores', 'produtos', 'materias_primas',
+				       'lancamentos', 'vendas', 'itens_venda', 'compras_materias_primas',
+				       'itens_compra_materia_prima', 'producoes', 'itens_producao_materia_prima',
+				       'insights', 'password_recoveries', 'produto_gabarito_itens',
+				       'produto_gabaritos', 'movimentacoes_estoque', 'categorias_produto',
+				       'historico_precos_produto', 'historico_custos_materia_prima',
+				       'auditoria_operacoes', 'historico_custos_produto'
+				   )
+				""", Integer.class)).isEqualTo(22);
 	}
 
 	@Test
