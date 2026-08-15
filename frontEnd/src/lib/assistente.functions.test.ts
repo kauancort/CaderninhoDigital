@@ -75,7 +75,7 @@ describe("contrato do chat da assistente", () => {
       qualidade: "PARCIAL",
       correlacao: "corr",
     });
-    await conversarComAssistente({ acaoRapida: "RESUMIR_GASTOS" });
+    await conversarComAssistente({ acaoRapida: "RESUMIR_GASTOS", historico: [] });
     expect(apiRequest).toHaveBeenCalledOnce();
   });
 

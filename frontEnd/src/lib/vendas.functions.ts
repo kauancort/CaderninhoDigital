@@ -85,7 +85,8 @@ export const registrarVenda = createApiFn({ method: "POST" })
         itens: z
           .array(
             z.object({
-              produto_final_id: z.union([z.string(), z.number()]),
+              produto_final_id: z.union([z.string(), z.number()]).nullable(),
+              nome_avulso: z.string().max(120).optional().nullable(),
               quantidade: z.number().positive(),
               preco_unitario: z.number().min(0),
             }),
@@ -105,7 +106,8 @@ export const registrarVenda = createApiFn({ method: "POST" })
       tipoCartao: data.forma_pagamento === "cartao" ? data.tipo_cartao : null,
       parcelas: data.tipo_cartao === "CREDITO" ? data.parcelas : null,
       itens: data.itens.map((it: any) => ({
-        produtoId: Number(it.produto_final_id),
+        produtoId: it.produto_final_id ? Number(it.produto_final_id) : null,
+        nomeAvulso: it.nome_avulso || null,
         quantidade: it.quantidade,
         valorUnitario: it.preco_unitario,
       })),
