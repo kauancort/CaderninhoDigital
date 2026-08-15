@@ -85,6 +85,10 @@ public class VendaService {
         boolean possuiEstoqueSuficiente = true;
 
         for (ItemVendaRequestDTO itemDto : dto.getItens()) {
+            if (itemDto.getProdutoId() == null) {
+                // Item avulso não tem controle de estoque
+                continue;
+            }
 
             Produto produto =
                     buscarProdutoDoGestor(itemDto.getProdutoId(), gestor);
@@ -132,57 +136,72 @@ public class VendaService {
                 .valorTotal(BigDecimal.ZERO)
                 .itens(new ArrayList<>())
                 .build();
+
         vendaRepository.save(venda);
 
         BigDecimal total = BigDecimal.ZERO;
 
         for (ItemVendaRequestDTO itemDto : dto.getItens()) {
+            Produto produto = null;
+            BigDecimal valorUnitario = BigDecimal.ZERO;
+            BigDecimal custoConsiderado = BigDecimal.ZERO;
 
-            Produto produto =
-                    buscarProdutoDoGestor(itemDto.getProdutoId(), gestor);
+            if (itemDto.getProdutoId() != null) {
+                produto = buscarProdutoDoGestor(itemDto.getProdutoId(), gestor);
 
-            BigDecimal valorUnitario =
-                    itemDto.getValorUnitario() != null
-                            ? itemDto.getValorUnitario()
-                            : produto.getPrecoVenda();
+                valorUnitario = itemDto.getValorUnitario() != null
+                        ? itemDto.getValorUnitario()
+                        : produto.getPrecoVenda();
+
+                custoConsiderado = produto.getCustoAtual();
+
+                /*
+                 * Só baixa estoque quando TODOS os produtos possuem estoque.
+                 *
+                 * Assim, uma venda futura não consome estoque que ainda não existe.
+                 */
+                if (possuiEstoqueSuficiente) {
+                    BigDecimal estoqueAnterior =
+                            produto.getEstoqueAtual();
+
+                    baixarEstoque(
+                            produto,
+                            itemDto.getQuantidade()
+                    );
+
+                    movimentacaoEstoqueService.registrarProduto(
+                            produto,
+                            gestor,
+                            estoqueAnterior,
+                            produto.getEstoqueAtual(),
+                            TipoMovimentacaoEstoque.SAIDA,
+                            OrigemMovimentacaoEstoque.VENDA,
+                            dto.getObservacao()
+                    );
+                }
+            } else {
+                valorUnitario = itemDto.getValorUnitario() != null
+                        ? itemDto.getValorUnitario()
+                        : BigDecimal.ZERO;
+
+                custoConsiderado = BigDecimal.ZERO;
+            }
 
             BigDecimal valorTotal =
                     valorUnitario.multiply(itemDto.getQuantidade());
 
-            /*
-             * Só baixa estoque quando TODOS os produtos possuem estoque.
-             *
-             * Assim, uma venda futura não consome estoque que ainda não existe.
-             */
-            if (possuiEstoqueSuficiente) {
-
-                BigDecimal estoqueAnterior =
-                        produto.getEstoqueAtual();
-
-                baixarEstoque(
-                        produto,
-                        itemDto.getQuantidade()
-                );
-
-                movimentacaoEstoqueService.registrarProduto(
-                        produto,
-                        gestor,
-                        estoqueAnterior,
-                        produto.getEstoqueAtual(),
-                        TipoMovimentacaoEstoque.SAIDA,
-                        OrigemMovimentacaoEstoque.VENDA,
-                        venda.getId(),
-                        dto.getObservacao()
-                );
-            }
-
             ItemVenda item = ItemVenda.builder()
                     .venda(venda)
                     .produto(produto)
+                    .nomeAvulso(
+                            itemDto.getProdutoId() == null
+                                    ? itemDto.getNomeAvulso()
+                                    : null
+                    )
                     .quantidade(itemDto.getQuantidade())
                     .valorUnitario(valorUnitario)
                     .valorTotal(valorTotal)
-                    .custoConsiderado(produto.getCustoAtual())
+                    .custoConsiderado(custoConsiderado)
                     .build();
 
             venda.getItens().add(item);
@@ -231,6 +250,10 @@ public class VendaService {
 
                 Produto produtoVenda = item.getProduto();
 
+                if (produtoVenda == null) {
+                    continue;
+                }
+
                 if (produtoVenda.getEstoqueAtual()
                         .compareTo(item.getQuantidade()) < 0) {
 
@@ -244,6 +267,10 @@ public class VendaService {
                 for (ItemVenda item : venda.getItens()) {
 
                     Produto produtoVenda = item.getProduto();
+
+                    if (produtoVenda == null) {
+                        continue;
+                    }
 
                     BigDecimal estoqueAnterior =
                             produtoVenda.getEstoqueAtual();
@@ -662,8 +689,13 @@ public class VendaService {
             Long usuarioId, LocalDate inicio, LocalDate fim
     ) {
         usuarioAcessoService.buscarGestor(usuarioId);
-        ResumoHistoricoVendasProjection valores = vendaRepository.resumirVendasIa(inicio, fim);
-        BigDecimal itens = vendaRepository.totalItensVendasIa(inicio, fim);
+
+        ResumoHistoricoVendasProjection valores =
+                vendaRepository.resumirVendasIa(inicio, fim);
+
+        BigDecimal itens =
+                vendaRepository.totalItensVendasIa(inicio, fim);
+
         return new ResumoHistoricoVendasResponseDTO(
                 decimal(valores.getFaturamento()),
                 numero(valores.getQuantidadeVendas()),
@@ -820,16 +852,20 @@ public class VendaService {
             Long usuarioId, LocalDate inicio, LocalDate fim, SituacaoCobranca situacao
     ) {
         usuarioAcessoService.buscarGestor(usuarioId);
+
         LocalDate hoje = classificadorCobrancaService.hoje();
-        ResumoCobrancasProjection valores = vendaRepository.resumirRecebiveisIa(
-                hoje,
-                hoje.minusDays(1),
-                hoje.minusDays(ClassificadorCobrancaService.LIMITE_ATRASO_RECENTE_DIAS),
-                hoje.minusDays(ClassificadorCobrancaService.LIMITE_ATRASO_RECENTE_DIAS + 1L),
-                hoje.minusDays(ClassificadorCobrancaService.LIMITE_ATRASO_MEDIO_DIAS),
-                situacao != null ? situacao.name() : "",
-                inicio,
-                fim);
+
+        ResumoCobrancasProjection valores =
+                vendaRepository.resumirRecebiveisIa(
+                        hoje,
+                        hoje.minusDays(1),
+                        hoje.minusDays(ClassificadorCobrancaService.LIMITE_ATRASO_RECENTE_DIAS),
+                        hoje.minusDays(ClassificadorCobrancaService.LIMITE_ATRASO_RECENTE_DIAS + 1L),
+                        hoje.minusDays(ClassificadorCobrancaService.LIMITE_ATRASO_MEDIO_DIAS),
+                        situacao != null ? situacao.name() : "",
+                        inicio,
+                        fim);
+
         return new ResumoCobrancasResponseDTO(
                 decimal(valores.getTotalReceber()),
                 decimal(valores.getTotalVencido()),
@@ -918,6 +954,17 @@ public class VendaService {
 
                             Produto produto =
                                     item.getProduto();
+
+                            if (produto == null) {
+                                return new VendaDuplicacaoResponseDTO.ItemDuplicacao(
+                                        null,
+                                        item.getNomeAvulso(),
+                                        item.getQuantidade(),
+                                        item.getValorUnitario(),
+                                        item.getValorUnitario(),
+                                        BigDecimal.ZERO
+                                );
+                            }
 
                             if (item.getValorUnitario()
                                     .compareTo(
@@ -1028,11 +1075,13 @@ public class VendaService {
                                 "Produto não encontrado"
                         )
                 );
+
         if (!Boolean.TRUE.equals(produto.getAtivo())) {
             throw new BusinessException(
                     "O produto está removido e não pode ser usado em novas vendas"
             );
         }
+
         return produto;
     }
 
@@ -1201,12 +1250,22 @@ public class VendaService {
                                         item.get("venda"),
                                         root
                                 ),
-                                builder.like(
-                                        builder.lower(
-                                                item.get("produto")
-                                                        .get("nome")
+                                builder.or(
+                                        builder.like(
+                                                builder.lower(
+                                                        item.get("nomeAvulso")
+                                                ),
+                                                like
                                         ),
-                                        like
+                                        builder.like(
+                                                builder.lower(
+                                                        item.join(
+                                                                "produto",
+                                                                jakarta.persistence.criteria.JoinType.LEFT
+                                                        ).get("nome")
+                                                ),
+                                                like
+                                        )
                                 )
                         );
 
@@ -1382,12 +1441,22 @@ public class VendaService {
                                         item.get("venda"),
                                         root
                                 ),
-                                builder.like(
-                                        builder.lower(
-                                                item.get("produto")
-                                                        .get("nome")
+                                builder.or(
+                                        builder.like(
+                                                builder.lower(
+                                                        item.get("nomeAvulso")
+                                                ),
+                                                like
                                         ),
-                                        like
+                                        builder.like(
+                                                builder.lower(
+                                                        item.join(
+                                                                "produto",
+                                                                jakarta.persistence.criteria.JoinType.LEFT
+                                                        ).get("nome")
+                                                ),
+                                                like
+                                        )
                                 )
                         );
 
@@ -1741,10 +1810,14 @@ public class VendaService {
                         ItemVendaResponseDTO.builder()
                                 .id(item.getId())
                                 .produtoId(
-                                        item.getProduto().getId()
+                                        item.getProduto() != null
+                                                ? item.getProduto().getId()
+                                                : null
                                 )
                                 .produtoNome(
-                                        item.getProduto().getNome()
+                                        item.getProduto() != null
+                                                ? item.getProduto().getNome()
+                                                : item.getNomeAvulso()
                                 )
                                 .quantidade(
                                         item.getQuantidade()

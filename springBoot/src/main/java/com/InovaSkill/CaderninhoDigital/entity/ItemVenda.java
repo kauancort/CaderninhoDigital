@@ -34,8 +34,11 @@ public class ItemVenda {
     private Venda venda;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "produto_id", nullable = false)
+    @JoinColumn(name = "produto_id")
     private Produto produto;
+
+    @Column(name = "nome_avulso", length = 120)
+    private String nomeAvulso;
 
     @Column(nullable = false, precision = 12, scale = 3)
     private BigDecimal quantidade;

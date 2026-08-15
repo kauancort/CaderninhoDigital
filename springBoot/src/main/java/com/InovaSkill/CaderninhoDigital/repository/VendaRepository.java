@@ -69,8 +69,10 @@ public interface VendaRepository extends JpaRepository<Venda, Long>, JpaSpecific
                     LOWER(v.cliente.nome) LIKE LOWER(CONCAT('%', :busca, '%')) OR
                     LOWER(COALESCE(v.observacao, '')) LIKE LOWER(CONCAT('%', :busca, '%')) OR
                     EXISTS (SELECT item.id FROM ItemVenda item
+                            LEFT JOIN item.produto prod
                             WHERE item.venda = v
-                              AND LOWER(item.produto.nome) LIKE LOWER(CONCAT('%', :busca, '%'))))
+                              AND (LOWER(COALESCE(item.nomeAvulso, '')) LIKE LOWER(CONCAT('%', :busca, '%')) OR
+                                   (prod IS NOT NULL AND LOWER(prod.nome) LIKE LOWER(CONCAT('%', :busca, '%'))))))
             """)
     ResumoHistoricoVendasProjection resumirHistoricoVendas(
             @Param("busca") String busca,
@@ -125,8 +127,10 @@ public interface VendaRepository extends JpaRepository<Venda, Long>, JpaSpecific
                     LOWER(v.cliente.nome) LIKE LOWER(CONCAT('%', :busca, '%')) OR
                     LOWER(COALESCE(v.observacao, '')) LIKE LOWER(CONCAT('%', :busca, '%')) OR
                     EXISTS (SELECT item.id FROM ItemVenda item
+                            LEFT JOIN item.produto prod
                             WHERE item.venda = v
-                              AND LOWER(item.produto.nome) LIKE LOWER(CONCAT('%', :busca, '%'))))
+                              AND (LOWER(COALESCE(item.nomeAvulso, '')) LIKE LOWER(CONCAT('%', :busca, '%')) OR
+                                   (prod IS NOT NULL AND LOWER(prod.nome) LIKE LOWER(CONCAT('%', :busca, '%'))))))
             """)
     BigDecimal totalItensHistoricoVendas(
             @Param("busca") String busca,
@@ -170,8 +174,10 @@ public interface VendaRepository extends JpaRepository<Venda, Long>, JpaSpecific
                     LOWER(COALESCE(v.cliente.telefone, '')) LIKE LOWER(CONCAT('%', :busca, '%')) OR
                     LOWER(COALESCE(v.observacao, '')) LIKE LOWER(CONCAT('%', :busca, '%')) OR
                     EXISTS (SELECT item.id FROM ItemVenda item
+                            LEFT JOIN item.produto prod
                             WHERE item.venda = v
-                              AND LOWER(item.produto.nome) LIKE LOWER(CONCAT('%', :busca, '%'))))
+                              AND (LOWER(COALESCE(item.nomeAvulso, '')) LIKE LOWER(CONCAT('%', :busca, '%')) OR
+                                   (prod IS NOT NULL AND LOWER(prod.nome) LIKE LOWER(CONCAT('%', :busca, '%'))))))
               AND (:situacao = '' OR
                     (:situacao = 'EM_DIA'
                         AND v.dataVencimento >= :hoje) OR

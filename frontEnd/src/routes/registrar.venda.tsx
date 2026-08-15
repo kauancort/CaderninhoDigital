@@ -27,6 +27,8 @@ type TipoCartao = "CREDITO" | "DEBITO";
 
 type ItemForm = {
   produto_final_id: string;
+  is_avulso?: boolean;
+  nome_avulso?: string;
   quantidade: string;
   preco_unitario: string;
   tipo: TipoVenda;
@@ -76,7 +78,7 @@ function RegistrarVenda() {
   const quantidadeRefs = useRef<Array<HTMLInputElement | null>>([]);
 
   const [itens, setItens] = useState<ItemForm[]>([
-    { produto_final_id: "", quantidade: "1", preco_unitario: "", tipo: "pote", tamanho_pote: "44" },
+    { produto_final_id: "", quantidade: "1", preco_unitario: "", tipo: "pote", tamanho_pote: "44", is_avulso: false, nome_avulso: "" },
   ]);
   const [forma, setForma] = useState<FormaPagamento>("pix");
   const [tipoCartao, setTipoCartao] = useState<TipoCartao | null>(null);
@@ -212,6 +214,21 @@ function RegistrarVenda() {
   });
 
   const itensCalculados = itens.map((i) => {
+    if (i.is_avulso) {
+      const q = Number(i.quantidade) || 0;
+      const p = Number(i.preco_unitario.replace(",", ".")) || 0;
+      return {
+        ...i,
+        nome: i.nome_avulso || "Item Avulso",
+        subtotal: q * p,
+        qtd: q,
+        potes: q,
+        preco: p,
+        estoque: Infinity,
+        estoqueInsuficiente: false,
+      };
+    }
+
     const prod = produtos.find((p: any) => p.id === i.produto_final_id);
     const q = Number(i.quantidade) || 0;
     const potes = i.tipo === "caixa" ? q * POTES_POR_CAIXA : q;
@@ -274,7 +291,7 @@ function RegistrarVenda() {
     const novoIndice = itens.length;
     setItens((atuais) => [
       ...atuais,
-      { produto_final_id: "", quantidade: "1", preco_unitario: "", tipo: "pote", tamanho_pote: "44" },
+      { produto_final_id: "", quantidade: "1", preco_unitario: "", tipo: "pote", tamanho_pote: "44", is_avulso: false, nome_avulso: "" },
     ]);
     window.setTimeout(() => produtoRefs.current[novoIndice]?.focus(), 0);
   }
@@ -352,14 +369,28 @@ function RegistrarVenda() {
     e.preventDefault();
     setErro(null);
     if (!clienteId) return setErro("Selecione um cliente na lista para continuar com a venda.");
-    if (itens.some((i) => !i.produto_final_id))
-      return setErro("Escolha o produto em todos os itens.");
-    if (itens.some((i) => !i.quantidade || Number(i.quantidade) <= 0))
-      return setErro("A quantidade de potes/caixas é obrigatória.");
-    if (itensCalculados.some((i) => i.qtd <= 0 || i.preco <= 0))
-      return setErro("Verifique quantidades e preços.");
-
-    // Permite a venda mesmo sem estoque! O aviso é exibido dinamicamente no resumo.
+    
+    for (let idx = 0; idx < itens.length; idx++) {
+      const it = itens[idx];
+      if (it.is_avulso) {
+        if (!it.nome_avulso?.trim()) {
+          return setErro(`Digite a descrição/nome do item avulso ${idx + 1}.`);
+        }
+      } else {
+        if (!it.produto_final_id) {
+          return setErro(`Escolha o produto no item ${idx + 1}.`);
+        }
+      }
+      
+      if (!it.quantidade || Number(it.quantidade) <= 0) {
+        return setErro(`A quantidade no item ${idx + 1} é obrigatória e deve ser maior que zero.`);
+      }
+      
+      const preco = Number(it.preco_unitario.replace(",", "."));
+      if (isNaN(preco) || preco <= 0) {
+        return setErro(`O preço no item ${idx + 1} deve ser válido e maior que zero.`);
+      }
+    }
 
     if (statusPagamento === "PENDENTE" && !dataVencimento)
       return setErro("Informe a data de vencimento para vendas pendentes.");
@@ -383,7 +414,8 @@ function RegistrarVenda() {
         parcelas: forma === "cartao" && tipoCartao === "CREDITO" ? Number(parcelas) : null,
         observacao: observacao.trim() || null,
         itens: itensCalculados.map((i) => ({
-          produto_final_id: i.produto_final_id,
+          produto_final_id: i.is_avulso ? null : i.produto_final_id,
+          nome_avulso: i.is_avulso ? i.nome_avulso : null,
           quantidade: i.potes,
           preco_unitario: i.preco,
         })),
@@ -496,77 +528,58 @@ function RegistrarVenda() {
 
             {itens.map((it, idx) => (
               <div key={idx} className="space-y-3 border border-border rounded-xl p-4 bg-secondary/30">
-                <div className="grid grid-cols-[1fr_auto] gap-2 items-end">
-                  <select
-                    ref={(element) => {
-                      produtoRefs.current[idx] = element;
-                    }}
-                    className="ds-input"
-                    value={it.produto_final_id}
-                    onChange={(e) => {
-                      const escolhido = produtos.find((p: any) => p.id === e.target.value);
-                      if (escolhido)
-                        setProdutosSelecionados((a) =>
-                          a.some((p) => p.id === escolhido.id) ? a : [...a, escolhido],
-                        );
-                      selecionarProduto(idx, e.target.value);
-                    }}
-                  >
-                    <option value="">Escolha o produto...</option>
-                    {produtos.map((p: any) => (
-                      <option
-                        key={p.id}
-                        value={p.id}
-                        disabled={itens.some(
-                          (item, itemIdx) =>
-                            itemIdx !== idx && item.produto_final_id === String(p.id),
-                        )}
-                      >
-                        {p.nome} (estoque: {Number(p.quantidade_estoque)} un)
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    type="button"
-                    onClick={() => setItens((p) => p.filter((_, i) => i !== idx))}
-                    disabled={itens.length === 1}
-                    className="w-10 h-10 rounded-md text-error hover:bg-error-bg disabled:opacity-30 flex items-center justify-center shrink-0"
-                    aria-label={`Remover item ${idx + 1}`}
-                  >
-                    <Trash2 size={16} />
-                  </button>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-muted-foreground uppercase">Item {idx + 1}</span>
+                  <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(it.is_avulso)}
+                      onChange={(e) => {
+                        atualizarItem(idx, {
+                          is_avulso: e.target.checked,
+                          produto_final_id: "",
+                          nome_avulso: "",
+                          preco_unitario: "",
+                          quantidade: "1",
+                        });
+                      }}
+                      className="rounded border-border text-primary focus:ring-primary cursor-pointer"
+                    />
+                    <span>Venda Avulsa</span>
+                  </label>
                 </div>
 
-                {it.produto_final_id && (
-                  <div className="space-y-3 pt-1">
-                    <div>
-                      <label className="text-xs font-semibold text-muted-foreground mb-1 block">
-                        Tipo de Venda
-                      </label>
-                      <div className="grid grid-cols-2 gap-2">
-                        {(["pote", "caixa"] as const).map((t) => (
-                          <button
-                            key={t}
-                            type="button"
-                            onClick={() => atualizarItem(idx, { tipo: t })}
-                            className={[
-                              "py-2 rounded-md text-xs font-bold uppercase tracking-wider transition-colors",
-                              it.tipo === t
-                                ? "bg-primary text-primary-foreground shadow-warm-sm"
-                                : "bg-card border border-border text-foreground hover:bg-secondary",
-                            ].join(" ")}
-                          >
-                            {t === "pote" ? "Pote" : "Caixa (6 potes)"}
-                          </button>
-                        ))}
+                {it.is_avulso ? (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-[1fr_auto] gap-2 items-end">
+                      <div className="flex-1">
+                        <label className="text-xs font-semibold text-muted-foreground mb-1 block">
+                          Descrição / Nome do Item *
+                        </label>
+                        <input
+                          required
+                          className="ds-input"
+                          value={it.nome_avulso || ""}
+                          onChange={(e) => atualizarItem(idx, { nome_avulso: e.target.value })}
+                          placeholder="Ex: Doce customizado, taxa de entrega, bolo personalizado..."
+                        />
                       </div>
+                      <button
+                        type="button"
+                        onClick={() => setItens((p) => p.filter((_, i) => i !== idx))}
+                        disabled={itens.length === 1}
+                        className="w-10 h-10 rounded-md text-error hover:bg-error-bg disabled:opacity-30 flex items-center justify-center shrink-0"
+                        aria-label={`Remover item ${idx + 1}`}
+                      >
+                        <Trash2 size={16} />
+                      </button>
                     </div>
 
-                    <div className="grid grid-cols-3 gap-3">
-                      {/* Quantidade de Potes (Obrigatório) */}
+                    <div className="grid grid-cols-2 gap-3 pt-1">
+                      {/* Quantidade */}
                       <div>
                         <label className="text-xs font-semibold text-muted-foreground mb-1 block">
-                          {it.tipo === "caixa" ? "Quant. Caixas *" : "Quant. Potes *"}
+                          Quantidade *
                         </label>
                         <input
                           ref={(element) => {
@@ -581,29 +594,13 @@ function RegistrarVenda() {
                         />
                       </div>
 
-                      {/* Tamanho do Pote */}
+                      {/* Preço */}
                       <div>
                         <label className="text-xs font-semibold text-muted-foreground mb-1 block">
-                          Tamanho Pote
-                        </label>
-                        <select
-                          className="ds-input"
-                          value={it.tamanho_pote}
-                          onChange={(e) =>
-                            atualizarItem(idx, { tamanho_pote: e.target.value as TamanhoPote })
-                          }
-                        >
-                          <option value="44">44 uni.</option>
-                          <option value="22">22 uni.</option>
-                        </select>
-                      </div>
-
-                      {/* Preço por pote */}
-                      <div>
-                        <label className="text-xs font-semibold text-muted-foreground mb-1 block">
-                          Preço por pote
+                          Preço Unitário *
                         </label>
                         <input
+                          required
                           className="ds-input"
                           value={it.preco_unitario}
                           onChange={(e) => atualizarItem(idx, { preco_unitario: e.target.value })}
@@ -616,6 +613,130 @@ function RegistrarVenda() {
                       Subtotal item: <strong className="text-foreground">{fmtBRL(itensCalculados[idx]?.subtotal ?? 0)}</strong>
                     </div>
                   </div>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-[1fr_auto] gap-2 items-end">
+                      <select
+                        ref={(element) => {
+                          produtoRefs.current[idx] = element;
+                        }}
+                        className="ds-input"
+                        value={it.produto_final_id}
+                        onChange={(e) => {
+                          const escolhido = produtos.find((p: any) => p.id === e.target.value);
+                          if (escolhido)
+                            setProdutosSelecionados((a) =>
+                              a.some((p) => p.id === escolhido.id) ? a : [...a, escolhido],
+                            );
+                          selecionarProduto(idx, e.target.value);
+                        }}
+                      >
+                        <option value="">Escolha o produto...</option>
+                        {produtos.map((p: any) => (
+                          <option
+                            key={p.id}
+                            value={p.id}
+                            disabled={itens.some(
+                              (item, itemIdx) =>
+                                itemIdx !== idx && item.produto_final_id === String(p.id),
+                            )}
+                          >
+                            {p.nome} (estoque: {Number(p.quantidade_estoque)} un)
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => setItens((p) => p.filter((_, i) => i !== idx))}
+                        disabled={itens.length === 1}
+                        className="w-10 h-10 rounded-md text-error hover:bg-error-bg disabled:opacity-30 flex items-center justify-center shrink-0"
+                        aria-label={`Remover item ${idx + 1}`}
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+
+                    {it.produto_final_id && (
+                      <div className="space-y-3 pt-1">
+                        <div>
+                          <label className="text-xs font-semibold text-muted-foreground mb-1 block">
+                            Tipo de Venda
+                          </label>
+                          <div className="grid grid-cols-2 gap-2">
+                            {(["pote", "caixa"] as const).map((t) => (
+                              <button
+                                key={t}
+                                type="button"
+                                onClick={() => atualizarItem(idx, { tipo: t })}
+                                className={[
+                                  "py-2 rounded-md text-xs font-bold uppercase tracking-wider transition-colors",
+                                  it.tipo === t
+                                    ? "bg-primary text-primary-foreground shadow-warm-sm"
+                                    : "bg-card border border-border text-foreground hover:bg-secondary",
+                                ].join(" ")}
+                              >
+                                {t === "pote" ? "Pote" : "Caixa (6 potes)"}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-3">
+                          {/* Quantidade de Potes (Obrigatório) */}
+                          <div>
+                            <label className="text-xs font-semibold text-muted-foreground mb-1 block">
+                              {it.tipo === "caixa" ? "Quant. Caixas *" : "Quant. Potes *"}
+                            </label>
+                            <input
+                              ref={(element) => {
+                                quantidadeRefs.current[idx] = element;
+                              }}
+                              type="number"
+                              min="1"
+                              required
+                              className="ds-input"
+                              value={it.quantidade}
+                              onChange={(e) => atualizarItem(idx, { quantidade: e.target.value })}
+                            />
+                          </div>
+
+                          {/* Tamanho do Pote */}
+                          <div>
+                            <label className="text-xs font-semibold text-muted-foreground mb-1 block">
+                              Tamanho Pote
+                            </label>
+                            <select
+                              className="ds-input"
+                              value={it.tamanho_pote}
+                              onChange={(e) =>
+                                atualizarItem(idx, { tamanho_pote: e.target.value as TamanhoPote })
+                              }
+                            >
+                              <option value="44">44 uni.</option>
+                              <option value="22">22 uni.</option>
+                            </select>
+                          </div>
+
+                          {/* Preço por pote */}
+                          <div>
+                            <label className="text-xs font-semibold text-muted-foreground mb-1 block">
+                              Preço por pote
+                            </label>
+                            <input
+                              className="ds-input"
+                              value={it.preco_unitario}
+                              onChange={(e) => atualizarItem(idx, { preco_unitario: e.target.value })}
+                              placeholder="R$ 0,00"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="text-right text-xs text-muted-foreground">
+                          Subtotal item: <strong className="text-foreground">{fmtBRL(itensCalculados[idx]?.subtotal ?? 0)}</strong>
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             ))}
