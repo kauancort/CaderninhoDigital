@@ -1,6 +1,7 @@
 package com.InovaSkill.CaderninhoDigital.service;
 
 import com.InovaSkill.CaderninhoDigital.ai.contract.ArgumentosPeriodo;
+import com.InovaSkill.CaderninhoDigital.ai.contract.ArgumentosRentabilidadeProduto;
 import com.InovaSkill.CaderninhoDigital.ai.contract.PlanoOrquestracao;
 import com.InovaSkill.CaderninhoDigital.config.AiOrchestratorProperties;
 import com.InovaSkill.CaderninhoDigital.exception.CodigoErroOrquestrador;
@@ -38,7 +39,20 @@ public class PlanoContratoValidator {
                 throw new OrquestradorException(CodigoErroOrquestrador.ARGUMENTOS_INVALIDOS,
                         HttpStatus.BAD_REQUEST, "Período da ferramenta é inválido");
             }
+            if (chamada.argumentos() instanceof ArgumentosRentabilidadeProduto rentabilidade
+                    && rentabilidade.inicio().isAfter(rentabilidade.fim())) {
+                throw new OrquestradorException(CodigoErroOrquestrador.ARGUMENTOS_INVALIDOS,
+                        HttpStatus.BAD_REQUEST, "Período da rentabilidade é inválido");
+            }
         });
+    }
+
+    public int limiteFerramentasPorPlano() {
+        return Math.min(properties.getLimits().getToolsPerPlan(), properties.getLimits().getToolCalls());
+    }
+
+    public int limitePesquisasMercado() {
+        return properties.getLimits().getMarketSearchesPerRequest();
     }
 
     private OrquestradorException planoInvalido(String message) {

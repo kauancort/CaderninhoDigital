@@ -18,7 +18,7 @@ public class ConsultarEstoqueCriticoFerramenta implements FerramentaLeitura<Argu
     public PerfilUsuario permissaoNecessaria() { return PerfilUsuario.GESTOR; }
     public Duration timeout() { return Duration.ofSeconds(3); }
     public ResultadoFerramenta executar(ArgumentosSemFiltro argumentos, ContextoExecucaoFerramenta contexto) {
-        var resultado = service.consultar();
+        var resultado = service.consultar(contexto.identidade().empresaId());
         var dados = new LinkedHashMap<String, Object>();
         dados.put("criterio", resultado.criterio());
         dados.put("itensAvaliados", resultado.itensAvaliados());

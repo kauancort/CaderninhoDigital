@@ -22,13 +22,13 @@ class ConsultaEstoqueCriticoServiceTest {
         when(politica.rotuloOperacionalPermitido(anyString())).thenReturn(true);
         var linhas = List.of(linha("Farinha", "kg", "2", "2"), linha("Açúcar", "kg", "0", "1"),
                 linha("Sal", "kg", "-1", "1"), linha("Leite", "l", "5", "2"));
-        when(repository.listarDadosEstoqueAtivos(any())).thenReturn(linhas);
+        when(repository.listarDadosEstoqueAtivos(eq(10L), any())).thenReturn(linhas);
         var resultado = new ConsultaEstoqueCriticoService(repository, politica, clock,
-                new AiOrchestratorProperties()).consultar();
+                new AiOrchestratorProperties()).consultar(10L);
         assertThat(resultado.itensCriticos()).isEqualTo(3);
         assertThat(resultado.itens()).extracting(ConsultaEstoqueCriticoService.Item::nome)
                 .containsExactly("Farinha", "Açúcar", "Sal");
-        verify(repository).listarDadosEstoqueAtivos(any());
+        verify(repository).listarDadosEstoqueAtivos(eq(10L), any());
         verifyNoMoreInteractions(repository);
     }
 
@@ -36,12 +36,12 @@ class ConsultaEstoqueCriticoServiceTest {
     void omiteDadosIncompletosETrataListaVazia() {
         when(politica.rotuloOperacionalPermitido(anyString())).thenReturn(true);
         var incompleta = linha("Item", null, "1", null);
-        when(repository.listarDadosEstoqueAtivos(any())).thenReturn(List.of(incompleta));
+        when(repository.listarDadosEstoqueAtivos(eq(10L), any())).thenReturn(List.of(incompleta));
         var service = new ConsultaEstoqueCriticoService(repository, politica, clock,
                 new AiOrchestratorProperties());
-        assertThat(service.consultar().dadosInsuficientes()).isEqualTo(1);
-        when(repository.listarDadosEstoqueAtivos(any())).thenReturn(List.of());
-        assertThat(service.consultar().itensCriticos()).isZero();
+        assertThat(service.consultar(10L).dadosInsuficientes()).isEqualTo(1);
+        when(repository.listarDadosEstoqueAtivos(eq(10L), any())).thenReturn(List.of());
+        assertThat(service.consultar(10L).itensCriticos()).isZero();
     }
 
     private MateriaPrimaRepository.EstoqueCriticoProjection linha(String nome, String unidade,

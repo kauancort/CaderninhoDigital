@@ -41,7 +41,7 @@ class MapeadorDadosAssistenteTest {
                 com.InovaSkill.CaderninhoDigital.ai.search.ResultadoFontePesquisa.Status.NAO_CONCLUIDA,
                 "limite do OpenRouter");
         Map<String, Object> dados = new java.util.LinkedHashMap<>();
-        dados.put("materiaPrimaId", 3L); dados.put("unidade", "kg");
+        dados.put("materiaPrimaId", 3L); dados.put("materiaPrima", "Amendoim"); dados.put("unidade", "kg");
         dados.put("quantidadeAlvo", new BigDecimal("10")); dados.put("situacao", "INSUFICIENTE");
         dados.put("pesquisadoEm", Instant.parse("2026-08-12T20:00:00Z"));
         dados.put("fontes", List.of(fonte)); dados.put("ofertas", List.of());
@@ -51,7 +51,7 @@ class MapeadorDadosAssistenteTest {
         String json = new ObjectMapper().findAndRegisterModules().writeValueAsString(dto);
 
         assertThat(dto).isInstanceOf(DadosAssistenteDTO.ComparacaoMercado.class);
-        assertThat(json).contains("\"fontes\"", "NAO_CONCLUIDA", "limite do OpenRouter")
+        assertThat(json).contains("\"materiaPrima\":\"Amendoim\"", "\"fontes\"", "NAO_CONCLUIDA", "limite do OpenRouter")
                 .doesNotContain("\"ofertas\":[{");
     }
 

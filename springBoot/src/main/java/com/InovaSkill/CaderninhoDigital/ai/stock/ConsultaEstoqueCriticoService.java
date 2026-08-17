@@ -28,8 +28,9 @@ public class ConsultaEstoqueCriticoService {
     }
 
     @Transactional(readOnly = true)
-    public Resultado consultar() {
-        var linhas = repository.listarDadosEstoqueAtivos(PageRequest.of(0, properties.getLimits().getContextItems()));
+    public Resultado consultar(Long empresaId) {
+        var linhas = repository.listarDadosEstoqueAtivos(empresaId,
+                PageRequest.of(0, properties.getLimits().getContextItems()));
         var criticos = new ArrayList<Item>();
         int insuficientes = 0;
         for (var linha : linhas) {

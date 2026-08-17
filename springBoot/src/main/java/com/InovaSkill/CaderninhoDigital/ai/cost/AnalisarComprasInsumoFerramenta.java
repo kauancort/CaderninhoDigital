@@ -18,7 +18,7 @@ public class AnalisarComprasInsumoFerramenta implements FerramentaLeitura<Argume
     public PerfilUsuario permissaoNecessaria() { return PerfilUsuario.GESTOR; }
     public Duration timeout() { return Duration.ofSeconds(3); }
     public ResultadoFerramenta executar(ArgumentosCompraInsumo a, ContextoExecucaoFerramenta c) {
-        var r = service.analisar(c.identidade().usuarioId(), a.materiaPrimaId(), a.inicio(), a.fim());
+        var r = service.analisar(c.identidade().empresaId(), a.materiaPrimaId(), a.inicio(), a.fim());
         var dados = new LinkedHashMap<String,Object>();
         dados.put("materiaPrimaId", r.materiaPrimaId());
         dados.put("valorTotal", r.valorTotal());

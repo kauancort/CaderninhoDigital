@@ -51,15 +51,17 @@ app:
     provider:
       key: ${OPENROUTER_API_KEY:}
       url: ${OPENROUTER_API_URL:https://openrouter.ai/api/v1/chat/completions}
-      model: ${OPENROUTER_MODEL:google/gemma-4-26b-a4b-it:free}
+      model: ${OPENROUTER_MODEL:google/gemma-4-26b-a4b-it}
       fallback-model: ${OPENROUTER_FALLBACK_MODEL:}
     search:
       key: ${TAVILY_API_KEY:}
       url: ${TAVILY_API_URL:https://api.tavily.com/search}
       timeout-ms: ${TAVILY_TIMEOUT_MS:35000}
-      interpretation-timeout-ms: ${AI_SEARCH_INTERPRETATION_TIMEOUT_MS:60000}
+      interpretation-timeout-ms: ${AI_SEARCH_INTERPRETATION_TIMEOUT_MS:300000}
       interpretation-max-output-tokens: ${AI_SEARCH_INTERPRETATION_MAX_OUTPUT_TOKENS:4000}
-      max-results: ${TAVILY_MAX_RESULTS:3}
+      max-results: ${TAVILY_MAX_RESULTS:5}
+      candidate-results: ${TAVILY_CANDIDATE_RESULTS:15}
+      cache-minutes: ${AI_MARKET_SEARCH_CACHE_MINUTES:30}
       max-query-characters: ${TAVILY_MAX_QUERY_CHARACTERS:180}
       max-snippet-characters: ${TAVILY_MAX_SNIPPET_CHARACTERS:4000}
       default-city: ${AI_SEARCH_DEFAULT_CITY:Marília}
@@ -68,8 +70,9 @@ app:
       message-characters: ${AI_MAX_MESSAGE_CHARACTERS:2000}
       history-messages: ${AI_MAX_HISTORY_MESSAGES:30}
       history-message-characters: ${AI_MAX_HISTORY_MESSAGE_CHARACTERS:4000}
-      tools-per-plan: ${AI_MAX_TOOLS_PER_PLAN:2}
-      tool-calls: ${AI_MAX_TOOL_CALLS:2}
+      tools-per-plan: ${AI_MAX_TOOLS_PER_PLAN:5}
+      tool-calls: ${AI_MAX_TOOL_CALLS:5}
+      market-searches-per-request: ${AI_MAX_MARKET_SEARCHES_PER_REQUEST:1}
       plan-repairs: ${AI_MAX_PLAN_REPAIRS:1}
       max-period-days: ${AI_MAX_PERIOD_DAYS:366}
       context-items: ${AI_MAX_CONTEXT_ITEMS:200}
@@ -78,8 +81,8 @@ app:
       provider-payload-characters: ${AI_MAX_PROVIDER_PAYLOAD_CHARACTERS:30000}
       max-output-tokens: ${AI_MAX_OUTPUT_TOKENS:1000}
       connect-timeout-ms: ${AI_CONNECT_TIMEOUT_MS:5000}
-      read-timeout-ms: ${AI_READ_TIMEOUT_MS:20000}
-      request-budget-millis: ${AI_REQUEST_BUDGET_MILLIS:70000}
+      read-timeout-ms: ${AI_READ_TIMEOUT_MS:300000}
+      request-budget-millis: ${AI_REQUEST_BUDGET_MILLIS:345000}
       requests-per-user-window: ${AI_REQUESTS_PER_USER_WINDOW:20}
       requests-global-window: ${AI_REQUESTS_GLOBAL_WINDOW:100}
       rate-window-seconds: ${AI_RATE_WINDOW_SECONDS:60}

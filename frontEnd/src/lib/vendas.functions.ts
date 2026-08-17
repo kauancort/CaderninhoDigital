@@ -31,6 +31,9 @@ export const listarVendas = createApiFn({ method: "GET" }).handler(async () => {
       produto_final_id: String(i.produtoId),
       quantidade: i.quantidade,
       preco_unitario: i.valorUnitario,
+      modalidade_venda: i.modalidadeVenda ?? "UNIDADE",
+      quantidade_modalidade: i.quantidadeModalidade ?? i.quantidade,
+      unidades_por_modalidade: i.unidadesPorModalidade ?? 1,
       produtos_finais: {
         nome: i.produtoNome || "Produto",
       },
@@ -89,6 +92,11 @@ export const registrarVenda = createApiFn({ method: "POST" })
               nome_avulso: z.string().max(120).optional().nullable(),
               quantidade: z.number().positive(),
               preco_unitario: z.number().min(0),
+              modalidade_venda: z
+                .enum(["UNIDADE", "CAIXA", "PACOTE", "DUZIA", "PESO", "POTE"])
+                .optional(),
+              quantidade_modalidade: z.number().positive().optional(),
+              unidades_por_modalidade: z.number().positive().optional(),
             }),
           )
           .min(1),
@@ -110,6 +118,9 @@ export const registrarVenda = createApiFn({ method: "POST" })
         nomeAvulso: it.nome_avulso || null,
         quantidade: it.quantidade,
         valorUnitario: it.preco_unitario,
+        modalidadeVenda: it.modalidade_venda ?? "UNIDADE",
+        quantidadeModalidade: it.quantidade_modalidade ?? it.quantidade,
+        unidadesPorModalidade: it.unidades_por_modalidade ?? 1,
       })),
     };
 

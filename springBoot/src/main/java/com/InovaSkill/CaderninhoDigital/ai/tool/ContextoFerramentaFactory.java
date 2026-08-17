@@ -5,6 +5,7 @@ import com.InovaSkill.CaderninhoDigital.enums.PerfilUsuario;
 import com.InovaSkill.CaderninhoDigital.exception.CodigoErroOrquestrador;
 import com.InovaSkill.CaderninhoDigital.exception.OrquestradorException;
 import com.InovaSkill.CaderninhoDigital.security.UsuarioPrincipal;
+import com.InovaSkill.CaderninhoDigital.repository.UsuarioRepository;
 import java.time.Clock;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
@@ -16,10 +17,13 @@ public final class ContextoFerramentaFactory {
 
     private final Clock clock;
     private final AiOrchestratorProperties properties;
+    private final UsuarioRepository usuarios;
 
-    public ContextoFerramentaFactory(Clock clock, AiOrchestratorProperties properties) {
+    public ContextoFerramentaFactory(Clock clock, AiOrchestratorProperties properties,
+            UsuarioRepository usuarios) {
         this.clock = clock;
         this.properties = properties;
+        this.usuarios = usuarios;
     }
 
     public ContextoExecucaoFerramenta criar(String correlacao) {
@@ -38,8 +42,11 @@ public final class ContextoFerramentaFactory {
         }
         String correlacaoSegura = correlacao != null && correlacao.matches(CORRELACAO_SEGURA)
                 ? correlacao : UUID.randomUUID().toString();
+        Long empresaId = usuarios.buscarEmpresaId(principal.id()).orElseThrow(() ->
+                new OrquestradorException(CodigoErroOrquestrador.NAO_AUTORIZADO,
+                        HttpStatus.FORBIDDEN, "Usuário sem empresa vinculada"));
         return new ContextoExecucaoFerramenta(
-                new IdentidadeFerramenta(principal.id(), perfil),
+                new IdentidadeFerramenta(principal.id(), empresaId, perfil),
                 correlacaoSegura,
                 clock.instant(),
                 clock.getZone(),

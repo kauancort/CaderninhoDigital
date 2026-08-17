@@ -16,9 +16,11 @@ public interface LancamentoRepository extends JpaRepository<Lancamento, Long> {
             SELECT COALESCE(SUM(l.valorTotal), 0) AS total, COUNT(l) AS quantidade
             FROM Lancamento l
             WHERE l.tipo = com.InovaSkill.CaderninhoDigital.enums.TipoLancamento.GASTO_GERAL
+              AND l.gestor.empresa.id = :empresaId
               AND l.dataLancamento >= :inicio AND l.dataLancamento <= :fim
             """)
-    ResumoGastosProjection resumirGastos(@Param("inicio") LocalDate inicio, @Param("fim") LocalDate fim);
+    ResumoGastosProjection resumirGastos(@Param("empresaId") Long empresaId,
+            @Param("inicio") LocalDate inicio, @Param("fim") LocalDate fim);
 
     List<Lancamento> findByGestorOrderByDataLancamentoDesc(Usuario gestor);
 

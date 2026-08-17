@@ -68,8 +68,19 @@ public record ExtracaoOfertasMercado(
             @Size(max = 120) String localizacao,
             @NotBlank @Size(max = 240) String evidenciaPreco,
             @Size(max = 240) String evidenciaPedidoMinimo,
-            @NotNull Confianca confianca
-    ) {}
+            @NotNull Confianca confianca,
+            @Size(max = 120) String marca,
+            @Size(max = 120) String fornecedor
+    ) {
+        public Oferta(String fonteId, String produto, BigDecimal precoAnunciado, TipoPreco tipoPreco,
+                Unidade unidadePreco, BigDecimal quantidadeEmbalagem, Unidade unidadeEmbalagem,
+                BigDecimal pedidoMinimo, Unidade unidadePedidoMinimo, BigDecimal frete, LocalDate validade,
+                String localizacao, String evidenciaPreco, String evidenciaPedidoMinimo, Confianca confianca) {
+            this(fonteId, produto, precoAnunciado, tipoPreco, unidadePreco, quantidadeEmbalagem,
+                    unidadeEmbalagem, pedidoMinimo, unidadePedidoMinimo, frete, validade, localizacao,
+                    evidenciaPreco, evidenciaPedidoMinimo, confianca, null, null);
+        }
+    }
 
     public enum TipoPreco { UNITARIO, TOTAL_EMBALAGEM }
     public enum Unidade { KG, G, L, ML, UNIDADE }

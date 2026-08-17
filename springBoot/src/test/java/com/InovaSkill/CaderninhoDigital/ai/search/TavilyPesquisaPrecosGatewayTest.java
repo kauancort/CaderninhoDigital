@@ -14,6 +14,7 @@ import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -43,8 +44,68 @@ class TavilyPesquisaPrecosGatewayTest {
         verify(transport).enviar(eq(java.net.URI.create("https://api.tavily.com/search")),
                 argThat(h -> h.get("Authorization").equals("Bearer tvly-chave-falsa")),
                 argThat(b -> b.contains("\"include_answer\":false") && b.contains("\"include_raw_content\":\"text\"")
-                        && b.contains("\"max_results\":9") && b.contains("melhor preço")
-                        && b.contains("compra comercial") && b.contains("fornecedor")), any());
+                        && b.contains("\"search_depth\":\"advanced\"") && b.contains("\"max_results\":15")
+                        && b.contains("fornecedor atacado") && b.contains("preço comprar")), any());
+    }
+
+    @Test void pesquisaCustosIndiretosAceitaSomenteReferenciaComPercentualEBase() {
+        resposta(200, """
+                {"results":[
+                  {"title":"Gestão de confeitaria","url":"https://gestao.example/custos","content":"Energia representa 7% do faturamento de pequenas confeitarias."},
+                  {"title":"Dica genérica","url":"https://dica.example/custos","content":"Controle energia e mão de obra para economizar."},
+                  {"title":"Sem base","url":"https://sem-base.example/custos","content":"Mão de obra pode chegar a 20%."}]}
+                """);
+
+        var resultado = gateway.pesquisarCustosIndiretos(new SolicitacaoPesquisaCustosIndiretos(
+                "Paçoca", "Doces", "Marília", "SP", List.of("energia", "mão de obra")));
+
+        assertThat(resultado.fontes()).singleElement().satisfies(fonte -> {
+            assertThat(fonte.dominio()).isEqualTo("gestao.example");
+            assertThat(fonte.trecho()).contains("7%", "faturamento");
+        });
+        verify(transport).enviar(any(), any(), argThat(body -> body.contains("percentual faturamento custos produção")), any());
+    }
+
+    @Test void custosIndiretosRecortaEvidenciaMesmoDepoisDoInicioLongoDaPagina() {
+        String prefixo = "introdução sem números ".repeat(300);
+        resposta(200, """
+                {"results":[{"title":"Gestão de confeitaria","url":"https://gestao.example/custos",
+                "content":"Resumo", "raw_content":"%s Gastos operacionais representam 35%% da receita bruta da confeitaria."}]}
+                """.formatted(prefixo));
+
+        var resultado = gateway.pesquisarCustosIndiretos(new SolicitacaoPesquisaCustosIndiretos(
+                "Paçoca", null, "Marília", "SP", List.of("energia", "mão de obra")));
+
+        assertThat(resultado.fontes()).singleElement().satisfies(fonte -> {
+            assertThat(fonte.trecho()).contains("Gastos operacionais", "35%", "receita bruta");
+            assertThat(fonte.trecho()).hasSizeLessThan(1000);
+        });
+    }
+
+    @Test void naoFazSegundaBuscaQuandoPrimeiraJaTemDoisBenchmarksAgregados() {
+        resposta(200, """
+                {"results":[
+                  {"title":"Confeitaria A","url":"https://a.example/custos","content":"Gastos operacionais representam 35% da receita bruta da confeitaria."},
+                  {"title":"Confeitaria B","url":"https://b.example/custos","content":"Custos fixos equivalem a 50% do faturamento da produção de doces."}]}
+                """);
+
+        var resultado = gateway.pesquisarCustosIndiretos(new SolicitacaoPesquisaCustosIndiretos(
+                "Paçoca", null, "Marília", "SP", List.of("energia", "mão de obra")));
+
+        assertThat(resultado.fontes()).hasSize(2);
+        verify(transport, times(1)).enviar(any(), any(), any(), any());
+    }
+
+    @Test void reutilizaPesquisaEquivalenteSomenteDentroDoCacheConfigurado() {
+        resposta(200, """
+                {"results":[{"title":"Loja","url":"https://loja.example/produto","content":"R$ 50 por 10 kg."}]}
+                """);
+
+        var primeira = gateway.pesquisar(solicitacao());
+        var segunda = gateway.pesquisar(solicitacao());
+
+        assertThat(segunda).isSameAs(primeira);
+        verify(transport, times(1)).enviar(any(), any(), any(), any());
     }
 
     @Test void descartaInjecaoEUrlPrivada() {
@@ -82,6 +143,17 @@ class TavilyPesquisaPrecosGatewayTest {
                 {"results":[{"title":"Catálogo","url":"https://catalogo.example/item","content":"Produto disponível sob consulta."}]}
                 """);
         assertThat(gateway.pesquisar(solicitacao()).fontes().getFirst().trecho()).doesNotContain("R$");
+    }
+
+    @Test void mantemNoMaximoUmaPaginaPorDominioParaAumentarDiversidade() {
+        resposta(200,"""
+                {"results":[
+                  {"title":"Loja A 1","url":"https://loja-a.example/item-1","content":"R$ 10 por kg"},
+                  {"title":"Loja A 2","url":"https://loja-a.example/item-2","content":"R$ 9 por kg"},
+                  {"title":"Loja B","url":"https://loja-b.example/item","content":"R$ 11 por kg"}]}
+                """);
+        assertThat(gateway.pesquisar(solicitacao()).fontes()).extracting(FontePesquisaPreco::dominio)
+                .containsExactly("loja-a.example", "loja-b.example");
     }
 
     @Test void extraiSomenteTrechoCurtoAoRedorDoPrecoNoConteudoBruto() {

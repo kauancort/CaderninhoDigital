@@ -1,11 +1,14 @@
 package com.InovaSkill.CaderninhoDigital.entity;
 
+import com.InovaSkill.CaderninhoDigital.enums.ModalidadeVenda;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
@@ -51,4 +54,15 @@ public class ItemVenda {
 
     @Column(precision = 12, scale = 2)
     private BigDecimal custoConsiderado;
+
+    /** Snapshot da forma comercial. quantidade continua expressa na unidade de estoque. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "modalidade_venda", length = 20)
+    private ModalidadeVenda modalidadeVenda;
+
+    @Column(name = "quantidade_modalidade", precision = 12, scale = 3)
+    private BigDecimal quantidadeModalidade;
+
+    @Column(name = "unidades_por_modalidade", precision = 12, scale = 3)
+    private BigDecimal unidadesPorModalidade;
 }

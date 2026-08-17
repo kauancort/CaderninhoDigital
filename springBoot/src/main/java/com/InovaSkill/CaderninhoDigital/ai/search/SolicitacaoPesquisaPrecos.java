@@ -12,4 +12,12 @@ public record SolicitacaoPesquisaPrecos(
         @NotBlank @Size(max = 30) String unidade,
         @NotNull @DecimalMin(value = "0.0", inclusive = false) BigDecimal quantidade,
         @NotBlank @Size(max = 100) String cidade,
-        @NotBlank @Pattern(regexp = "[A-Z]{2}") String uf) {}
+        @NotBlank @Pattern(regexp = "[A-Z]{2}") String uf,
+        boolean produtoFinal,
+        @Size(max = 160) String qualificadores) {
+
+    public SolicitacaoPesquisaPrecos(String insumo, String unidade, BigDecimal quantidade,
+            String cidade, String uf) {
+        this(insumo, unidade, quantidade, cidade, uf, false, null);
+    }
+}

@@ -3,7 +3,6 @@ package com.InovaSkill.CaderninhoDigital.ai.cost;
 import com.InovaSkill.CaderninhoDigital.exception.ResourceNotFoundException;
 import com.InovaSkill.CaderninhoDigital.repository.HistoricoCustoProdutoRepository;
 import com.InovaSkill.CaderninhoDigital.repository.ProdutoRepository;
-import com.InovaSkill.CaderninhoDigital.service.UsuarioAcessoService;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
@@ -17,16 +16,14 @@ import org.springframework.transaction.annotation.Transactional;
 public class AnaliseCustoProdutoService {
     private final ProdutoRepository produtos;
     private final HistoricoCustoProdutoRepository historico;
-    private final UsuarioAcessoService acesso;
     public AnaliseCustoProdutoService(ProdutoRepository produtos,
-            HistoricoCustoProdutoRepository historico, UsuarioAcessoService acesso) {
-        this.produtos = produtos; this.historico = historico; this.acesso = acesso;
+            HistoricoCustoProdutoRepository historico) {
+        this.produtos = produtos; this.historico = historico;
     }
 
     @Transactional(readOnly = true)
-    public Resultado analisar(Long usuarioId, Long produtoId, Instant solicitadoEm, ZoneId timezone) {
-        acesso.buscarGestor(usuarioId);
-        var produto = produtos.findComGabaritoById(produtoId)
+    public Resultado analisar(Long empresaId, Long produtoId, Instant solicitadoEm, ZoneId timezone) {
+        var produto = produtos.buscarComGabaritoParaEmpresa(produtoId, empresaId)
                 .orElseThrow(() -> new ResourceNotFoundException("Produto não encontrado"));
         var avisos = new ArrayList<String>();
         BigDecimal custoCalculado = null;
