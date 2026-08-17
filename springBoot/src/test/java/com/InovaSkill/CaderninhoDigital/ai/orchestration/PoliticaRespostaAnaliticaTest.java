@@ -30,5 +30,7 @@ class PoliticaRespostaAnaliticaTest {
         var dados=mapper.readTree("{\"total\":100}");
         assertThatThrownBy(() -> politica.validar("Fato: total 100.",dados,true)).isInstanceOf(RuntimeException.class);
         assertThat(politica.validar("Fato: total 100. Há limitações nos dados.",dados,true)).contains("limitações");
+        assertThat(politica.validar("A margem de 100 não representa lucro líquido.", dados, true))
+                .contains("não representa lucro líquido");
     }
 }

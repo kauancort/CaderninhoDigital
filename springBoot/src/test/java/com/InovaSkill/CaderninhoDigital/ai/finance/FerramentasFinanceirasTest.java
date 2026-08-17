@@ -24,7 +24,7 @@ class FerramentasFinanceirasTest {
 
     @Test void vendasRetornaSomenteAgregados() {
         var service = mock(VendaService.class);
-        when(service.resumirVendasIa(anyLong(), any(), any()))
+        when(service.resumirVendasEmpresaIa(anyLong(), any(), any()))
                 .thenReturn(new ResumoHistoricoVendasResponseDTO(new BigDecimal("300.00"), 2,
                         new BigDecimal("4"), new BigDecimal("150.00")));
         var resultado = new ConsultarResumoVendasFerramenta(service).executar(periodo, contexto);
@@ -33,20 +33,20 @@ class FerramentasFinanceirasTest {
     }
 
     @Test void gastosIncluiSomenteResumoEExplicitaAusenciaDeCategoria() {
-        var repository = mock(LancamentoRepository.class); var acesso = mock(UsuarioAcessoService.class);
+        var repository = mock(LancamentoRepository.class);
         var projection = mock(ResumoGastosProjection.class);
         when(projection.getTotal()).thenReturn(new BigDecimal("91.50")); when(projection.getQuantidade()).thenReturn(3L);
-        when(repository.resumirGastos(periodo.inicio(), periodo.fim())).thenReturn(projection);
-        var resultado = new ConsultarResumoGastosFerramenta(repository, acesso).executar(periodo, contexto);
+        when(repository.resumirGastos(7L, periodo.inicio(), periodo.fim())).thenReturn(projection);
+        var resultado = new ConsultarResumoGastosFerramenta(repository).executar(periodo, contexto);
         assertThat(resultado.dadosAgregados()).containsEntry("totalGastos", new BigDecimal("91.50"));
-        assertThat(resultado.avisos()).isNotEmpty(); verify(acesso).buscarGestor(7L);
+        assertThat(resultado.avisos()).isNotEmpty();
     }
 
     @Test void recebiveisMantemFaixasReaisSemIdentificarCliente() {
         var service = mock(VendaService.class);
-        when(service.resumirRecebiveisIa(anyLong(), any(), any(), isNull()))
+        when(service.resumirRecebiveisEmpresaIa(anyLong(), any(), any(), isNull()))
                 .thenReturn(new ResumoCobrancasResponseDTO(new BigDecimal("500"), new BigDecimal("200"), new BigDecimal("300"), 2, 4));
-        when(service.resumirRecebiveisIa(anyLong(), any(), any(), any(SituacaoCobranca.class)))
+        when(service.resumirRecebiveisEmpresaIa(anyLong(), any(), any(), any(SituacaoCobranca.class)))
                 .thenReturn(new ResumoCobrancasResponseDTO(new BigDecimal("50"), new BigDecimal("50"), BigDecimal.ZERO, 1, 1));
         var resultado = new ConsultarResumoRecebiveisFerramenta(service).executar(periodo, contexto);
         assertThat(resultado.dadosAgregados()).containsKeys("atraso1a7Dias", "atraso8a30Dias", "atrasoAcima30Dias")

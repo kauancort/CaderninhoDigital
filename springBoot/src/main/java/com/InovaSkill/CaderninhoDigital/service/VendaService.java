@@ -169,6 +169,7 @@ public class VendaService {
                             itemDto.getQuantidade()
                     );
 
+<<<<<<< HEAD
                 movimentacaoEstoqueService.registrarProduto(
                         produto,
                         gestor,
@@ -180,6 +181,18 @@ public class VendaService {
                         dto.getObservacao()
                 );
 
+=======
+                    movimentacaoEstoqueService.registrarProduto(
+                            produto,
+                            gestor,
+                            estoqueAnterior,
+                            produto.getEstoqueAtual(),
+                            TipoMovimentacaoEstoque.SAIDA,
+                            OrigemMovimentacaoEstoque.VENDA,
+                            venda.getId(),
+                            dto.getObservacao()
+                    );
+>>>>>>> e77bf56d1442c886c45fd36cedc15ddf8a4a03c4
                 }
             } else {
                 valorUnitario = itemDto.getValorUnitario() != null
@@ -192,6 +205,18 @@ public class VendaService {
             BigDecimal valorTotal =
                     valorUnitario.multiply(itemDto.getQuantidade());
 
+            var modalidadeVenda = itemDto.getModalidadeVenda() == null
+                    ? com.InovaSkill.CaderninhoDigital.enums.ModalidadeVenda.UNIDADE
+                    : itemDto.getModalidadeVenda();
+            BigDecimal quantidadeModalidade = itemDto.getQuantidadeModalidade() == null
+                    ? itemDto.getQuantidade() : itemDto.getQuantidadeModalidade();
+            BigDecimal unidadesPorModalidade = itemDto.getUnidadesPorModalidade() == null
+                    ? BigDecimal.ONE : itemDto.getUnidadesPorModalidade();
+            if (quantidadeModalidade.multiply(unidadesPorModalidade)
+                    .compareTo(itemDto.getQuantidade()) != 0) {
+                throw new IllegalArgumentException(
+                        "A quantidade da modalidade não corresponde à quantidade de unidades vendidas");
+            }
             ItemVenda item = ItemVenda.builder()
                     .venda(venda)
                     .produto(produto)
@@ -204,6 +229,9 @@ public class VendaService {
                     .valorUnitario(valorUnitario)
                     .valorTotal(valorTotal)
                     .custoConsiderado(custoConsiderado)
+                    .modalidadeVenda(modalidadeVenda)
+                    .quantidadeModalidade(quantidadeModalidade)
+                    .unidadesPorModalidade(unidadesPorModalidade)
                     .build();
 
             venda.getItens().add(item);
@@ -690,14 +718,16 @@ public class VendaService {
     public ResumoHistoricoVendasResponseDTO resumirVendasIa(
             Long usuarioId, LocalDate inicio, LocalDate fim
     ) {
-        usuarioAcessoService.buscarGestor(usuarioId);
+        Usuario gestor = usuarioAcessoService.buscarGestor(usuarioId);
+        return resumirVendasEmpresaIa(gestor.getEmpresa().getId(), inicio, fim);
+    }
 
-        ResumoHistoricoVendasProjection valores =
-                vendaRepository.resumirVendasIa(inicio, fim);
-
-        BigDecimal itens =
-                vendaRepository.totalItensVendasIa(inicio, fim);
-
+    @Transactional(readOnly = true)
+    public ResumoHistoricoVendasResponseDTO resumirVendasEmpresaIa(
+            Long empresaId, LocalDate inicio, LocalDate fim
+    ) {
+        ResumoHistoricoVendasProjection valores = vendaRepository.resumirVendasIa(empresaId, inicio, fim);
+        BigDecimal itens = vendaRepository.totalItensVendasIa(empresaId, inicio, fim);
         return new ResumoHistoricoVendasResponseDTO(
                 decimal(valores.getFaturamento()),
                 numero(valores.getQuantidadeVendas()),
@@ -853,21 +883,25 @@ public class VendaService {
     public ResumoCobrancasResponseDTO resumirRecebiveisIa(
             Long usuarioId, LocalDate inicio, LocalDate fim, SituacaoCobranca situacao
     ) {
-        usuarioAcessoService.buscarGestor(usuarioId);
+        Usuario gestor = usuarioAcessoService.buscarGestor(usuarioId);
+        return resumirRecebiveisEmpresaIa(gestor.getEmpresa().getId(), inicio, fim, situacao);
+    }
 
+    @Transactional(readOnly = true)
+    public ResumoCobrancasResponseDTO resumirRecebiveisEmpresaIa(
+            Long empresaId, LocalDate inicio, LocalDate fim, SituacaoCobranca situacao
+    ) {
         LocalDate hoje = classificadorCobrancaService.hoje();
-
-        ResumoCobrancasProjection valores =
-                vendaRepository.resumirRecebiveisIa(
-                        hoje,
-                        hoje.minusDays(1),
-                        hoje.minusDays(ClassificadorCobrancaService.LIMITE_ATRASO_RECENTE_DIAS),
-                        hoje.minusDays(ClassificadorCobrancaService.LIMITE_ATRASO_RECENTE_DIAS + 1L),
-                        hoje.minusDays(ClassificadorCobrancaService.LIMITE_ATRASO_MEDIO_DIAS),
-                        situacao != null ? situacao.name() : "",
-                        inicio,
-                        fim);
-
+        ResumoCobrancasProjection valores = vendaRepository.resumirRecebiveisIa(
+                empresaId,
+                hoje,
+                hoje.minusDays(1),
+                hoje.minusDays(ClassificadorCobrancaService.LIMITE_ATRASO_RECENTE_DIAS),
+                hoje.minusDays(ClassificadorCobrancaService.LIMITE_ATRASO_RECENTE_DIAS + 1L),
+                hoje.minusDays(ClassificadorCobrancaService.LIMITE_ATRASO_MEDIO_DIAS),
+                situacao != null ? situacao.name() : "",
+                inicio,
+                fim);
         return new ResumoCobrancasResponseDTO(
                 decimal(valores.getTotalReceber()),
                 decimal(valores.getTotalVencido()),
@@ -1833,6 +1867,9 @@ public class VendaService {
                                 .custoConsiderado(
                                         item.getCustoConsiderado()
                                 )
+                                .modalidadeVenda(item.getModalidadeVenda())
+                                .quantidadeModalidade(item.getQuantidadeModalidade())
+                                .unidadesPorModalidade(item.getUnidadesPorModalidade())
                                 .build()
                 )
                 .toList();

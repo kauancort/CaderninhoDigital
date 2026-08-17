@@ -3,6 +3,9 @@ package com.InovaSkill.CaderninhoDigital.ai.tool;
 import com.InovaSkill.CaderninhoDigital.ai.contract.ArgumentosFerramenta;
 import com.InovaSkill.CaderninhoDigital.ai.contract.ArgumentosPeriodo;
 import com.InovaSkill.CaderninhoDigital.ai.contract.ArgumentosCompraInsumo;
+import com.InovaSkill.CaderninhoDigital.ai.contract.ArgumentosProdutoPeriodo;
+import com.InovaSkill.CaderninhoDigital.ai.contract.ArgumentosComparacaoMercado;
+import com.InovaSkill.CaderninhoDigital.ai.contract.ArgumentosRentabilidadeProduto;
 import com.InovaSkill.CaderninhoDigital.ai.contract.ChamadaFerramenta;
 import com.InovaSkill.CaderninhoDigital.ai.contract.ResultadoFerramenta;
 import com.InovaSkill.CaderninhoDigital.config.AiOrchestratorProperties;
@@ -86,6 +89,15 @@ public class ExecutorFerramentas {
                 throw argumentosInvalidos();
             }
         }
+        if (argumentos instanceof ArgumentosProdutoPeriodo produto) {
+            validarPeriodo(produto.inicio(), produto.fim());
+        }
+        if (argumentos instanceof ArgumentosComparacaoMercado mercado) {
+            validarPeriodo(mercado.inicio(), mercado.fim());
+        }
+        if (argumentos instanceof ArgumentosRentabilidadeProduto rentabilidade) {
+            validarPeriodo(rentabilidade.inicio(), rentabilidade.fim());
+        }
     }
 
     private ResultadoFerramenta executarUmaVez(
@@ -93,6 +105,7 @@ public class ExecutorFerramentas {
             ArgumentosFerramenta argumentos,
             ContextoExecucaoFerramenta contexto
     ) {
+        long inicio = System.nanoTime();
         Future<ResultadoFerramenta> future = executorService.submit(
                 () -> executarTipada(ferramenta, argumentos, contexto));
         try {
@@ -107,6 +120,9 @@ public class ExecutorFerramentas {
                 throw erro(CodigoErroOrquestrador.ERRO_INTERNO, HttpStatus.INTERNAL_SERVER_ERROR,
                         "A ferramenta não produziu um resultado válido");
             }
+            log.info("evento=FERRAMENTA_EXECUTADA requestId={} empresaId={} ferramenta={} tempoMs={} status={}",
+                    contexto.correlacao(), contexto.identidade().empresaId(), ferramenta.identificador(),
+                    java.time.Duration.ofNanos(System.nanoTime() - inicio).toMillis(), resultado.status());
             return resultado;
         } catch (TimeoutException exception) {
             future.cancel(true);
@@ -121,9 +137,21 @@ public class ExecutorFerramentas {
             throw erro(CodigoErroOrquestrador.TIMEOUT, HttpStatus.GATEWAY_TIMEOUT,
                     "A execução da ferramenta foi interrompida");
         } catch (ExecutionException exception) {
+            Throwable causa = exception.getCause();
+            if (causa instanceof OrquestradorException controlada) throw controlada;
+            if (causa instanceof com.InovaSkill.CaderninhoDigital.exception.ResourceNotFoundException naoEncontrado)
+                throw naoEncontrado;
+            log.error("evento=FERRAMENTA_FALHOU requestId={} empresaId={} ferramenta={} tipoErro={}",
+                    contexto.correlacao(), contexto.identidade().empresaId(), ferramenta.identificador(),
+                    causa == null ? "DESCONHECIDO" : causa.getClass().getSimpleName(), causa);
             throw erro(CodigoErroOrquestrador.ERRO_INTERNO, HttpStatus.INTERNAL_SERVER_ERROR,
                     "A ferramenta não pôde ser executada");
         }
+    }
+
+    private void validarPeriodo(java.time.LocalDate inicio, java.time.LocalDate fim) {
+        if (inicio.isAfter(fim) || ChronoUnit.DAYS.between(inicio, fim)
+                > properties.getLimits().getMaxPeriodDays()) throw argumentosInvalidos();
     }
 
     private <A extends ArgumentosFerramenta> ResultadoFerramenta executarComTipo(

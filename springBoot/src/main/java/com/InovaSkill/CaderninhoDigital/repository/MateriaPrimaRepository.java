@@ -22,6 +22,22 @@ public interface MateriaPrimaRepository extends JpaRepository<MateriaPrima, Long
     List<MateriaPrima> findAllByAtivoTrueOrderByNomeAsc();
 
     @Query("""
+            SELECT DISTINCT m FROM MateriaPrima m
+             WHERE m.ativo = true
+               AND (m.gestor IS NULL OR m.gestor.empresa.id = :empresaId)
+             ORDER BY m.nome
+            """)
+    List<MateriaPrima> listarAcessiveisParaAnalise(@Param("empresaId") Long empresaId);
+
+    @Query("""
+            SELECT m FROM MateriaPrima m
+             WHERE m.id = :materiaPrimaId AND m.ativo = true
+               AND (m.gestor IS NULL OR m.gestor.empresa.id = :empresaId)
+            """)
+    java.util.Optional<MateriaPrima> buscarAcessivelParaAnalise(
+            @Param("materiaPrimaId") Long materiaPrimaId, @Param("empresaId") Long empresaId);
+
+    @Query("""
             SELECT COUNT(m),
                    SUM(CASE WHEN m.estoqueAtual <= m.estoqueMinimo THEN 1 ELSE 0 END),
                    SUM(m.estoqueAtual * m.custoMedio)
@@ -39,7 +55,8 @@ public interface MateriaPrimaRepository extends JpaRepository<MateriaPrima, Long
                    m.estoqueAtual AS estoqueAtual, m.estoqueMinimo AS estoqueMinimo
               FROM MateriaPrima m
              WHERE m.ativo = true
+               AND (m.gestor IS NULL OR m.gestor.empresa.id = :empresaId)
              ORDER BY m.nome
             """)
-    List<EstoqueCriticoProjection> listarDadosEstoqueAtivos(Pageable limite);
+    List<EstoqueCriticoProjection> listarDadosEstoqueAtivos(@Param("empresaId") Long empresaId, Pageable limite);
 }

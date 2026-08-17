@@ -192,6 +192,7 @@ public class OpenRouterModeloGateway implements ModeloGateway {
             item.put("content", mensagem.conteudo());
         }
         if (jsonEstruturado) {
+            body.putObject("provider").put("require_parameters", true);
             ObjectNode format = body.putObject("response_format");
             format.put("type", "json_schema");
             ObjectNode jsonSchema = format.putObject("json_schema");
@@ -211,18 +212,24 @@ public class OpenRouterModeloGateway implements ModeloGateway {
         properties.set("intencao", enumTexto(List.of(
                 "CONSULTAR_ESTOQUE", "CONSULTAR_VENDAS", "CONSULTAR_GASTOS",
                 "CONSULTAR_RECEBIVEIS", "ANALISAR_CUSTO_PRODUTO",
+                "ANALISAR_MARGEM_PRODUTO", "ANALISE_EMPRESARIAL",
+                "ANALISAR_RENTABILIDADE_PRODUTO",
                 "ANALISAR_COMPRAS_INSUMO", "COMPARAR_VENDAS_GASTOS",
                 "COMPARAR_VENDAS_PERIODOS", "COMPARAR_PRECO_MERCADO", "DESCONHECIDA")));
         ObjectNode chamadas = properties.putObject("chamadas");
         chamadas.put("type", "array");
         chamadas.put("minItems", 1);
-        chamadas.put("maxItems", 2);
+        chamadas.put("maxItems", Math.min(this.properties.getLimits().getToolsPerPlan(),
+                this.properties.getLimits().getToolCalls()));
         ArrayNode alternativas = chamadas.putObject("items").putArray("anyOf");
         alternativas.add(schemaChamada("RESUMO_ESTOQUE", "SEM_FILTRO", List.of()));
         alternativas.add(schemaChamada("RESUMO_VENDAS", "PERIODO", List.of("inicio", "fim")));
         alternativas.add(schemaChamada("RESUMO_GASTOS", "PERIODO", List.of("inicio", "fim")));
         alternativas.add(schemaChamada("RESUMO_RECEBIVEIS", "PERIODO", List.of("inicio", "fim")));
         alternativas.add(schemaChamada("ANALISE_CUSTO_PRODUTO", "PRODUTO", List.of("produtoId")));
+        alternativas.add(schemaChamada("ANALISE_MARGEM_PRODUTO", "PRODUTO_PERIODO",
+                List.of("produtoId", "inicio", "fim")));
+        alternativas.add(schemaChamadaRentabilidade());
         alternativas.add(schemaChamadaCompraInsumo());
         if (this.properties.getFeatures().isSearch()) alternativas.add(schemaChamadaComparacaoMercado());
         properties.set("modoResposta", enumTexto(
@@ -270,9 +277,12 @@ public class OpenRouterModeloGateway implements ModeloGateway {
         campos.set("evidenciaPreco", textoLimitado(240, false));
         campos.set("evidenciaPedidoMinimo", textoLimitado(240, true));
         campos.set("confianca", enumTexto(List.of("ALTA", "MEDIA", "BAIXA")));
+        campos.set("marca", textoLimitado(120, true));
+        campos.set("fornecedor", textoLimitado(120, true));
         obrigatorios(oferta, "fonteId", "produto", "precoAnunciado", "tipoPreco", "unidadePreco",
                 "quantidadeEmbalagem", "unidadeEmbalagem", "pedidoMinimo", "unidadePedidoMinimo",
-                "frete", "validade", "localizacao", "evidenciaPreco", "evidenciaPedidoMinimo", "confianca");
+                "frete", "validade", "localizacao", "evidenciaPreco", "evidenciaPedidoMinimo", "confianca",
+                "marca", "fornecedor");
         ofertas.set("items", oferta);
         obrigatorios(fonte, "fonteId", "status", "motivo", "ofertas");
         fontes.set("items", fonte);
@@ -346,12 +356,27 @@ public class OpenRouterModeloGateway implements ModeloGateway {
         return chamada;
     }
 
+    private ObjectNode schemaChamadaRentabilidade() {
+        ObjectNode chamada = schemaChamada("ANALISAR_RENTABILIDADE_PRODUTO", "RENTABILIDADE_PRODUTO",
+                List.of("produtoId", "inicio", "fim"));
+        ObjectNode props = (ObjectNode) chamada.path("properties").path("argumentos").path("properties");
+        props.set("modalidade", enumOuNulo(List.of("UNIDADE", "CAIXA", "PACOTE", "DUZIA", "PESO", "POTE")));
+        ObjectNode preco = objectMapper.createObjectNode();
+        ArrayNode tipos = preco.putArray("type"); tipos.add("number"); tipos.add("null");
+        preco.put("exclusiveMinimum", 0); props.set("precoConsultado", preco);
+        ObjectNode argumentos = (ObjectNode) chamada.path("properties").path("argumentos");
+        obrigatorios(argumentos, "tipo", "produtoId", "inicio", "fim", "modalidade", "precoConsultado");
+        return chamada;
+    }
+
     private ObjectNode schemaChamadaComparacaoMercado() {
         ObjectNode chamada = schemaChamada("COMPARAR_PRECO_MERCADO", "COMPARACAO_MERCADO",
                 List.of("materiaPrimaId", "inicio", "fim"));
         ObjectNode props = (ObjectNode) chamada.path("properties").path("argumentos").path("properties");
-        props.putObject("unidade").put("type", "string").put("maxLength", 30);
-        props.putObject("quantidadeAlvo").put("type", "number").put("exclusiveMinimum", 0);
+        ObjectNode unidade = props.putObject("unidade");
+        unidade.putArray("type").add("string").add("null"); unidade.put("maxLength", 30);
+        ObjectNode quantidade = props.putObject("quantidadeAlvo");
+        quantidade.putArray("type").add("number").add("null"); quantidade.put("exclusiveMinimum", 0);
         props.putObject("cidade").put("type", "string").put("maxLength", 100);
         props.putObject("uf").put("type", "string").put("pattern", "^[A-Z]{2}$");
         ObjectNode args = (ObjectNode) chamada.path("properties").path("argumentos");

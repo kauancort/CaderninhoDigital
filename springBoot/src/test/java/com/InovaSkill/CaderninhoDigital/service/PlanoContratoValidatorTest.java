@@ -52,17 +52,18 @@ class PlanoContratoValidatorTest {
     }
 
     @Test
-    void aceitaAteDuasChamadasERejeitaTerceira() {
+    void respeitaLimiteConfiguradoDeFerramentas() {
         try (var factory = Validation.buildDefaultValidatorFactory()) {
             var properties = new AiOrchestratorProperties();
             var validator = new PlanoContratoValidator(properties, factory.getValidator());
             var periodo = new ArgumentosPeriodo(LocalDate.parse("2026-07-01"), LocalDate.parse("2026-07-31"));
             var chamada = new ChamadaFerramenta(FerramentaPermitida.RESUMO_VENDAS, periodo);
-            validator.validar(new PlanoOrquestracao("1.0", IntencaoOrquestrador.COMPARAR_VENDAS_GASTOS,
-                    List.of(chamada, new ChamadaFerramenta(FerramentaPermitida.RESUMO_GASTOS, periodo)),
+            validator.validar(new PlanoOrquestracao("1.0", IntencaoOrquestrador.RESUMO_NEGOCIO,
+                    java.util.Collections.nCopies(properties.getLimits().getToolsPerPlan(), chamada),
                     ModoResposta.ANALITICA));
             assertThatThrownBy(() -> validator.validar(new PlanoOrquestracao("1.0",
-                    IntencaoOrquestrador.RESUMO_NEGOCIO, List.of(chamada, chamada, chamada),
+                    IntencaoOrquestrador.RESUMO_NEGOCIO,
+                    java.util.Collections.nCopies(properties.getLimits().getToolsPerPlan() + 1, chamada),
                     ModoResposta.ANALITICA)))
                     .isInstanceOfSatisfying(OrquestradorException.class,
                             error -> assertThat(error.getCodigo()).isEqualTo(CodigoErroOrquestrador.LIMITE_EXCEDIDO));

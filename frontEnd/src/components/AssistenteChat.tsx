@@ -54,6 +54,10 @@ function formatarNumero(valor: number) {
   return new Intl.NumberFormat("pt-BR").format(valor);
 }
 
+function quantidadeComUnidade(valor: number | null, unidade: string) {
+  return valor === null ? unidade : `${formatarNumero(valor)} ${unidade}`;
+}
+
 function CardsValores({ itens }: { itens: Array<{ rotulo: string; valor: string }> }) {
   return (
     <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -127,6 +131,30 @@ function DadosResultado({ dados }: { dados: NonNullable<AssistenteResposta["dado
         { rotulo: "Custo pela ficha", valor: formatarMoeda(dados.custoUnitarioFicha) },
         { rotulo: "Componentes sem custo", valor: formatarNumero(dados.componentesSemCusto) },
       ]} />;
+    case "MARGEM_PRODUTO":
+      return <>
+        <CardsValores itens={[
+          { rotulo: "Custo conhecido por unidade", valor: formatarMoeda(dados.custoUnitarioConhecido) },
+          { rotulo: "Preço médio de venda", valor: formatarMoeda(dados.precoMedioVenda) },
+          { rotulo: "Margem bruta conhecida", valor: formatarMoeda(dados.margemBrutaConhecidaUnitaria) },
+        ]} />
+        <p className="font-semibold">{dados.situacao === "MARGEM_CONHECIDA_NEGATIVA"
+          ? "Os custos cadastrados estão acima do preço médio de venda."
+          : dados.situacao === "INSUFICIENTE" ? "Ainda faltam dados para calcular a margem conhecida."
+            : "O preço médio está acima dos custos cadastrados."}</p>
+        <p className="text-muted-foreground">Isso não é lucro líquido. Custos não cadastrados: {dados.custosNaoModelados.join(", ")}.</p>
+        {dados.componentes.length > 0 && <details className="rounded-xl border border-border bg-card px-4 py-3">
+          <summary className="cursor-pointer font-semibold min-h-11 flex items-center">Ver o que mais pesa no custo</summary>
+          <ul className="mt-2 space-y-2">{dados.componentes.map((item) => <li key={item.nome}>
+            <strong>{item.nome}</strong>: {formatarMoeda(item.custoConhecido)}
+            {item.participacaoPercentual !== null && <span className="text-muted-foreground"> ({formatarNumero(item.participacaoPercentual)}%)</span>}
+          </li>)}</ul>
+        </details>}
+      </>;
+    case "ANALISE_COMPOSTA":
+      return <p className="rounded-xl border border-border bg-card px-4 py-3 text-muted-foreground">
+        A explicação acima reúne os dados confirmados das áreas consultadas.
+      </p>;
     case "COMPRAS_INSUMO":
       return <>
         <CardsValores itens={[
@@ -148,20 +176,28 @@ function DadosResultado({ dados }: { dados: NonNullable<AssistenteResposta["dado
       </>;
     case "COMPARACAO_MERCADO":
       return <>
+        <p className="font-semibold">Comparação de preço: {dados.materiaPrima}</p>
+        {dados.metricasHistoricas && <CardsValores itens={[
+          { rotulo: "Última compra por unidade", valor: formatarMoeda(dados.metricasHistoricas.ultimaCompraPreco) },
+          { rotulo: "Média dos últimos 30 dias", valor: formatarMoeda(dados.metricasHistoricas.media30Dias) },
+          { rotulo: "Média dos últimos 90 dias", valor: formatarMoeda(dados.metricasHistoricas.media90Dias) },
+        ]} />}
         <div className="rounded-xl border-2 border-primary bg-primary-bg p-4" role="status">
           <p className="text-lg font-bold">{dados.situacao === "CUSTO_INTERNO_MENOR"
             ? `Seu custo atual é menor por ${formatarMoeda(dados.diferencaExternaMenosInterna)}.`
             : dados.situacao === "OFERTA_EXTERNA_MENOR"
               ? `Existe economia potencial de ${formatarMoeda(dados.economiaEstimada)}.`
               : dados.situacao === "EQUIVALENTE" ? "Os custos são equivalentes."
-                : "Não há ofertas comparáveis suficientes."}</p>
+                : dados.situacao === "SOMENTE_PEDIDO_MINIMO_MAIOR"
+                  ? "Encontrei ofertas, mas todas exigem uma compra maior."
+                  : "Não há ofertas comparáveis suficientes."}</p>
           {dados.percentualDiferenca !== null && <p className="mt-1 text-muted-foreground">
             Diferença de {formatarNumero(dados.percentualDiferenca)}% para a quantidade pesquisada.
           </p>}
         </div>
         <CardsValores itens={[
-          { rotulo: `Seu custo atual (${formatarNumero(dados.quantidadeAlvo)} ${dados.unidade})`, valor: formatarMoeda(dados.custoInternoComparavel) },
-          { rotulo: `Melhor oferta externa (${formatarNumero(dados.quantidadeAlvo)} ${dados.unidade})`, valor: formatarMoeda(dados.menorCustoExterno) },
+          { rotulo: `Seu custo atual (${quantidadeComUnidade(dados.quantidadeAlvo, dados.unidade)})`, valor: formatarMoeda(dados.custoInternoComparavel) },
+          { rotulo: `Melhor oferta externa (${quantidadeComUnidade(dados.quantidadeAlvo, dados.unidade)})`, valor: formatarMoeda(dados.menorCustoExterno) },
           { rotulo: dados.situacao === "CUSTO_INTERNO_MENOR" ? "Seu custo é menor por" : "Economia potencial", valor: dados.situacao === "CUSTO_INTERNO_MENOR" ? formatarMoeda(dados.diferencaExternaMenosInterna) : formatarMoeda(dados.economiaEstimada) },
         ]} />
         {(dados.fontes.length > 0 || dados.ofertas.length > 0) && <details className="rounded-xl border border-border bg-card px-4 py-3">
@@ -182,7 +218,9 @@ function DadosResultado({ dados }: { dados: NonNullable<AssistenteResposta["dado
               <span className="block">Total para {formatarNumero(oferta.quantidadeCalculada)} {dados.unidade}: {formatarMoeda(oferta.custoTotal)}</span>
               {oferta.localizacao && <span className="block">Localização: {oferta.localizacao}</span>}
               {oferta.pedidoMinimo !== null && <span className="block font-medium">Pedido mínimo: {formatarNumero(oferta.pedidoMinimo)} {dados.unidade}</span>}
-              {!oferta.compativelQuantidadeAlvo && <span className="block font-semibold text-warning-foreground">Não atende à quantidade solicitada sem aumentar o pedido.</span>}
+              {oferta.mesesCoberturaPedidoMinimo !== null && <span className="block">Esse mínimo cobre aproximadamente {formatarNumero(oferta.mesesCoberturaPedidoMinimo)} mês(es) de consumo.</span>}
+              {oferta.status.includes("ESTOQUE_EXCESSIVO_PROVAVEL") && <span className="block font-semibold text-warning-foreground">Pode gerar estoque excessivo para o consumo atual.</span>}
+              {oferta.status.includes("PEDIDO_MINIMO_ACIMA_DA_QUANTIDADE") && <span className="block font-semibold text-warning-foreground">Exige comprar mais do que a quantidade consultada.</span>}
               <span className="block text-muted-foreground">Evidência: “{oferta.evidenciaPreco}”</span>
               <span className="block text-muted-foreground">{oferta.freteIncluido ? "Frete identificado e incluído." : "Frete não informado na fonte."}</span>
             </li>)}</ul>

@@ -18,8 +18,10 @@ import java.util.function.Supplier;
 import com.InovaSkill.CaderninhoDigital.ai.gateway.RespostaModelo;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
+import lombok.extern.slf4j.Slf4j;
 
 @Component
+@Slf4j
 public class ControleOperacionalIa {
     private final AiOrchestratorProperties properties;
     private final MeterRegistry metrics;
@@ -37,6 +39,10 @@ public class ControleOperacionalIa {
     }
 
     public synchronized Sessao iniciar(Long usuarioId, String correlacao) {
+        return iniciar(usuarioId, usuarioId, correlacao);
+    }
+
+    public synchronized Sessao iniciar(Long usuarioId, Long empresaId, String correlacao) {
         Instant agora = clock.instant();
         global = atualizar(global, agora);
         Janela usuario = atualizar(usuarios.get(usuarioId), agora);
@@ -48,7 +54,8 @@ public class ControleOperacionalIa {
         global = new Janela(global.inicio, global.quantidade + 1);
         usuarios.put(usuarioId, new Janela(usuario.inicio, usuario.quantidade + 1));
         metrics.counter("ai.solicitacoes").increment();
-        return new Sessao(usuarioId, correlacao, agora);
+        log.info("evento=CONSULTA_RECEBIDA requestId={} empresaId={} status=RECEBIDA", correlacao, empresaId);
+        return new Sessao(usuarioId, empresaId, correlacao, agora);
     }
 
     private Janela atualizar(Janela janela, Instant agora) {
@@ -95,6 +102,7 @@ public class ControleOperacionalIa {
         registrarTokens(usuarioId, resposta.metadados());
         metrics.timer("ai.etapa.latencia", "etapa", etapa)
                 .record(Duration.ofMillis(Math.max(0, resposta.metadados().duracaoMillis())));
+        registrarUsoSeguro(resposta.metadados(), tipoChamada(etapa));
         return resposta;
     }
 
@@ -106,11 +114,17 @@ public class ControleOperacionalIa {
     }
 
     public final class Sessao {
-        private final Long usuario; private final String correlacao; private final Instant inicio;
+        private final Long usuario; private final Long empresa; private final String correlacao; private final Instant inicio;
         private String intencao = "NAO_DEFINIDA", modelo; private final List<String> ferramentas = new ArrayList<>();
         private int chamadas; private Integer entrada, saida, total; private boolean fallback;
-        private Sessao(Long usuario, String correlacao, Instant inicio) { this.usuario=usuario; this.correlacao=correlacao; this.inicio=inicio; }
+        private Sessao(Long usuario, Long empresa, String correlacao, Instant inicio) {
+            this.usuario=usuario; this.empresa=empresa; this.correlacao=correlacao; this.inicio=inicio;
+        }
         public void intencao(String valor) { intencao = valor; }
+        public void planoValidado(int quantidadeFerramentas) {
+            log.info("evento=PLANO_VALIDADO requestId={} empresaId={} ferramentas={} status=VALIDO",
+                    correlacao, empresa, quantidadeFerramentas);
+        }
         public void ferramenta(String valor) { ferramentas.add(valor); metrics.counter("ai.ferramentas", "id", valor).increment(); }
         public void antesModelo() { autorizarModelo(usuario); chamadas++; }
         public void metadados(MetadadosModelo m) { metadados(m, "modelo"); }
@@ -119,19 +133,25 @@ public class ControleOperacionalIa {
             total=somar(total,m.tokensTotais()); registrarTokens(usuario,m);
             metrics.timer("ai.etapa.latencia", "etapa", etapa)
                     .record(Duration.ofMillis(Math.max(0, m.duracaoMillis())));
+            registrarUsoSeguro(m, tipoChamada(etapa));
         }
         public void ferramentasConcluidas(long duracaoNanos) {
             metrics.timer("ai.etapa.latencia", "etapa", "ferramentas")
                     .record(Duration.ofNanos(Math.max(0, duracaoNanos)));
         }
-        public void fallback() { fallback=true; metrics.counter("ai.fallbacks").increment(); }
+        public void fallback() {
+            fallback=true; metrics.counter("ai.fallbacks").increment();
+            log.info("evento=FALLBACK_UTILIZADO requestId={} empresaId={} status=ATIVADO", correlacao, empresa);
+        }
         public void concluir(String status, CodigoErroOrquestrador erro) {
             long duracao=Duration.between(inicio,clock.instant()).toMillis();
             metrics.timer("ai.latencia", "status", status).record(Duration.ofMillis(Math.max(0,duracao)));
             metrics.counter("ai.resultados", "status", status).increment();
             boolean autorizado = erro != CodigoErroOrquestrador.NAO_AUTORIZADO
                     && erro != CodigoErroOrquestrador.NAO_AUTENTICADO;
-            armazenar(new EventoAuditoriaIa(correlacao,usuario,intencao,List.copyOf(ferramentas),autorizado,
+            log.info("evento=RESPOSTA_GERADA requestId={} empresaId={} operacao={} tempoMs={} status={} modelo={} ferramentas={}",
+                    correlacao, empresa, intencao, duracao, status, modelo, ferramentas.size());
+            armazenar(new EventoAuditoriaIa(correlacao,usuario,empresa,intencao,List.copyOf(ferramentas),autorizado,
                     modelo,chamadas,entrada,saida,total,total==null,duracao,status,
                     erro==null?null:erro.name(),properties.getPromptVersion(),properties.getSchemaVersion(),inicio));
         }
@@ -143,4 +163,19 @@ public class ControleOperacionalIa {
 
     private record Janela(Instant inicio, int quantidade) {}
     private record ConsumoDia(int chamadas, long tokens) {}
+
+    private String tipoChamada(String etapa) {
+        String normalizada = etapa == null ? "" : etapa.toLowerCase(java.util.Locale.ROOT);
+        if (normalizada.contains("planej")) return "PLANEJAMENTO";
+        if (normalizada.contains("extracao")) return "EXTRACAO";
+        if (normalizada.contains("redacao") || normalizada.contains("resposta")) return "RESPOSTA_FINAL";
+        return "OUTRA";
+    }
+
+    private void registrarUsoSeguro(MetadadosModelo m, String tipo) {
+        metrics.counter("ai.modelo.chamadas.tipo", "tipo", tipo).increment();
+        log.info("evento=USO_MODELO tipoDaChamada={} modelo={} promptTokens={} completionTokens={} "
+                        + "totalTokens={} latenciaMs={}",
+                tipo, m.modeloEfetivo(), m.tokensEntrada(), m.tokensSaida(), m.tokensTotais(), m.duracaoMillis());
+    }
 }

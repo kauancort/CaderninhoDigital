@@ -1,6 +1,7 @@
 package com.InovaSkill.CaderninhoDigital.dto.response;
 
 import java.math.BigDecimal;
+import com.InovaSkill.CaderninhoDigital.enums.ModalidadeVenda;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -15,4 +16,7 @@ public class ItemVendaResponseDTO {
     private BigDecimal valorUnitario;
     private BigDecimal valorTotal;
     private BigDecimal custoConsiderado;
+    private ModalidadeVenda modalidadeVenda;
+    private BigDecimal quantidadeModalidade;
+    private BigDecimal unidadesPorModalidade;
 }

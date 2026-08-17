@@ -64,6 +64,7 @@ public class ResolvedorDeterministicoOrquestracao {
                 && contem(texto, "compra|compras|comprando|gasto|gastando|desnecessaria|desnecessario");
         ChamadaFerramenta mercado = comparacaoMercado(mensagem, texto);
         if (mercado != null) return mercado;
+        if (contem(texto, "compare|comparar|comparacao|diferenca|evolucao|por que|porque")) return null;
         if (comprasInsumos) {
             LocalDate hoje = LocalDate.now(clock);
             return new ChamadaFerramenta(FerramentaPermitida.ANALISE_COMPRAS_INSUMO,

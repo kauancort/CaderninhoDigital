@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
 
 import com.InovaSkill.CaderninhoDigital.ai.contract.QualidadeResultado;
-import com.InovaSkill.CaderninhoDigital.ai.cost.AnaliseComprasInsumoService;
+import com.InovaSkill.CaderninhoDigital.ai.cost.HistoricoPrecosInsumoService;
 import com.InovaSkill.CaderninhoDigital.entity.MateriaPrima;
 import com.InovaSkill.CaderninhoDigital.exception.CodigoErroOrquestrador;
 import com.InovaSkill.CaderninhoDigital.exception.OrquestradorException;
@@ -19,7 +19,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 
 class ComparacaoMercadoServiceTest {
-    private final AnaliseComprasInsumoService interna=mock(AnaliseComprasInsumoService.class);
+    private final HistoricoPrecosInsumoService interna=mock(HistoricoPrecosInsumoService.class);
     private final MateriaPrimaRepository materias=mock(MateriaPrimaRepository.class);
     private final PesquisaPrecosGateway pesquisa=mock(PesquisaPrecosGateway.class);
     private final InterpretadorOfertasMercado interpretador=mock(InterpretadorOfertasMercado.class);
@@ -27,14 +27,15 @@ class ComparacaoMercadoServiceTest {
     private final ComparacaoMercadoService service=new ComparacaoMercadoService(interna,materias,pesquisa,interpretador,clock);
 
     @BeforeEach void preparar() {
-        when(materias.findById(3L)).thenReturn(Optional.of(MateriaPrima.builder()
+        when(materias.buscarAcessivelParaAnalise(3L, 7L)).thenReturn(Optional.of(MateriaPrima.builder()
                 .id(3L).nome("Amendoim").unidadeMedida("kg").build()));
-        var item=new AnaliseComprasInsumoService.Item(3L,"kg",new BigDecimal("10"),new BigDecimal("100"),
-                new BigDecimal("10"),BigDecimal.TEN,BigDecimal.TEN,BigDecimal.ZERO,2,new BigDecimal("5"),
-                LocalDate.parse("2026-07-01"),LocalDate.parse("2026-07-15"),14L,"QUINZENAL",true);
-        when(interna.analisar(anyLong(),eq(3L),any(),any())).thenReturn(new AnaliseComprasInsumoService.Resultado(
-                3L,LocalDate.parse("2026-07-01"),LocalDate.parse("2026-07-31"),new BigDecimal("100"),1,
-                List.of(item),null,List.of(),QualidadeResultado.PARCIAL));
+        var janela = new HistoricoPrecosInsumoService.Janela(BigDecimal.TEN, BigDecimal.TEN,
+                BigDecimal.TEN, BigDecimal.TEN, 2);
+        when(interna.analisar(7L, 3L, LocalDate.parse("2026-07-31"))).thenReturn(
+                new HistoricoPrecosInsumoService.Resultado(
+                        new HistoricoPrecosInsumoService.UltimaCompra(LocalDate.parse("2026-07-15"),
+                                BigDecimal.TEN, BigDecimal.TEN, new BigDecimal("100")),
+                        janela, janela, janela, new BigDecimal("5"), "ESTAVEL"));
     }
 
     @Test void calculaEconomiaComFreteEPedidoMinimo() {
@@ -45,6 +46,29 @@ class ComparacaoMercadoServiceTest {
         assertThat(r.menorCustoExterno()).isNull();
         assertThat(r.ofertas().getFirst().pedidoMinimo()).isEqualByComparingTo("12");
         assertThat(r.ofertas().getFirst().compativelQuantidadeAlvo()).isFalse();
+        assertThat(r.materiaPrima()).isEqualTo("Amendoim");
+    }
+
+    @Test void pedidoMinimoDe50KgComConsumo35RepresentaPoucoMaisDeUmMes() {
+        configurarConsumo("35");
+        configurarOferta(oferta("4.90", ExtracaoOfertasMercado.TipoPreco.UNITARIO,
+                ExtracaoOfertasMercado.Unidade.KG, null, "50", null, null, "R$ 4,90 por kg; mínimo 50 kg"));
+        var oferta = comparar().ofertas().getFirst();
+        assertThat(oferta.pedidoMinimo()).isEqualByComparingTo("50");
+        assertThat(oferta.mesesCoberturaPedidoMinimo()).isEqualByComparingTo("1.43");
+        assertThat(oferta.status()).contains(ComparacaoMercadoService.StatusOferta.PEDIDO_MINIMO_ACIMA_DA_QUANTIDADE)
+                .doesNotContain(ComparacaoMercadoService.StatusOferta.ESTOQUE_EXCESSIVO_PROVAVEL);
+    }
+
+    @Test void pedidoMinimoDe50KgComConsumo8AlertaEstoqueExcessivoSemDescartar() {
+        configurarConsumo("8");
+        configurarOferta(oferta("4.90", ExtracaoOfertasMercado.TipoPreco.UNITARIO,
+                ExtracaoOfertasMercado.Unidade.KG, null, "50", null, null, "R$ 4,90 por kg; mínimo 50 kg"));
+        var resultado = comparar();
+        assertThat(resultado.ofertas()).hasSize(1);
+        assertThat(resultado.ofertas().getFirst().mesesCoberturaPedidoMinimo()).isEqualByComparingTo("6.25");
+        assertThat(resultado.ofertas().getFirst().status())
+                .contains(ComparacaoMercadoService.StatusOferta.ESTOQUE_EXCESSIVO_PROVAVEL);
     }
 
     @Test void excluiUnidadeIncompativelEPromocaoVencida() {
@@ -56,6 +80,34 @@ class ComparacaoMercadoServiceTest {
         assertThat(comparar().ofertas()).isEmpty();
     }
 
+    @Test void rejeitaLeiteEmPoMesmoQuandoIaRotulaErroneamenteComoLitro() {
+        when(materias.buscarAcessivelParaAnalise(3L, 7L)).thenReturn(Optional.of(MateriaPrima.builder()
+                .id(3L).nome("Leite integral").unidadeMedida("L").build()));
+        configurarOferta(oferta("34.99", ExtracaoOfertasMercado.TipoPreco.UNITARIO,
+                ExtracaoOfertasMercado.Unidade.L, null, null, null, null,
+                "Leite em pó integral sachê 1 kg por R$ 34,99"));
+
+        var resultado = service.comparar(1L, 7L, 3L, LocalDate.parse("2026-05-01"),
+                LocalDate.parse("2026-07-31"), "L", BigDecimal.ONE, "Marília", "SP");
+
+        assertThat(resultado.ofertas()).isEmpty();
+        assertThat(resultado.situacao()).isEqualTo("INSUFICIENTE");
+    }
+
+    @Test void aceitaLeiteLiquidoComEvidenciaEmLitro() {
+        when(materias.buscarAcessivelParaAnalise(3L, 7L)).thenReturn(Optional.of(MateriaPrima.builder()
+                .id(3L).nome("Leite integral").unidadeMedida("L").build()));
+        configurarOferta(oferta("6.48", ExtracaoOfertasMercado.TipoPreco.UNITARIO,
+                ExtracaoOfertasMercado.Unidade.L, null, null, null, null,
+                "Leite integral UHT 1 L por R$ 6,48"));
+
+        var resultado = service.comparar(1L, 7L, 3L, LocalDate.parse("2026-05-01"),
+                LocalDate.parse("2026-07-31"), "L", BigDecimal.ONE, "Marília", "SP");
+
+        assertThat(resultado.ofertas()).hasSize(1);
+        assertThat(resultado.ofertas().getFirst().precoUnitario()).isEqualByComparingTo("6.4800");
+    }
+
     @Test void escolheMelhorEntreMultiplasFontesSemInventarFrete() {
         configurarOferta(
                 oferta("9.00", ExtracaoOfertasMercado.TipoPreco.UNITARIO, ExtracaoOfertasMercado.Unidade.KG,
@@ -65,7 +117,15 @@ class ComparacaoMercadoServiceTest {
         var r=comparar();
         assertThat(r.menorCustoExterno()).isEqualByComparingTo("85.00");
         assertThat(r.economiaEstimada()).isEqualByComparingTo("15.00");
-        assertThat(r.avisos()).anyMatch(a -> a.contains("não foram estimados"));
+        assertThat(r.avisos()).anyMatch(a -> a.contains("não foi estimado"));
+    }
+
+    @Test void sinalizaFreteQuandoSuperaVintePorCentoDaMercadoria() {
+        configurarOferta(oferta("10.00", ExtracaoOfertasMercado.TipoPreco.UNITARIO,
+                ExtracaoOfertasMercado.Unidade.KG, null, null, "30.00", null, "R$ 10,00 por kg"));
+
+        assertThat(comparar().ofertas().getFirst().status())
+                .contains(ComparacaoMercadoService.StatusOferta.FRETE_ALTO);
     }
 
     @Test void converteEmbalagemDeQuinhentosGramasParaKg() {
@@ -84,9 +144,28 @@ class ComparacaoMercadoServiceTest {
                         null, null, null, null, "R$ 3,60 Kilo"));
         var resultado = comparar();
         assertThat(resultado.ofertas()).extracting(ComparacaoMercadoService.Oferta::precoUnitario)
-                .containsExactly(new BigDecimal("2.9000"), new BigDecimal("3.6000"));
-        assertThat(resultado.menorCustoExterno()).isEqualByComparingTo("29.00");
+                .containsExactly(new BigDecimal("3.6000"), new BigDecimal("2.9000"));
+        assertThat(resultado.menorCustoExterno()).isEqualByComparingTo("36.00");
+        assertThat(resultado.ofertas()).filteredOn(oferta ->
+                oferta.precoUnitario().compareTo(new BigDecimal("2.9000")) == 0)
+                .singleElement().satisfies(oferta ->
+                        assertThat(oferta.quantidadeCalculada()).isEqualByComparingTo("50"));
         assertThat(resultado.ofertas()).noneMatch(o -> o.precoUnitario().compareTo(new BigDecimal("5.80")) == 0);
+    }
+
+    @Test void precoPorKgDeEmbalagem25KgExigeComprarAoMenos25Kg() {
+        configurarOferta(new ExtracaoOfertasMercado.Oferta("fonte-1", "Amendoim",
+                new BigDecimal("5.65"), ExtracaoOfertasMercado.TipoPreco.UNITARIO,
+                ExtracaoOfertasMercado.Unidade.KG, new BigDecimal("25"),
+                ExtracaoOfertasMercado.Unidade.KG, null, null, null, null, null,
+                "25KG - R$5,65/kg", null, ExtracaoOfertasMercado.Confianca.ALTA));
+
+        var oferta = comparar().ofertas().getFirst();
+
+        assertThat(oferta.quantidadeCalculada()).isEqualByComparingTo("25");
+        assertThat(oferta.pedidoMinimo()).isEqualByComparingTo("25");
+        assertThat(oferta.custoTotal()).isEqualByComparingTo("141.25");
+        assertThat(oferta.status()).contains(ComparacaoMercadoService.StatusOferta.PEDIDO_MINIMO_ACIMA_DA_QUANTIDADE);
     }
 
     @Test void falhaExternaPreservaAnaliseInterna() {
@@ -109,12 +188,12 @@ class ComparacaoMercadoServiceTest {
 
         assertThat(resultado.ofertas()).isEmpty();
         assertThat(resultado.avisos()).singleElement().asString()
-                .contains("3 fontes", "limite de uso", "OpenRouter", "não foram comparados");
+                .contains("3 fontes", "limite", "OpenRouter");
         assertThat(resultado.fontes()).hasSize(3)
                 .allMatch(item -> item.status() == ResultadoFontePesquisa.Status.NAO_CONCLUIDA);
     }
 
-    @Test void naoConcluiMelhorOfertaQuandoUmaFonteNaoFoiValidada() {
+    @Test void concluiComFontesValidasMesmoQuandoUmaFonteNaoFoiValidada() {
         FontePesquisaPreco primeira = fonte("R$ 8,00 por kg");
         FontePesquisaPreco segunda = new FontePesquisaPreco("Outra loja", URI.create("https://outra.example/item"),
                 "outra.example", "preço não identificado");
@@ -134,13 +213,22 @@ class ComparacaoMercadoServiceTest {
         var resultado = comparar();
 
         assertThat(resultado.ofertas()).hasSize(1);
-        assertThat(resultado.situacao()).isEqualTo("INSUFICIENTE");
-        assertThat(resultado.menorCustoExterno()).isNull();
-        assertThat(resultado.avisos()).anyMatch(aviso -> aviso.contains("Nem todas as fontes"));
+        assertThat(resultado.situacao()).isEqualTo("OFERTA_EXTERNA_MENOR");
+        assertThat(resultado.menorCustoExterno()).isEqualByComparingTo("80.00");
+        assertThat(resultado.avisos()).anyMatch(aviso -> aviso.contains("não foram usadas"));
     }
 
     private ComparacaoMercadoService.Resultado comparar(){return service.comparar(7L,3L,
             LocalDate.parse("2026-07-01"),LocalDate.parse("2026-07-31"),"kg",BigDecimal.TEN,"Belo Horizonte","MG");}
+    private void configurarConsumo(String consumo) {
+        var janela = new HistoricoPrecosInsumoService.Janela(BigDecimal.TEN, BigDecimal.TEN,
+                BigDecimal.TEN, BigDecimal.TEN, 2);
+        when(interna.analisar(7L, 3L, LocalDate.parse("2026-07-31"))).thenReturn(
+                new HistoricoPrecosInsumoService.Resultado(
+                        new HistoricoPrecosInsumoService.UltimaCompra(LocalDate.parse("2026-07-15"),
+                                BigDecimal.TEN, BigDecimal.TEN, new BigDecimal("100")),
+                        janela, janela, janela, new BigDecimal(consumo), "ESTAVEL"));
+    }
     private void configurarOferta(ExtracaoOfertasMercado.Oferta... ofertas) {
         List<FontePesquisaPreco> fontes = java.util.stream.IntStream.range(0, ofertas.length)
                 .mapToObj(i -> fonte(ofertas[i].evidenciaPreco())).toList();

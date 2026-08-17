@@ -8,8 +8,9 @@ import java.util.List;
 public sealed interface DadosAssistenteDTO permits DadosAssistenteDTO.Estoque,
         DadosAssistenteDTO.Vendas, DadosAssistenteDTO.Gastos, DadosAssistenteDTO.Recebiveis,
         DadosAssistenteDTO.CustoProduto, DadosAssistenteDTO.ComprasInsumo,
+        DadosAssistenteDTO.MargemProduto, DadosAssistenteDTO.AnaliseComposta,
         DadosAssistenteDTO.ComparacaoVendasGastos, DadosAssistenteDTO.ComparacaoVendasPeriodos,
-        DadosAssistenteDTO.ComparacaoMercado {
+        DadosAssistenteDTO.ComparacaoMercado, DadosAssistenteDTO.RentabilidadeProduto {
 
     String tipo();
 
@@ -33,6 +34,22 @@ public sealed interface DadosAssistenteDTO permits DadosAssistenteDTO.Estoque,
             BigDecimal custoUnitarioFicha, BigDecimal rendimentoBase, int componentes,
             int componentesSemCusto, Instant dataBaseCusto) implements DadosAssistenteDTO {}
 
+    record ComponenteCusto(String nome, BigDecimal custoConhecido, BigDecimal participacaoPercentual) {}
+
+    record MargemProduto(String tipo, Long produtoId, String produto, BigDecimal quantidadeProduzida,
+            BigDecimal custoProducaoConhecido, BigDecimal custoUnitarioConhecido,
+            BigDecimal quantidadeVendida, BigDecimal receitaVendas, BigDecimal precoMedioVenda,
+            BigDecimal margemBrutaConhecidaUnitaria, BigDecimal margemBrutaConhecidaTotal,
+            String situacao, List<ComponenteCusto> componentes,
+            List<String> custosNaoModelados) implements DadosAssistenteDTO {}
+
+    record RentabilidadeProduto(String tipo, Long produtoId, String produto, LocalDate periodoInicio,
+            LocalDate periodoFim, Object custo, Object vendas, List<?> modalidades,
+            Object principalComponenteCusto, Object mercado, Object estimativaCustosIndiretos, String situacao,
+            String informacaoNecessaria) implements DadosAssistenteDTO {}
+
+    record AnaliseComposta(String tipo, java.util.Map<String, Object> resultados) implements DadosAssistenteDTO {}
+
     record ItemCompraInsumo(Long materiaPrimaId, String unidade, BigDecimal quantidadeTotal,
             BigDecimal valorTotal, BigDecimal precoMedioPonderado, BigDecimal menorPreco,
             BigDecimal maiorPreco, BigDecimal amplitudePrecoPercentual, long quantidadeCompras,
@@ -50,16 +67,23 @@ public sealed interface DadosAssistenteDTO permits DadosAssistenteDTO.Estoque,
     record OfertaMercado(String titulo, String url, String dominio, BigDecimal precoUnitario,
             BigDecimal quantidadeCalculada, BigDecimal custoTotal, boolean freteIncluido,
             BigDecimal pedidoMinimo, boolean compativelQuantidadeAlvo, String localizacao,
-            LocalDate validade, String evidenciaPreco, String evidenciaPedidoMinimo, String confianca) {}
+            LocalDate validade, String evidenciaPreco, String evidenciaPedidoMinimo, String confianca,
+            BigDecimal mesesCoberturaPedidoMinimo, List<String> status, String marca, String fornecedor) {}
+
+    record MetricasHistoricasCompra(BigDecimal ultimaCompraPreco, LocalDate ultimaCompraData,
+            BigDecimal media30Dias, BigDecimal media90Dias, BigDecimal media6Meses,
+            BigDecimal menorPreco6Meses, BigDecimal maiorPreco6Meses,
+            BigDecimal quantidade6Meses, BigDecimal consumoMedioMensal, String tendencia) {}
 
     record FonteMercado(String fonteId, String titulo, String url, String dominio,
             String status, String motivo) {}
 
-    record ComparacaoMercado(String tipo, Long materiaPrimaId, String unidade, BigDecimal quantidadeAlvo,
+    record ComparacaoMercado(String tipo, Long materiaPrimaId, String materiaPrima, String unidade, BigDecimal quantidadeAlvo,
             BigDecimal precoInternoUnitario, BigDecimal custoInternoComparavel, BigDecimal menorCustoExterno,
             BigDecimal economiaEstimada, BigDecimal diferencaExternaMenosInterna,
             BigDecimal percentualDiferenca, String situacao,
-            Instant pesquisadoEm, List<FonteMercado> fontes, List<OfertaMercado> ofertas) implements DadosAssistenteDTO {}
+            Instant pesquisadoEm, MetricasHistoricasCompra metricasHistoricas,
+            List<FonteMercado> fontes, List<OfertaMercado> ofertas) implements DadosAssistenteDTO {}
 
     record ComparacaoFinanceira(BigDecimal vendas, BigDecimal gastos, BigDecimal diferenca,
             BigDecimal percentualVendasSobreGastos) {}

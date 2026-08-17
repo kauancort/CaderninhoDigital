@@ -5,7 +5,6 @@ import com.InovaSkill.CaderninhoDigital.exception.ResourceNotFoundException;
 import com.InovaSkill.CaderninhoDigital.repository.CompraMateriaPrimaRepository;
 import com.InovaSkill.CaderninhoDigital.repository.MateriaPrimaRepository;
 import com.InovaSkill.CaderninhoDigital.repository.projection.AnaliseCompraInsumoProjection;
-import com.InovaSkill.CaderninhoDigital.service.UsuarioAcessoService;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
@@ -19,24 +18,22 @@ import org.springframework.transaction.annotation.Transactional;
 public class AnaliseComprasInsumoService {
     private final CompraMateriaPrimaRepository compras;
     private final MateriaPrimaRepository materias;
-    private final UsuarioAcessoService acesso;
 
     public AnaliseComprasInsumoService(CompraMateriaPrimaRepository compras,
-            MateriaPrimaRepository materias, UsuarioAcessoService acesso) {
-        this.compras = compras; this.materias = materias; this.acesso = acesso;
+            MateriaPrimaRepository materias) {
+        this.compras = compras; this.materias = materias;
     }
 
     @Transactional(readOnly = true)
-    public Resultado analisar(Long usuarioId, Long materiaPrimaId, LocalDate inicio, LocalDate fim) {
-        acesso.buscarGestor(usuarioId);
+    public Resultado analisar(Long empresaId, Long materiaPrimaId, LocalDate inicio, LocalDate fim) {
         List<Item> itens;
         if (materiaPrimaId != null) {
-            var materia = materias.findById(materiaPrimaId)
+            var materia = materias.buscarAcessivelParaAnalise(materiaPrimaId, empresaId)
                     .orElseThrow(() -> new ResourceNotFoundException("Matéria-prima não encontrada"));
             itens = List.of(item(materiaPrimaId, materia.getUnidadeMedida(),
-                    compras.analisarInsumo(materiaPrimaId, inicio, fim), inicio, fim));
+                    compras.analisarInsumo(materiaPrimaId, empresaId, inicio, fim), inicio, fim));
         } else {
-            itens = compras.analisarInsumos(inicio, fim).stream()
+            itens = compras.analisarInsumos(empresaId, inicio, fim).stream()
                     .map(r -> item(r.getMateriaPrimaId(), r.getUnidade(), r, inicio, fim)).toList();
         }
         BigDecimal total = itens.stream().map(Item::valorTotal).reduce(BigDecimal.ZERO, BigDecimal::add);

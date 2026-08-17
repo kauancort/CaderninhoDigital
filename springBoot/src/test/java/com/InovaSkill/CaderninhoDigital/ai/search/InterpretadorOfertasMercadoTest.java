@@ -108,6 +108,80 @@ class InterpretadorOfertasMercadoTest {
                 .isEqualTo(ExtracaoOfertasMercado.Unidade.KG);
     }
 
+    @Test void fallbackRespeitaVariantesDeEmbalagemEIgnoraProdutoRelacionado() {
+        when(gateway.gerarEstruturado(any(), eq(ExtracaoOfertasMercado.class), any())).thenReturn(
+                new RespostaModelo<>(new ExtracaoOfertasMercado(List.of(
+                        new ExtracaoOfertasMercado.Fonte("fonte-1", ExtracaoOfertasMercado.Status.REJEITADA,
+                                "sem oferta estruturada", List.of()))),
+                        new MetadadosModelo("m", "m", 1, 1, 2, 1, false)));
+        var fonte = new FontePesquisaPreco("Açúcar Demerara atacado",
+                URI.create("https://loja.example/acucar-demerara"), "loja.example",
+                "Açúcar Demerara. Embalagem - preço por quilo: 1KG - R$8,35/kg, "
+                        + "25KG - R$5,65/kg, 5KG - R$7,00/kg. Produtos relacionados: "
+                        + "Açúcar Mascavo R$6,51/kg.");
+
+        var resultado = interpretador.interpretarDetalhado(List.of(fonte), "Açúcar Demerara", 1L);
+
+        assertThat(resultado.ofertas()).hasSize(3);
+        assertThat(resultado.ofertas()).extracting(item -> item.dados().precoAnunciado())
+                .containsExactlyInAnyOrder(new BigDecimal("8.350000"), new BigDecimal("5.650000"),
+                        new BigDecimal("7.000000"));
+        assertThat(resultado.ofertas()).noneMatch(item ->
+                item.dados().precoAnunciado().compareTo(new BigDecimal("6.51")) == 0);
+        assertThat(resultado.ofertas()).anyMatch(item -> item.dados().quantidadeEmbalagem()
+                .compareTo(new BigDecimal("25")) == 0);
+    }
+
+    @Test void fallbackNaoTransformaDescontoOuParcelaDePaginaDeBuscaEmPrecoDoPacote() {
+        when(gateway.gerarEstruturado(any(), eq(ExtracaoOfertasMercado.class), any())).thenReturn(
+                new RespostaModelo<>(new ExtracaoOfertasMercado(List.of()),
+                        new MetadadosModelo("m", "m", 1, 1, 2, 1, false)));
+        var fonte = new FontePesquisaPreco("Açúcar Demerara 10 Kg - Busca",
+                URI.create("https://loja.example/busca"), "loja.example",
+                "Açúcar demerara 10 kg. Produto avulso R$10,98 R$10,43 5% OFF. "
+                        + "5x R$34,20 sem juros.");
+
+        var resultado = interpretador.interpretarDetalhado(List.of(fonte), "Açúcar Demerara", 1L);
+
+        assertThat(resultado.ofertas()).isEmpty();
+        assertThat(resultado.fontes()).singleElement().satisfies(item ->
+                assertThat(item.status()).isNotEqualTo(ResultadoFontePesquisa.Status.VALIDADA));
+    }
+
+    @Test void fallbackAceitaQuantidadeImediatamenteAntesDoPrecoTotal() {
+        when(gateway.gerarEstruturado(any(), eq(ExtracaoOfertasMercado.class), any())).thenReturn(
+                new RespostaModelo<>(new ExtracaoOfertasMercado(List.of()),
+                        new MetadadosModelo("m", "m", 1, 1, 2, 1, false)));
+        var fonte = new FontePesquisaPreco("Açúcar Demerara 10 kg - Ingredientes Online",
+                URI.create("https://loja.example/acucar-demerara-10-kg"), "loja.example",
+                "Açúcar Demerara 10 kg - R$ 95,29 no pagamento à vista.");
+
+        var resultado = interpretador.interpretarDetalhado(List.of(fonte), "Açúcar Demerara", 1L);
+
+        assertThat(resultado.ofertas()).singleElement().satisfies(item -> {
+            assertThat(item.dados().tipoPreco()).isEqualTo(ExtracaoOfertasMercado.TipoPreco.TOTAL_EMBALAGEM);
+            assertThat(item.dados().precoAnunciado()).isEqualByComparingTo("95.29");
+            assertThat(item.dados().quantidadeEmbalagem()).isEqualByComparingTo("10");
+        });
+        assertThat(resultado.fontes()).singleElement().satisfies(item ->
+                assertThat(item.status()).isEqualTo(ResultadoFontePesquisa.Status.VALIDADA));
+    }
+
+    @Test void fallbackNaoAceitaProdutosRecomendadosSoPorqueTituloDaPaginaTemProdutoBuscado() {
+        when(gateway.gerarEstruturado(any(), eq(ExtracaoOfertasMercado.class), any())).thenReturn(
+                new RespostaModelo<>(new ExtracaoOfertasMercado(List.of()),
+                        new MetadadosModelo("m", "m", 1, 1, 2, 1, false)));
+        var fonte = new FontePesquisaPreco("Açúcar Demerara 10 kg - Ingredientes Online",
+                URI.create("https://loja.example/acucar-demerara-10-kg"), "loja.example",
+                "Açúcar Demerara 10 kg R$ 95,29. Recomendado para você: "
+                        + "Farinha de Castanha de Caju 5 kg R$ 189,00. Amêndoa Defumada 1 kg R$ 107,10.");
+
+        var resultado = interpretador.interpretarDetalhado(List.of(fonte), "Açúcar Demerara", 1L);
+
+        assertThat(resultado.ofertas()).singleElement().satisfies(item ->
+                assertThat(item.dados().precoAnunciado()).isEqualByComparingTo("95.29"));
+    }
+
     private ExtracaoOfertasMercado.Oferta oferta(String fonte, String preco,
             ExtracaoOfertasMercado.TipoPreco tipo, ExtracaoOfertasMercado.Unidade unidade,
             BigDecimal embalagem, String evidencia) {

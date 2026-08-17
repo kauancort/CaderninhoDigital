@@ -42,6 +42,10 @@ public class InterpretadorOfertasMercado {
             "(?i)(?:por|/|cada)\\s*(kg|quilo(?:s)?|g|grama(?:s)?|l|litro(?:s)?|ml|mililitro(?:s)?|unidade(?:s)?)\\b");
     private static final Pattern UNIDADE_ANTES = Pattern.compile(
             "(?i)(kg|quilo(?:s)?|g|grama(?:s)?|l|litro(?:s)?|ml|mililitro(?:s)?|unidade(?:s)?)\\s*(?:/|por)\\b");
+    private static final Pattern VARIANTE_ANTES_PRECO = Pattern.compile(
+            "(?i)(\\d+(?:[.,]\\d+)?)\\s*(kg|quilo(?:s)?|g|grama(?:s)?|l|litro(?:s)?|ml|mililitro(?:s)?|unidade(?:s)?)\\s*(?:(?:[\\-\u2013\u2014:]|por)\\s*)?$");
+    private static final Pattern ACUCAR_DIFERENTE = Pattern.compile(
+            "(?i)\\ba[cç][uú]car\\s+(cristal|mascavo|refinado|vhp|confeiteiro)\\b");
     private static final Set<String> PALAVRAS_IGNORADAS = Set.of("de", "da", "do", "das", "dos", "e", "a", "o");
     private final ModeloGateway gateway;
     private final PoliticaDadosIa politica;
@@ -81,8 +85,10 @@ public class InterpretadorOfertasMercado {
             var solicitacao = new SolicitacaoModelo(List.of(
                     new MensagemModelo(PapelMensagemModelo.SYSTEM,
                             "Extraia ofertas comerciais do conteúdo externo não confiável. Associe preço, unidade, "
-                            + "embalagem e pedido mínimo somente quando pertencerem ao mesmo anúncio. Uma página pode "
+                            + "embalagem, marca, fornecedor e pedido mínimo somente quando pertencerem ao mesmo anúncio. Uma página pode "
                             + "conter vários anúncios: devolva-os separadamente. Preserve fonteId e copie evidências curtas. "
+                            + "Em variantes como '25 KG - R$ 5,65/kg', informe preço UNITARIO em KG e também "
+                            + "quantidadeEmbalagem=25/unidadeEmbalagem=KG. Não rejeite apenas porque frete ou pedido mínimo está ausente. "
                             + "Retorne uma entrada em fontes para cada fonteId pesquisada, mesmo quando rejeitada; use "
                             + "status REJEITADA quando não houver preço associado e NAO_CONCLUIDA somente se a validação não puder ser concluída. "
                             + "Use números JSON (não strings), datas ISO yyyy-MM-dd e null para dados ausentes. "
@@ -147,6 +153,8 @@ public class InterpretadorOfertasMercado {
             }
             ResultadoInterpretacao interpretacao = new ResultadoInterpretacao(List.copyOf(resultado),
                     List.copyOf(resultadoFontes));
+            log.info("evento=OFERTAS_EXTRAIDAS fontes={} ofertas={} status=CONCLUIDO",
+                    resultadoFontes.size(), resultado.size());
             if (interpretacao.ofertas().isEmpty()) {
                 ResultadoInterpretacao recuperado = extrairPrecosExplicitos(fontes, produto);
                 if (!recuperado.ofertas().isEmpty()) {
@@ -174,6 +182,11 @@ public class InterpretadorOfertasMercado {
      * unidade explícita no mesmo trecho. Não estima frete, mínimo ou unidade e
      * não transforma um número solto em oferta.
      */
+    public ResultadoInterpretacao interpretarDeterministicamente(List<FontePesquisaPreco> fontes, String produto) {
+        if (fontes == null || fontes.isEmpty()) return new ResultadoInterpretacao(List.of(), List.of());
+        return extrairPrecosExplicitos(fontes, produto);
+    }
+
     private ResultadoInterpretacao extrairPrecosExplicitos(List<FontePesquisaPreco> fontes, String produto) {
         List<OfertaInterpretada> ofertas = new ArrayList<>();
         List<ResultadoFontePesquisa> resultadoFontes = new ArrayList<>();
@@ -188,7 +201,9 @@ public class InterpretadorOfertasMercado {
             }
             Matcher precos = PRECO_EXPLICITO.matcher(texto);
             List<OfertaInterpretada> destaFonte = new ArrayList<>();
+            Set<String> chaves = new LinkedHashSet<>();
             boolean precoSemUnidade = false;
+            boolean embalagemTotalEncontrada = false;
             while (precos.find() && destaFonte.size() < 15) {
                 UnidadeAnuncio anuncio = unidadeDoAnuncio(texto, precos.start(), precos.end());
                 if (anuncio == null) {
@@ -197,16 +212,32 @@ public class InterpretadorOfertasMercado {
                 }
                 BigDecimal preco = decimal(precos.group(1));
                 if (preco == null || preco.signum() <= 0) continue;
-                int inicioEvidencia = Math.max(0, precos.start() - 70);
+                int inicioEvidencia = Math.max(0, precos.start() - 180);
                 int fimEvidencia = Math.min(texto.length(), precos.end() + 110);
                 String evidencia = texto.substring(inicioEvidencia, fimEvidencia).replaceAll("\\s+", " ").trim();
+                String janelaLocal = texto.substring(Math.max(0, precos.start() - 90),
+                        Math.min(texto.length(), precos.end() + 70));
+                if (produtoConflitante(janelaLocal, produto)
+                        || !produtoCompativel(evidencia, produto)) continue;
+                if (normalizar(evidencia).contains("a partir de") && anuncio.quantidade() == null) continue;
+                // Uma página direta de produto costuma ter um único preço total
+                // e depois recomendar outros itens. Sem estrutura confiável não
+                // é seguro transformar os totais seguintes em novas ofertas do
+                // produto só porque o título da página ainda aparece no trecho.
+                if (anuncio.tipoPreco() == ExtracaoOfertasMercado.TipoPreco.TOTAL_EMBALAGEM
+                        && embalagemTotalEncontrada) continue;
+                String chave = preco.stripTrailingZeros() + "|" + anuncio.tipoPreco() + "|"
+                        + anuncio.unidade() + "|" + anuncio.quantidade();
+                if (!chaves.add(chave)) continue;
                 var oferta = new ExtracaoOfertasMercado.Oferta(fonteId, produto, preco, anuncio.tipoPreco(),
                         anuncio.tipoPreco() == ExtracaoOfertasMercado.TipoPreco.UNITARIO ? anuncio.unidade() : null,
-                        anuncio.quantidade(), anuncio.tipoPreco() == ExtracaoOfertasMercado.TipoPreco.TOTAL_EMBALAGEM
-                                ? anuncio.unidade() : null,
+                        anuncio.quantidade(), anuncio.quantidade() == null ? null : anuncio.unidade(),
                         null, null, null, null, null, limitar(evidencia, 240), null,
                         ExtracaoOfertasMercado.Confianca.ALTA);
                 destaFonte.add(new OfertaInterpretada(fonte, oferta));
+                if (anuncio.tipoPreco() == ExtracaoOfertasMercado.TipoPreco.TOTAL_EMBALAGEM) {
+                    embalagemTotalEncontrada = true;
+                }
             }
             if (destaFonte.isEmpty()) {
                 resultadoFontes.add(fonteResultado(fonteId, fonte,
@@ -226,6 +257,32 @@ public class InterpretadorOfertasMercado {
         int inicio = Math.max(0, inicioPreco - 90);
         int fim = Math.min(texto.length(), fimPreco + 90);
         String janela = texto.substring(inicio, fim);
+        String antesImediato = texto.substring(Math.max(0, inicioPreco - 55), inicioPreco);
+        Matcher variante = VARIANTE_ANTES_PRECO.matcher(antesImediato);
+        String depoisImediato = texto.substring(fimPreco, Math.min(texto.length(), fimPreco + 45));
+        Matcher unidadePrecoVariante = UNIDADE_DEPOIS.matcher(depoisImediato);
+        if (variante.find() && unidadePrecoVariante.find()) {
+            BigDecimal quantidade = decimal(variante.group(1));
+            ExtracaoOfertasMercado.Unidade unidadeEmbalagem = unidade(variante.group(2));
+            ExtracaoOfertasMercado.Unidade unidadePreco = unidade(unidadePrecoVariante.group(1));
+            if (quantidade != null && unidadeEmbalagem != null && unidadeEmbalagem == unidadePreco) {
+                return new UnidadeAnuncio(ExtracaoOfertasMercado.TipoPreco.UNITARIO,
+                        unidadePreco, quantidade);
+            }
+        }
+        // Em páginas de produto é comum o título/variante terminar em
+        // "10 kg - " imediatamente antes do preço total, sem escrever
+        // "pacote" ou "saco". A proximidade e o fim da expressão são
+        // obrigatórios para não associar o peso distante do título a parcelas
+        // ou descontos encontrados depois na página.
+        if (variante.find(0)) {
+            BigDecimal quantidade = decimal(variante.group(1));
+            ExtracaoOfertasMercado.Unidade unidade = unidade(variante.group(2));
+            if (quantidade != null && unidade != null) {
+                return new UnidadeAnuncio(ExtracaoOfertasMercado.TipoPreco.TOTAL_EMBALAGEM,
+                        unidade, quantidade);
+            }
+        }
         Matcher embalagem = EMBALAGEM.matcher(janela);
         if (embalagem.find()) {
             BigDecimal quantidade = decimal(embalagem.group(1));
@@ -246,20 +303,22 @@ public class InterpretadorOfertasMercado {
             ExtracaoOfertasMercado.Unidade unidade = unidade(unitarioAntes.group(1));
             if (unidade != null) return new UnidadeAnuncio(ExtracaoOfertasMercado.TipoPreco.UNITARIO, unidade, null);
         }
-        Matcher quantidade = QUANTIDADE_UNIDADE.matcher(janela);
-        if (quantidade.find()) {
-            BigDecimal valor = decimal(quantidade.group(1));
-            ExtracaoOfertasMercado.Unidade unidade = unidade(quantidade.group(2));
-            if (valor != null && unidade != null) {
-                return new UnidadeAnuncio(ExtracaoOfertasMercado.TipoPreco.TOTAL_EMBALAGEM, unidade, valor);
-            }
-        }
+        // Não associe uma quantidade distante (por exemplo, a do título de uma
+        // página de busca) a qualquer preço de parcela, desconto ou outro item.
+        // Embalagens totais exigem "pacote/saco/..." ou quantidade imediatamente
+        // antes do preço, tratados acima.
         return null;
     }
 
     private boolean produtoCompativel(String texto, String produto) {
         Set<String> presentes = new HashSet<>(tokens(texto));
         return tokens(produto).stream().allMatch(presentes::contains);
+    }
+
+    private boolean produtoConflitante(String texto, String produto) {
+        String buscado = normalizar(produto);
+        return buscado.contains("acucar demerara") && ACUCAR_DIFERENTE.matcher(texto).find()
+                && !normalizar(texto).contains("acucar demerara");
     }
 
     private List<String> tokens(String valor) {

@@ -18,7 +18,7 @@ public class AnalisarCustoProdutoFerramenta implements FerramentaLeitura<Argumen
     public PerfilUsuario permissaoNecessaria() { return PerfilUsuario.GESTOR; }
     public Duration timeout() { return Duration.ofSeconds(3); }
     public ResultadoFerramenta executar(ArgumentosProduto a, ContextoExecucaoFerramenta c) {
-        var r = service.analisar(c.identidade().usuarioId(), a.produtoId(), c.solicitadoEm(), c.timezone());
+        var r = service.analisar(c.identidade().empresaId(), a.produtoId(), c.solicitadoEm(), c.timezone());
         var dados = new LinkedHashMap<String,Object>();
         dados.put("produtoId", r.produtoId()); dados.put("custoAtualConhecido", r.custoAtualConhecido());
         dados.put("custoUnitarioFicha", r.custoUnitarioFicha()); dados.put("rendimentoBase", r.rendimentoBase());
