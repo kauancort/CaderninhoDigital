@@ -169,15 +169,17 @@ public class VendaService {
                             itemDto.getQuantidade()
                     );
 
-                    movimentacaoEstoqueService.registrarProduto(
-                            produto,
-                            gestor,
-                            estoqueAnterior,
-                            produto.getEstoqueAtual(),
-                            TipoMovimentacaoEstoque.SAIDA,
-                            OrigemMovimentacaoEstoque.VENDA,
-                            dto.getObservacao()
-                    );
+                movimentacaoEstoqueService.registrarProduto(
+                        produto,
+                        gestor,
+                        estoqueAnterior,
+                        produto.getEstoqueAtual(),
+                        TipoMovimentacaoEstoque.SAIDA,
+                        OrigemMovimentacaoEstoque.VENDA,
+                        venda.getId(), 
+                        dto.getObservacao()
+                );
+
                 }
             } else {
                 valorUnitario = itemDto.getValorUnitario() != null
