@@ -15,7 +15,7 @@ const {
 
 const client = new Client({
   authStrategy: new LocalAuth({
-    clientId: "caderninho-teste",
+    clientId: "caderninho-teste-2",
   }),
 
   puppeteer: {
@@ -23,16 +23,21 @@ const client = new Client({
 
     // Aumenta o tempo permitido para o Puppeteer se comunicar
     // com o Chrome/WhatsApp Web.
-    protocolTimeout: 120000,
+    protocolTimeout: 180000,
 
     args: [
       "--no-sandbox",
       "--disable-setuid-sandbox",
       "--disable-dev-shm-usage",
       "--disable-gpu",
+
       "--disable-software-rasterizer",
-      "--no-first-run",
-      "--no-default-browser-check",
+
+      "--disable-background-timer-throttling",
+
+      "--disable-backgrounding-occluded-windows",
+
+      "--disable-renderer-backgrounding",
     ],
   },
 });
