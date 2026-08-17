@@ -5,8 +5,6 @@ const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 
-// ALTERADO: modelo fixo, sem depender do roteador "openrouter/free",
-// que escolhia modelos de raciocínio aleatoriamente e estourava o max_tokens.
 const OPENROUTER_MODEL =
   process.env.OPENROUTER_MODEL || "google/gemma-2-27b-it:free";
 
@@ -150,6 +148,61 @@ Se a gestora não informar a forma de pagamento, pergunte.
 Para vendas, use o ID do produto existente no catálogo.
 
 ==================================================
+REGRAS PARA CLIENTE NÃO CADASTRADO
+==================================================
+
+Antes de montar uma venda, compare o nome do comprador com a lista de CLIENTES do catálogo acima (sem diferenciar maiúsculas/minúsculas, aceitando pequenas variações do nome).
+
+CASO 1 — Comprador já existe no catálogo:
+Monte a venda normalmente. NÃO inclua o campo "novo_cliente".
+
+CASO 2 — Comprador NÃO existe no catálogo:
+O cliente precisa ser cadastrado antes de a venda poder ser concluída. Você precisa coletar estes 6 dados do cliente (nunca invente nenhum deles):
+
+- documento (CPF ou CNPJ)
+- estado
+- cidade
+- bairro
+- endereco
+- numero
+
+NÃO peça e-mail nem telefone — esses dois são preenchidos automaticamente pelo sistema.
+
+Se algum desses 6 dados ainda não foi informado (nem na mensagem atual, nem no histórico da conversa), retorne:
+
+{
+  "tipo": "venda",
+  "venda": null,
+  "faltando": ["cadastro_cliente"],
+  "perguntaProximo": "Não encontrei [nome] no cadastro. Pra criar o cadastro dele(a), me manda numa mensagem só: CPF ou CNPJ, estado, cidade, bairro, endereço e número. 💛"
+}
+
+Substitua [nome] pelo nome informado pela gestora.
+
+Se, juntando a mensagem atual com o histórico da conversa, TODOS os 6 dados de cadastro já foram informados E todos os demais dados da venda (produto, quantidade, preço, forma de pagamento) também já estão completos, monte a venda normalmente E inclua dentro do objeto "venda" o campo "novo_cliente" com os 6 dados, exatamente como foram informados:
+
+{
+  "tipo": "venda",
+  "venda": {
+    "comprador": "nome do cliente",
+    "novo_cliente": {
+      "documento": "...",
+      "estado": "...",
+      "cidade": "...",
+      "bairro": "...",
+      "endereco": "...",
+      "numero": "..."
+    },
+    "forma_pagamento": "PIX",
+    "itens": [...]
+  },
+  "faltando": [],
+  "perguntaProximo": null
+}
+
+Se faltar dado de cadastro E dado de venda ao mesmo tempo, peça primeiro os dados de cadastro (use "faltando": ["cadastro_cliente"]).
+
+==================================================
 REGRAS PARA COMPRA
 ==================================================
 
@@ -205,6 +258,8 @@ Exemplos:
 
 Nesses casos, responda de forma curta, simpática e natural, em português brasileiro.
 
+IMPORTANTE: se houver uma venda em andamento no histórico da conversa (pergunta pendente sobre preço, cliente, cadastro etc.), e a mensagem atual parecer estar respondendo a essa pergunta, NÃO trate como "conversa". Continue o fluxo de "venda".
+
 ==================================================
 REGRAS IMPORTANTES
 ==================================================
@@ -236,7 +291,7 @@ Para conversa:
   "perguntaProximo": null
 }
 
-Para venda:
+Para venda (cliente já cadastrado):
 
 {
   "tipo": "venda",
@@ -249,6 +304,36 @@ Para venda:
         "produto_nome": "Biriba",
         "quantidade": 2,
         "preco_unitario": 15.00,
+        "tipo": "pote",
+        "tamanho_pote": 22
+      }
+    ]
+  },
+  "faltando": [],
+  "perguntaProximo": null
+}
+
+Para venda (cliente novo, com dados de cadastro completos):
+
+{
+  "tipo": "venda",
+  "venda": {
+    "comprador": "João",
+    "novo_cliente": {
+      "documento": "876.952.342-21",
+      "estado": "São Paulo",
+      "cidade": "Marília",
+      "bairro": "Vila Nova",
+      "endereco": "Rua Arnaldo Melo",
+      "numero": "219"
+    },
+    "forma_pagamento": "DINHEIRO",
+    "itens": [
+      {
+        "produto_final_id": 1,
+        "produto_nome": "Paçoca",
+        "quantidade": 3,
+        "preco_unitario": 18.70,
         "tipo": "pote",
         "tamanho_pote": 22
       }
@@ -317,6 +402,7 @@ IMPORTANTE:
 - "perguntaProximo" deve fazer UMA pergunta por vez.
 - Nunca invente valores.
 - Nunca invente IDs.
+- Nunca invente dados de cadastro do cliente (documento, estado, cidade, bairro, endereco, numero).
 - Nunca registre uma venda sem cliente.
 - Nunca registre uma venda sem produto.
 - Nunca registre uma venda sem quantidade.
@@ -421,12 +507,10 @@ Use esse histórico apenas para entender informações que ainda estejam sendo c
         model: OPENROUTER_MODEL,
         messages: mensagens,
         temperature: 0.1,
-        max_tokens: 2000, // ALTERADO: era 1200, aumentado como rede de segurança
+        max_tokens: 2000,
         response_format: {
           type: "json_object",
         },
-        // ALTERADO: impede o modelo de gastar tokens "pensando em voz alta"
-        // antes do JSON final. Isso evita respostas cortadas (finish_reason: length).
         reasoning: {
           enabled: false,
         },
@@ -445,7 +529,6 @@ Use esse histórico apenas para entender informações que ainda estejam sendo c
     console.log("[IA] Resposta recebida.");
     console.log("[IA] Status HTTP:", resposta.status);
 
-    // LOG TEMPORÁRIO PARA DIAGNÓSTICO
     console.log("[IA] RESPOSTA COMPLETA DO OPENROUTER:");
     console.dir(resposta.data, {
       depth: null,
@@ -479,7 +562,6 @@ Use esse histórico apenas para entender informações que ainda estejam sendo c
 
     let conteudo = mensagem.content;
 
-    // Alguns modelos/provedores podem retornar conteúdo em outros campos.
     if (
       !conteudo &&
       Array.isArray(mensagem.content)
