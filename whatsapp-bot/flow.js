@@ -29,13 +29,6 @@ async function processarMensagem(
   { texto, audioBase64, mime },
 ) {
   try {
-    /*
-     * Nesta primeira etapa estamos implementando somente TEXTO.
-     *
-     * O áudio continuará sendo recebido pelo bot.js, mas ainda não
-     * será enviado para a IA. Primeiro vamos validar todo o fluxo
-     * WhatsApp -> IA -> Spring Boot com mensagens de texto.
-     */
     if (audioBase64) {
       return (
         "🎧 Recebi seu áudio, meu bem! " +
@@ -83,9 +76,6 @@ async function processarMensagem(
       );
     }
 
-    /*
-     * CONVERSA NORMAL
-     */
     if (resultado.tipo === "conversa") {
       const resposta =
         resultado.resposta ||
@@ -99,9 +89,6 @@ async function processarMensagem(
       return resposta;
     }
 
-    /*
-     * TIPO DESCONHECIDO
-     */
     if (resultado.tipo === "desconhecido") {
       const resposta =
         resultado.resposta ||
@@ -115,9 +102,6 @@ async function processarMensagem(
       return resposta;
     }
 
-    /*
-     * INFORMAÇÕES FALTANTES
-     */
     if (
       Array.isArray(resultado.faltando) &&
       resultado.faltando.length > 0 &&
@@ -131,9 +115,6 @@ async function processarMensagem(
       return resultado.perguntaProximo;
     }
 
-    /*
-     * EXECUTA O LANÇAMENTO
-     */
     try {
       const resposta =
         await concluirLancamento(resultado);
@@ -142,8 +123,13 @@ async function processarMensagem(
 
       return resposta;
     } catch (err) {
-      limparConversa(chatId);
-
+      /*
+       * ALTERADO: não limpamos mais a conversa quando dá erro.
+       * Isso preserva o contexto (itens, cliente, forma de pagamento já
+       * identificados) para que a gestora possa só completar o que falta,
+       * em vez de o bot "esquecer" tudo e tratar a próxima mensagem como
+       * uma conversa nova.
+       */
       const msg =
         err.response?.data?.message ||
         err.response?.data?.error ||
@@ -155,10 +141,16 @@ async function processarMensagem(
         err.response?.data || err,
       );
 
-      return (
+      const respostaErro =
         `Deu um probleminha ao salvar, meu bem: ${msg}\n\n` +
-        "Pode tentar de novo, com calma? 💛"
+        "Pode me mandar essa informação? 💛";
+
+      acrescentarConversa(
+        chatId,
+        `Vovó: ${respostaErro}`,
       );
+
+      return respostaErro;
     }
   } catch (error) {
     console.error(
@@ -235,11 +227,13 @@ async function criarVenda(venda) {
     );
   }
 
+  // ALTERADO: passa os dados de cadastro (se a IA os coletou) para o resolver.
   const {
     clienteId,
     criadoAgora,
   } = await resolverClienteId(
     venda.comprador,
+    venda.novo_cliente,
   );
 
   if (!clienteId) {
@@ -307,13 +301,12 @@ async function criarVenda(venda) {
     `${nomesProdutos}\n` +
     `Total: R$ ${Number(
       criada.valorTotal,
-    ).toFixed(2)}`;
+    ).toFixed(2).replace(".", ",")}`;
 
   if (criadoAgora) {
     resposta +=
-      `\n\n⚠️ Criei o cliente "${venda.comprador}" ` +
-      "com dados provisórios. Complete o telefone " +
-      "e e-mail dele na tela de Clientes.";
+      `\n\n✅ Também cadastrei "${venda.comprador}" como cliente novo. ` +
+      "Se quiser, complete o e-mail e telefone dele na tela de Clientes.";
   }
 
   return resposta;

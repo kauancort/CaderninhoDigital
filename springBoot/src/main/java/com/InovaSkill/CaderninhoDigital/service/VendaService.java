@@ -169,19 +169,6 @@ public class VendaService {
                             itemDto.getQuantidade()
                     );
 
-<<<<<<< HEAD
-                movimentacaoEstoqueService.registrarProduto(
-                        produto,
-                        gestor,
-                        estoqueAnterior,
-                        produto.getEstoqueAtual(),
-                        TipoMovimentacaoEstoque.SAIDA,
-                        OrigemMovimentacaoEstoque.VENDA,
-                        venda.getId(), 
-                        dto.getObservacao()
-                );
-
-=======
                     movimentacaoEstoqueService.registrarProduto(
                             produto,
                             gestor,
@@ -192,7 +179,6 @@ public class VendaService {
                             venda.getId(),
                             dto.getObservacao()
                     );
->>>>>>> e77bf56d1442c886c45fd36cedc15ddf8a4a03c4
                 }
             } else {
                 valorUnitario = itemDto.getValorUnitario() != null
@@ -208,15 +194,26 @@ public class VendaService {
             var modalidadeVenda = itemDto.getModalidadeVenda() == null
                     ? com.InovaSkill.CaderninhoDigital.enums.ModalidadeVenda.UNIDADE
                     : itemDto.getModalidadeVenda();
-            BigDecimal quantidadeModalidade = itemDto.getQuantidadeModalidade() == null
-                    ? itemDto.getQuantidade() : itemDto.getQuantidadeModalidade();
-            BigDecimal unidadesPorModalidade = itemDto.getUnidadesPorModalidade() == null
-                    ? BigDecimal.ONE : itemDto.getUnidadesPorModalidade();
-            if (quantidadeModalidade.multiply(unidadesPorModalidade)
+
+            BigDecimal quantidadeModalidade =
+                    itemDto.getQuantidadeModalidade() == null
+                            ? itemDto.getQuantidade()
+                            : itemDto.getQuantidadeModalidade();
+
+            BigDecimal unidadesPorModalidade =
+                    itemDto.getUnidadesPorModalidade() == null
+                            ? BigDecimal.ONE
+                            : itemDto.getUnidadesPorModalidade();
+
+            if (quantidadeModalidade
+                    .multiply(unidadesPorModalidade)
                     .compareTo(itemDto.getQuantidade()) != 0) {
+
                 throw new IllegalArgumentException(
-                        "A quantidade da modalidade não corresponde à quantidade de unidades vendidas");
+                        "A quantidade da modalidade não corresponde à quantidade de unidades vendidas"
+                );
             }
+
             ItemVenda item = ItemVenda.builder()
                     .venda(venda)
                     .produto(produto)
