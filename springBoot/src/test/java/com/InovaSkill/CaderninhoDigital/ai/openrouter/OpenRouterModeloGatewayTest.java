@@ -82,9 +82,10 @@ class OpenRouterModeloGatewayTest {
 
         assertThat(response.conteudo().intencao()).isEqualTo(IntencaoOrquestrador.RESUMO_NEGOCIO);
         assertThat(transport.request.body())
+                .contains("\"provider\":{\"require_parameters\":true}")
                 .contains("\"response_format\":{\"type\":\"json_schema\"")
                 .contains("\"strict\":true")
-                .contains("\"maxItems\":2")
+                .contains("\"maxItems\":5")
                 .contains("\"additionalProperties\":false");
     }
 

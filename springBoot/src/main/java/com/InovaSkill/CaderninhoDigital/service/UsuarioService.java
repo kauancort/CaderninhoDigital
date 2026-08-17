@@ -25,13 +25,14 @@ public class UsuarioService {
 
     @Transactional(readOnly = true)
     public List<UsuarioResponseDTO> listar() {
-        usuarioAtualService.buscarGestor();
-        return usuarioRepository.findAllByOrderByNomeAsc().stream().map(this::toResponse).toList();
+        Usuario gestor = usuarioAtualService.buscarGestor();
+        return usuarioRepository.findByEmpresaIdOrderByNomeAsc(gestor.getEmpresa().getId()).stream()
+                .map(this::toResponse).toList();
     }
 
     @Transactional
     public CriarUsuarioResponseDTO criar(CriarUsuarioRequestDTO dto) {
-        usuarioAtualService.buscarGestor();
+        Usuario gestor = usuarioAtualService.buscarGestor();
         String email = dto.getEmail().trim().toLowerCase();
         if (usuarioRepository.existsByEmail(email)) {
             throw new BusinessException("Já existe um usuário cadastrado com este e-mail");
@@ -40,7 +41,7 @@ public class UsuarioService {
         Usuario usuario = Usuario.builder()
                 .nome(dto.getNome().trim()).email(email).cargoFuncao(dto.getCargoFuncao().trim())
                 .perfil(dto.getPerfil()).senha(passwordEncoder.encode(senhaTemporaria))
-                .trocaSenhaObrigatoria(true).build();
+                .trocaSenhaObrigatoria(true).empresa(gestor.getEmpresa()).build();
         Usuario salvo = usuarioRepository.save(usuario);
         return new CriarUsuarioResponseDTO(toResponse(salvo), senhaTemporaria);
     }

@@ -20,7 +20,7 @@ public class ConsultarResumoVendasFerramenta implements FerramentaLeitura<Argume
     public PerfilUsuario permissaoNecessaria() { return PerfilUsuario.GESTOR; }
     public Duration timeout() { return Duration.ofSeconds(3); }
     public ResultadoFerramenta executar(ArgumentosPeriodo a, ContextoExecucaoFerramenta c) {
-        var r = service.resumirVendasIa(c.identidade().usuarioId(), a.inicio(), a.fim());
+        var r = service.resumirVendasEmpresaIa(c.identidade().empresaId(), a.inicio(), a.fim());
         var dados = new LinkedHashMap<String,Object>();
         dados.put("valorTotalValido", r.faturamento());
         dados.put("quantidadeVendas", r.quantidadeVendas());

@@ -418,6 +418,9 @@ function RegistrarVenda() {
           nome_avulso: i.is_avulso ? i.nome_avulso : null,
           quantidade: i.potes,
           preco_unitario: i.preco,
+          modalidade_venda: i.tipo === "caixa" ? "CAIXA" : "POTE",
+          quantidade_modalidade: i.qtd,
+          unidades_por_modalidade: i.tipo === "caixa" ? POTES_POR_CAIXA : 1,
         })),
       },
     });

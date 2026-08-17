@@ -5,5 +5,7 @@ public enum TipoArgumentosFerramenta {
     PERIODO,
     PRODUTO,
     COMPRA_INSUMO,
-    COMPARACAO_MERCADO
+    COMPARACAO_MERCADO,
+    PRODUTO_PERIODO,
+    RENTABILIDADE_PRODUTO
 }

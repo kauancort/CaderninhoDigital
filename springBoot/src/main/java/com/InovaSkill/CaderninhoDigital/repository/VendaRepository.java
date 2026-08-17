@@ -20,6 +20,12 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
 public interface VendaRepository extends JpaRepository<Venda, Long>, JpaSpecificationExecutor<Venda> {
+    interface MargemProdutoProjection {
+        BigDecimal getQuantidadeVendida();
+        BigDecimal getReceita();
+        BigDecimal getCustoConhecidoVendas();
+        Long getItensSemCusto();
+    }
     @Override
     @EntityGraph(attributePaths = {"cliente"})
     Page<Venda> findAll(Specification<Venda> specification, Pageable pageable);
@@ -91,9 +97,11 @@ public interface VendaRepository extends JpaRepository<Venda, Long>, JpaSpecific
                 COUNT(v) AS quantidadeVendas,
                 COALESCE(AVG(v.valorTotal), 0) AS ticketMedio
             FROM Venda v
-            WHERE v.dataVenda BETWEEN :inicio AND :fim
+            WHERE v.gestor.empresa.id = :empresaId
+              AND v.dataVenda BETWEEN :inicio AND :fim
             """)
     ResumoHistoricoVendasProjection resumirVendasIa(
+            @Param("empresaId") Long empresaId,
             @Param("inicio") LocalDate inicio,
             @Param("fim") LocalDate fim
     );
@@ -101,12 +109,40 @@ public interface VendaRepository extends JpaRepository<Venda, Long>, JpaSpecific
     @Query("""
             SELECT COALESCE(SUM(i.quantidade), 0)
             FROM ItemVenda i
-            WHERE i.venda.dataVenda BETWEEN :inicio AND :fim
+            WHERE i.venda.gestor.empresa.id = :empresaId
+              AND i.venda.dataVenda BETWEEN :inicio AND :fim
             """)
     BigDecimal totalItensVendasIa(
+            @Param("empresaId") Long empresaId,
             @Param("inicio") LocalDate inicio,
             @Param("fim") LocalDate fim
     );
+
+    @Query("""
+            SELECT COALESCE(SUM(i.quantidade), 0) AS quantidadeVendida,
+                   COALESCE(SUM(i.valorTotal), 0) AS receita,
+                   COALESCE(SUM(CASE WHEN i.custoConsiderado IS NULL THEN 0
+                                ELSE i.custoConsiderado * i.quantidade END), 0) AS custoConhecidoVendas,
+                   COALESCE(SUM(CASE WHEN i.custoConsiderado IS NULL THEN 1 ELSE 0 END), 0) AS itensSemCusto
+              FROM ItemVenda i
+             WHERE i.venda.gestor.empresa.id = :empresaId
+               AND i.produto.id = :produtoId
+               AND i.venda.dataVenda BETWEEN :inicio AND :fim
+            """)
+    MargemProdutoProjection resumirMargemProduto(@Param("empresaId") Long empresaId,
+            @Param("produtoId") Long produtoId, @Param("inicio") LocalDate inicio,
+            @Param("fim") LocalDate fim);
+
+    @Query("""
+            SELECT i FROM ItemVenda i
+             WHERE i.venda.gestor.empresa.id = :empresaId
+               AND i.produto.id = :produtoId
+               AND i.venda.dataVenda BETWEEN :inicio AND :fim
+             ORDER BY i.venda.dataVenda DESC, i.id DESC
+            """)
+    List<com.InovaSkill.CaderninhoDigital.entity.ItemVenda> listarItensRentabilidadeProduto(
+            @Param("empresaId") Long empresaId, @Param("produtoId") Long produtoId,
+            @Param("inicio") LocalDate inicio, @Param("fim") LocalDate fim);
 
     @Query("""
             SELECT COALESCE(SUM(i.quantidade), 0)
@@ -212,6 +248,7 @@ public interface VendaRepository extends JpaRepository<Venda, Long>, JpaSpecific
                 COUNT(v) AS quantidadeCobrancas
             FROM Venda v
             WHERE v.statusPagamento = com.InovaSkill.CaderninhoDigital.enums.StatusPagamento.PENDENTE
+              AND v.gestor.empresa.id = :empresaId
               AND v.dataVencimento BETWEEN :inicio AND :fim
               AND (:situacao = '' OR
                     (:situacao = 'EM_DIA' AND v.dataVencimento >= :hoje) OR
@@ -220,6 +257,7 @@ public interface VendaRepository extends JpaRepository<Venda, Long>, JpaSpecific
                     (:situacao = 'MUITO_ATRASADO' AND v.dataVencimento < :limiteMedio))
             """)
     ResumoCobrancasProjection resumirRecebiveisIa(
+            @Param("empresaId") Long empresaId,
             @Param("hoje") LocalDate hoje,
             @Param("ontem") LocalDate ontem,
             @Param("limiteRecente") LocalDate limiteRecente,

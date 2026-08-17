@@ -23,7 +23,7 @@ public class ConsultarResumoRecebiveisFerramenta implements FerramentaLeitura<Ar
     public PerfilUsuario permissaoNecessaria() { return PerfilUsuario.GESTOR; }
     public Duration timeout() { return Duration.ofSeconds(3); }
     public ResultadoFerramenta executar(ArgumentosPeriodo a, ContextoExecucaoFerramenta c) {
-        long id = c.identidade().usuarioId();
+        long id = c.identidade().empresaId();
         var total = resumo(id, a, null);
         var dados = new LinkedHashMap<String,Object>();
         dados.put("totalEmAberto", total.totalReceber());
@@ -39,7 +39,7 @@ public class ConsultarResumoRecebiveisFerramenta implements FerramentaLeitura<Ar
                 QualidadeResultado.PARCIAL);
     }
     private ResumoCobrancasResponseDTO resumo(long id, ArgumentosPeriodo a, SituacaoCobranca situacao) {
-        return service.resumirRecebiveisIa(id, a.inicio(), a.fim(), situacao);
+        return service.resumirRecebiveisEmpresaIa(id, a.inicio(), a.fim(), situacao);
     }
     private Map<String,Object> faixa(ResumoCobrancasResponseDTO r) {
         return Map.of("valor", r.totalReceber(), "quantidade", r.quantidadeCobrancas());
