@@ -16,18 +16,20 @@ public class CompararPrecoMercadoFerramenta implements FerramentaLeitura<Argumen
     public TipoArgumentosFerramenta tipoArgumentos() { return TipoArgumentosFerramenta.COMPARACAO_MERCADO; }
     public Class<ArgumentosComparacaoMercado> classeArgumentos() { return ArgumentosComparacaoMercado.class; }
     public PerfilUsuario permissaoNecessaria() { return PerfilUsuario.GESTOR; }
-    public Duration timeout() { return Duration.ofSeconds(100); }
+    public Duration timeout() { return Duration.ofSeconds(330); }
     public ResultadoFerramenta executar(ArgumentosComparacaoMercado a, ContextoExecucaoFerramenta c) {
-        var r=service.comparar(c.identidade().usuarioId(),a.materiaPrimaId(),a.inicio(),a.fim(),
+        var r=service.comparar(c.identidade().usuarioId(),c.identidade().empresaId(),a.materiaPrimaId(),a.inicio(),a.fim(),
                 a.unidade(),a.quantidadeAlvo(),a.cidade(),a.uf());
         var dados=new LinkedHashMap<String,Object>();
-        dados.put("materiaPrimaId",r.materiaPrimaId()); dados.put("unidade",r.unidade());
+        dados.put("materiaPrimaId",r.materiaPrimaId()); dados.put("materiaPrima",r.materiaPrima());
+        dados.put("unidade",r.unidade());
         dados.put("quantidadeAlvo",r.quantidadeAlvo()); dados.put("precoInternoUnitario",r.precoInternoUnitario());
         dados.put("custoInternoComparavel",r.custoInternoComparavel());
         dados.put("menorCustoExterno",r.menorCustoExterno()); dados.put("economiaEstimada",r.economiaEstimada());
         dados.put("diferencaExternaMenosInterna",r.diferencaExternaMenosInterna());
         dados.put("percentualDiferenca",r.percentualDiferenca()); dados.put("situacao",r.situacao());
         dados.put("pesquisadoEm",r.pesquisadoEm()); dados.put("fontes",r.fontes()); dados.put("ofertas",r.ofertas());
+        dados.put("metricasHistoricas",r.metricasHistoricas());
         return new ResultadoFerramenta(identificador(),StatusResultado.SUCESSO,dados,a.inicio(),a.fim(),
                 c.solicitadoEm(),r.avisos(),r.qualidade());
     }

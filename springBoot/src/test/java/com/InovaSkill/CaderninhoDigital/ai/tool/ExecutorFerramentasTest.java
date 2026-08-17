@@ -212,7 +212,9 @@ class ExecutorFerramentasTest {
     }
 
     private ExecutorFerramentas criarExecutor(CatalogoFerramentas catalogo) {
-        var factory = new ContextoFerramentaFactory(Clock.fixed(AGORA, FUSO), properties);
+        var usuarios = org.mockito.Mockito.mock(com.InovaSkill.CaderninhoDigital.repository.UsuarioRepository.class);
+        org.mockito.Mockito.when(usuarios.buscarEmpresaId(7L)).thenReturn(java.util.Optional.of(11L));
+        var factory = new ContextoFerramentaFactory(Clock.fixed(AGORA, FUSO), properties, usuarios);
         return new ExecutorFerramentas(catalogo, factory, properties,
                 Validation.buildDefaultValidatorFactory().getValidator(), threads);
     }

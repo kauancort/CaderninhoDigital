@@ -19,6 +19,12 @@ public class ConsolidadorResultadosOrquestracao {
         if (resultados.stream().allMatch(item -> item.ferramenta() == FerramentaPermitida.RESUMO_VENDAS)) {
             return consolidarVendasPeriodos(resultados);
         }
+        java.util.Set<FerramentaPermitida> tipos = resultados.stream()
+                .map(ResultadoFerramenta::ferramenta).collect(java.util.stream.Collectors.toSet());
+        if (resultados.size() != 2 || !tipos.equals(java.util.Set.of(
+                FerramentaPermitida.RESUMO_VENDAS, FerramentaPermitida.RESUMO_GASTOS))) {
+            return consolidarComposto(resultados);
+        }
         ResultadoFerramenta vendas = resultado(resultados, FerramentaPermitida.RESUMO_VENDAS);
         ResultadoFerramenta gastos = resultado(resultados, FerramentaPermitida.RESUMO_GASTOS);
         BigDecimal totalVendas = decimal(vendas.dadosAgregados().get("valorTotalValido"));
@@ -35,6 +41,48 @@ public class ConsolidadorResultadosOrquestracao {
         consolidado.put("vendas", vendas.dadosAgregados());
         consolidado.put("gastos", gastos.dadosAgregados());
         consolidado.put("comparacao", comparacao);
+        return consolidado;
+    }
+
+    private Map<String, Object> consolidarComposto(List<ResultadoFerramenta> resultados) {
+        List<Map<String, Object>> itens = resultados.stream().map(r -> {
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("ferramenta", r.ferramenta().name());
+            item.put("periodoInicio", r.periodoInicio()); item.put("periodoFim", r.periodoFim());
+            item.put("fatos", r.dadosAgregados()); item.put("avisos", r.avisos());
+            return item;
+        }).toList();
+        Map<String, Object> consolidado = new LinkedHashMap<>();
+        consolidado.put("resultados", itens);
+        var periodos = resultados.stream().filter(r -> r.periodoInicio() != null && r.periodoFim() != null)
+                .collect(java.util.stream.Collectors.groupingBy(
+                        r -> r.periodoInicio() + "/" + r.periodoFim(), LinkedHashMap::new,
+                        java.util.stream.Collectors.toList()));
+        List<Map<String, Object>> calculos = new java.util.ArrayList<>();
+        for (var entrada : periodos.entrySet()) {
+            var vendas = entrada.getValue().stream().filter(r -> r.ferramenta() == FerramentaPermitida.RESUMO_VENDAS)
+                    .findFirst().orElse(null);
+            var gastos = entrada.getValue().stream().filter(r -> r.ferramenta() == FerramentaPermitida.RESUMO_GASTOS)
+                    .findFirst().orElse(null);
+            if (vendas != null && gastos != null) {
+                BigDecimal valorVendas = decimal(vendas.dadosAgregados().get("valorTotalValido"));
+                BigDecimal valorGastos = decimal(gastos.dadosAgregados().get("totalGastos"));
+                Map<String, Object> calculo = new LinkedHashMap<>();
+                calculo.put("periodoInicio", vendas.periodoInicio()); calculo.put("periodoFim", vendas.periodoFim());
+                calculo.put("vendas", valorVendas); calculo.put("gastos", valorGastos);
+                calculo.put("diferencaVendasMenosGastos", valorVendas.subtract(valorGastos));
+                calculo.put("observacao", "A diferença não representa lucro líquido.");
+                calculos.add(calculo);
+            }
+        }
+        if (!calculos.isEmpty()) consolidado.put("calculosBackend", calculos);
+        if (calculos.size() == 2) {
+            BigDecimal saldoAnterior = decimal(calculos.get(0).get("diferencaVendasMenosGastos"));
+            BigDecimal saldoAtual = decimal(calculos.get(1).get("diferencaVendasMenosGastos"));
+            consolidado.put("comparacaoBackend", Map.of(
+                    "variacaoDiferenca", saldoAtual.subtract(saldoAnterior),
+                    "observacao", "Variação da diferença entre vendas e gastos; não é lucro líquido."));
+        }
         return consolidado;
     }
 

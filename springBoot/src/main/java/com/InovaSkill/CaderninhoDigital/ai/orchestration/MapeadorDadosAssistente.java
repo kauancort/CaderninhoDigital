@@ -20,6 +20,8 @@ public class MapeadorDadosAssistente {
         if (resultados.stream().allMatch(r -> r.ferramenta() == FerramentaPermitida.RESUMO_VENDAS)) {
             return temporal(consolidado);
         }
+        if (consolidado.containsKey("resultados"))
+            return new DadosAssistenteDTO.AnaliseComposta("ANALISE_COMPOSTA", consolidado);
         return financeira(consolidado);
     }
 
@@ -39,10 +41,35 @@ public class MapeadorDadosAssistente {
                     longoNulo(d.get("produtoId")), decimalNulo(d.get("custoAtualConhecido")),
                     decimalNulo(d.get("custoUnitarioFicha")), decimalNulo(d.get("rendimentoBase")),
                     inteiro(d, "componentes"), inteiro(d, "componentesSemCusto"), instante(d.get("dataBaseCusto")));
+            case ANALISE_MARGEM_PRODUTO -> margem(d);
+            case ANALISAR_RENTABILIDADE_PRODUTO -> new DadosAssistenteDTO.RentabilidadeProduto(
+                    "RENTABILIDADE_PRODUTO", longoNulo(d.get("produtoId")), texto(d, "produto"),
+                    data(d.get("periodoInicio")), data(d.get("periodoFim")), d.get("custo"), d.get("vendas"),
+                    d.get("modalidades") instanceof List<?> lista ? lista : List.of(),
+                    d.get("principalComponenteCusto"), d.get("mercado"), d.get("estimativaCustosIndiretos"),
+                    texto(d, "situacao"),
+                    texto(d, "informacaoNecessaria"));
             case ANALISE_COMPRAS_INSUMO -> compras(d);
             case COMPARAR_PRECO_MERCADO -> mercado(d);
             default -> throw invalido();
         };
+    }
+
+    private DadosAssistenteDTO.MargemProduto margem(Map<String, Object> d) {
+        List<DadosAssistenteDTO.ComponenteCusto> componentes = d.get("componentes") instanceof List<?> lista
+                ? lista.stream().filter(com.InovaSkill.CaderninhoDigital.ai.cost.AnaliseMargemProdutoService.Componente.class::isInstance)
+                        .map(com.InovaSkill.CaderninhoDigital.ai.cost.AnaliseMargemProdutoService.Componente.class::cast)
+                        .map(c -> new DadosAssistenteDTO.ComponenteCusto(c.nome(), c.custoConhecido(),
+                                c.participacaoPercentual())).toList()
+                : List.of();
+        List<String> ausentes = d.get("custosNaoModelados") instanceof List<?> lista
+                ? lista.stream().map(String::valueOf).toList() : List.of();
+        return new DadosAssistenteDTO.MargemProduto("MARGEM_PRODUTO", longoNulo(d.get("produtoId")),
+                texto(d, "produto"), decimalNulo(d.get("quantidadeProduzida")),
+                decimalNulo(d.get("custoProducaoConhecido")), decimalNulo(d.get("custoUnitarioConhecido")),
+                decimalNulo(d.get("quantidadeVendida")), decimalNulo(d.get("receitaVendas")),
+                decimalNulo(d.get("precoMedioVenda")), decimalNulo(d.get("margemBrutaConhecidaUnitaria")),
+                decimalNulo(d.get("margemBrutaConhecidaTotal")), texto(d, "situacao"), componentes, ausentes);
     }
 
     private DadosAssistenteDTO financeira(Map<String, Object> c) {
@@ -103,7 +130,8 @@ public class MapeadorDadosAssistente {
         var ofertas = origem.stream().map(o -> new DadosAssistenteDTO.OfertaMercado(o.titulo(), o.url(),
                 o.dominio(), o.precoUnitario(), o.quantidadeCalculada(), o.custoTotal(), o.freteIncluido(),
                 o.pedidoMinimo(), o.compativelQuantidadeAlvo(), o.localizacao(), o.validade(), o.evidenciaPreco(),
-                o.evidenciaPedidoMinimo(), o.confianca())).toList();
+                o.evidenciaPedidoMinimo(), o.confianca(), o.mesesCoberturaPedidoMinimo(),
+                o.status().stream().map(Enum::name).toList(), o.marca(), o.fornecedor())).toList();
         List<com.InovaSkill.CaderninhoDigital.ai.search.ResultadoFontePesquisa> fontesOrigem =
                 d.get("fontes") instanceof List<?> lista
                         ? lista.stream()
@@ -113,13 +141,22 @@ public class MapeadorDadosAssistente {
                         : List.of();
         var fontes = fontesOrigem.stream().map(f -> new DadosAssistenteDTO.FonteMercado(f.fonteId(), f.titulo(),
                 f.url(), f.dominio(), f.status().name(), f.motivo())).toList();
+        var h = d.get("metricasHistoricas") instanceof com.InovaSkill.CaderninhoDigital.ai.cost.HistoricoPrecosInsumoService.Resultado r
+                ? new DadosAssistenteDTO.MetricasHistoricasCompra(
+                        r.ultimaCompra() == null ? null : r.ultimaCompra().precoUnitario(),
+                        r.ultimaCompra() == null ? null : r.ultimaCompra().data(),
+                        r.ultimos30Dias().precoMedioPonderado(), r.ultimos90Dias().precoMedioPonderado(),
+                        r.ultimos6Meses().precoMedioPonderado(), r.ultimos6Meses().menorPreco(),
+                        r.ultimos6Meses().maiorPreco(), r.ultimos6Meses().quantidadeComprada(),
+                        r.consumoMedioMensal(), r.tendencia()) : null;
         return new DadosAssistenteDTO.ComparacaoMercado("COMPARACAO_MERCADO", longoNulo(d.get("materiaPrimaId")),
-                texto(d,"unidade"), decimalNulo(d.get("quantidadeAlvo")), decimalNulo(d.get("precoInternoUnitario")),
+                texto(d,"materiaPrima"), texto(d,"unidade"), decimalNulo(d.get("quantidadeAlvo")),
+                decimalNulo(d.get("precoInternoUnitario")),
                 decimalNulo(d.get("custoInternoComparavel")),
                 decimalNulo(d.get("menorCustoExterno")), decimalNulo(d.get("economiaEstimada")),
                 decimalNulo(d.get("diferencaExternaMenosInterna")),decimalNulo(d.get("percentualDiferenca")),
                 texto(d,"situacao"),
-                instante(d.get("pesquisadoEm")), fontes, ofertas);
+                instante(d.get("pesquisadoEm")), h, fontes, ofertas);
     }
     private DadosAssistenteDTO.FaixaRecebiveis faixa(Object v) {
         Map<String,Object> d = mapa(v);

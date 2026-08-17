@@ -131,6 +131,75 @@ GMAIL_SENDER=docevocida12@gmail.com
 Essas variáveis pertencem exclusivamente à API. Não as adicione ao frontend e
 jamais versione seus valores reais.
 
+## Assistente empresarial
+
+O assistente usa a IA somente para interpretar a pergunta, gerar um plano fechado
+e explicar resultados já validados. O modelo não recebe acesso ao banco, não
+escolhe a empresa e não executa cálculos financeiros:
+
+```txt
+pergunta -> planejador IA -> validação do plano -> ferramentas permitidas
+         -> consultas por empresa -> cálculos do backend -> resultado seguro
+         -> explicação IA (ou texto determinístico de fallback)
+```
+
+Os planos aceitam apenas ferramentas e argumentos definidos nos contratos Java,
+com limite configurável e sem execução recursiva. O `empresaId` é derivado do
+usuário autenticado e aplicado internamente às consultas. Tavily é chamado apenas
+pela ferramenta de mercado e seus resultados possuem cache temporário.
+
+Configuração principal:
+
+```txt
+OPENROUTER_API_KEY=
+OPENROUTER_MODEL=google/gemma-4-26b-a4b-it
+AI_SEARCH_INTERPRETATION_TIMEOUT_MS=300000
+AI_REQUEST_BUDGET_MILLIS=345000
+AI_MAX_OUTPUT_TOKENS=1000
+AI_MAX_TOOLS_PER_PLAN=5
+AI_MAX_TOOL_CALLS=5
+AI_MAX_MARKET_SEARCHES_PER_REQUEST=1
+TAVILY_CANDIDATE_RESULTS=15
+TAVILY_MAX_RESULTS=5
+TAVILY_MAX_SNIPPET_CHARACTERS=4000
+AI_MARKET_SEARCH_CACHE_MINUTES=30
+```
+
+O planejamento e a extração usam `response_format=json_schema`, schema estrito,
+`additionalProperties=false`, roteamento somente para provedores compatíveis e
+uma segunda validação no backend. A configuração segue a documentação oficial de
+[saídas estruturadas](https://openrouter.ai/docs/guides/features/structured-outputs)
+e o catálogo do modelo
+[Gemma 4 26B A4B](https://openrouter.ai/google/gemma-4-26b-a4b-it/providers).
+
+Falhas do planejamento tentam somente fast paths determinísticos compatíveis.
+Falha na extração preserva as fontes e só admite evidência explícita; falha na
+redação final reutiliza os fatos e cálculos já concluídos. Uma execução de
+ferramenta nunca é repetida como se fosse falha de planejamento.
+
+Consultas claras de rentabilidade de produto usam um caminho mais curto:
+
+```txt
+produto cadastrado + intenção de margem/prejuízo/preço
+  -> ANALISAR_RENTABILIDADE_PRODUTO (sem planejamento por IA)
+  -> custo conhecido + vendas reais + modalidades no backend
+  -> uma busca econômica no Tavily, quando habilitada
+  -> uma redação final curta no OpenRouter, com fallback determinístico
+```
+
+O custo unitário usa a média ponderada das produções no período
+(`soma dos custos históricos dos insumos / quantidade produzida`). Se não há
+produção no período, o resultado identifica explicitamente o uso do
+`custo_atual` cadastrado. A análise nunca chama essa margem conhecida de lucro
+líquido e lista custos não disponíveis. Preços externos só entram na faixa de
+mercado após normalização no backend e classificação de comparabilidade; fontes
+de comparabilidade baixa permanecem apenas como referência.
+
+No caminho ideal são feitas zero chamadas de IA para planejamento, zero para
+extração (quando o preço e a unidade estão explícitos) e uma para a resposta
+final. Os logs `evento=USO_MODELO` registram somente modelo, tokens, latência e
+`tipoDaChamada` (`PLANEJAMENTO`, `EXTRACAO` ou `RESPOSTA_FINAL`), sem prompts.
+
 ### Autorizar a conta remetente
 
 O envio usa uma única conta do Gmail e um `refresh_token`; portanto, a aplicação

@@ -38,9 +38,28 @@ class ConsolidadorResultadosOrquestracaoTest {
                 .containsEntry("coberturaEquivalente", false);
     }
 
+    @Test
+    void calculaVendasMenosGastosEmDoisPeriodosSemChamarDeLucro() {
+        Map<String, Object> dados = consolidador.consolidar(List.of(
+                vendas("1000", "2026-07-01", "2026-07-31"),
+                gastos("800", "2026-07-01", "2026-07-31"),
+                vendas("1200", "2026-08-01", "2026-08-31"),
+                gastos("1100", "2026-08-01", "2026-08-31")));
+        assertThat((List<?>) dados.get("calculosBackend")).hasSize(2);
+        assertThat(dados.toString()).contains("diferencaVendasMenosGastos", "não é lucro líquido");
+        assertThat(((Map<?, ?>) dados.get("comparacaoBackend")).get("variacaoDiferenca"))
+                .isEqualTo(new BigDecimal("-100"));
+    }
+
     private ResultadoFerramenta vendas(String total, String inicio, String fim) {
         return new ResultadoFerramenta(FerramentaPermitida.RESUMO_VENDAS, StatusResultado.SUCESSO,
                 Map.of("valorTotalValido", new BigDecimal(total)), LocalDate.parse(inicio), LocalDate.parse(fim),
+                Instant.parse("2026-08-08T12:00:00Z"), List.of(), QualidadeResultado.COMPLETO);
+    }
+
+    private ResultadoFerramenta gastos(String total, String inicio, String fim) {
+        return new ResultadoFerramenta(FerramentaPermitida.RESUMO_GASTOS, StatusResultado.SUCESSO,
+                Map.of("totalGastos", new BigDecimal(total)), LocalDate.parse(inicio), LocalDate.parse(fim),
                 Instant.parse("2026-08-08T12:00:00Z"), List.of(), QualidadeResultado.COMPLETO);
     }
 

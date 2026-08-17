@@ -116,6 +116,46 @@ describe("contrato do chat da assistente", () => {
     expect(resposta.dados?.tipo).toBe("COMPARACAO_VENDAS_GASTOS");
   });
 
+  it("aceita a análise estruturada de rentabilidade do fast path", async () => {
+    const modalidade = {
+      tipo: "UNIDADE", unidadesPorModalidade: 1, preco: 2.39, precoEquivalenteUnidade: 2.3879,
+      margemConhecidaUnidade: 2.0799, margemPercentual: 87.1, quantidadeVendidaUnidades: 107,
+      receita: 255.5, fonte: "VENDAS_REAIS",
+    };
+    apiRequest.mockResolvedValue({
+      resposta: "Considerando os custos cadastrados, a venda não está no prejuízo.",
+      versaoContrato: "1.1", status: "SUCESSO", origem: "CAMINHO_RAPIDO", qualidade: "PARCIAL",
+      acoesSugeridas: [], avisos: ["Não representa lucro líquido"], correlacao: "corr",
+      periodoInicio: "2026-07-18", periodoFim: "2026-08-16", atualizadoEm: "2026-08-16T16:06:56Z",
+      dados: {
+        tipo: "RENTABILIDADE_PRODUTO", produtoId: 1, produto: "Paçoca",
+        periodoInicio: "2026-07-18", periodoFim: "2026-08-16",
+        custo: { custoConhecidoUnidade: 0.308, custoProducaoConhecido: 73.93,
+          quantidadeProduzida: 240, criterio: "MEDIA_PONDERADA_PRODUCOES_PERIODO",
+          custosConsiderados: ["Amendoim"], custosNaoDisponiveis: ["energia"],
+          componentes: [{ nome: "Amendoim", custoConhecido: 39.53, percentual: 53.47 }] },
+        vendas: { precoCadastradoUnidade: 2.5, quantidadeVendida: 107, receita: 255.5,
+          precoMedioReal: 2.3879, menorPrecoReal: 2.3, maiorPrecoReal: 2.5, itensVenda: 4,
+          modalidades: [modalidade] }, modalidades: [modalidade],
+        principalComponenteCusto: { nome: "Amendoim", custoConhecido: 39.53, percentual: 53.47 },
+        mercado: { menorPrecoComparavel: null, mediana: null, maiorPrecoComparavel: null,
+          referenciasValidas: 0, posicao: "DADOS_INSUFICIENTES", pesquisadoEm: "2026-08-16T16:06:56Z",
+          referencias: [], aviso: "Poucas referências comparáveis." },
+        estimativaCustosIndiretos: { status: "DADOS_INSUFICIENTES",
+          criterio: "MEDIANA_REFERENCIAS_EXTERNAS", precoBaseUnidade: 2.3879,
+          custoIndiretoEstimadoUnidade: null, custoTotalEstimadoUnidade: null,
+          margemEstimadaUnidade: null, margemEstimadaPercentual: null, componentes: [],
+          custosNaoEstimados: ["energia: menos de 2 referências independentes com percentual aplicável"],
+          aviso: "Cenário externo indicativo; não substitui custos cadastrados nem apuração contábil." },
+        situacao: "MARGEM_CONHECIDA_POSITIVA", informacaoNecessaria: null,
+      },
+    });
+
+    const resposta = await conversarComAssistente({ mensagem: "Estou vendendo paçoca no prejuízo?", historico: [] });
+    expect(resposta.dados?.tipo).toBe("RENTABILIDADE_PRODUTO");
+    expect(resposta.origem).toBe("CAMINHO_RAPIDO");
+  });
+
   it("rejeita campo desconhecido na resposta do backend", async () => {
     apiRequest.mockResolvedValue({
       resposta: "Resumo", versaoContrato: "1.1", status: "SUCESSO",

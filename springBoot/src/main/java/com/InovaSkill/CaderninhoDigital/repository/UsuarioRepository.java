@@ -19,4 +19,9 @@ public interface UsuarioRepository extends JpaRepository<Usuario, Long> {
     boolean existsByEmail(String email);
 
     List<Usuario> findAllByOrderByNomeAsc();
+
+    List<Usuario> findByEmpresaIdOrderByNomeAsc(Long empresaId);
+
+    @Query("SELECT u.empresa.id FROM Usuario u WHERE u.id = :usuarioId")
+    Optional<Long> buscarEmpresaId(@Param("usuarioId") Long usuarioId);
 }

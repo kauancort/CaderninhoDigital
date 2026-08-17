@@ -21,10 +21,11 @@ public interface CompraMateriaPrimaRepository extends JpaRepository<CompraMateri
                    MAX(i.compra.dataCompra) AS ultimaCompra
             FROM ItemCompraMateriaPrima i
             WHERE i.materiaPrima.id = :materiaPrimaId
+              AND i.compra.gestor.empresa.id = :empresaId
               AND i.compra.dataCompra >= :inicio AND i.compra.dataCompra <= :fim
             """)
     AnaliseCompraInsumoProjection analisarInsumo(@Param("materiaPrimaId") Long materiaPrimaId,
-            @Param("inicio") LocalDate inicio, @Param("fim") LocalDate fim);
+            @Param("empresaId") Long empresaId, @Param("inicio") LocalDate inicio, @Param("fim") LocalDate fim);
 
     @Query("""
             SELECT i.materiaPrima.id AS materiaPrimaId,
@@ -37,11 +38,32 @@ public interface CompraMateriaPrimaRepository extends JpaRepository<CompraMateri
                    MIN(i.compra.dataCompra) AS primeiraCompra,
                    MAX(i.compra.dataCompra) AS ultimaCompra
             FROM ItemCompraMateriaPrima i
-            WHERE i.compra.dataCompra >= :inicio AND i.compra.dataCompra <= :fim
+            WHERE i.compra.gestor.empresa.id = :empresaId
+              AND i.compra.dataCompra >= :inicio AND i.compra.dataCompra <= :fim
             GROUP BY i.materiaPrima.id, i.materiaPrima.unidadeMedida
             ORDER BY SUM(i.valorTotal) DESC
             """)
-    List<AnaliseCompraInsumoAgrupadaProjection> analisarInsumos(@Param("inicio") LocalDate inicio,
+    List<AnaliseCompraInsumoAgrupadaProjection> analisarInsumos(@Param("empresaId") Long empresaId,
+            @Param("inicio") LocalDate inicio, @Param("fim") LocalDate fim);
+
+    interface HistoricoPrecoCompraProjection {
+        LocalDate getDataCompra();
+        java.math.BigDecimal getQuantidade();
+        java.math.BigDecimal getValorTotal();
+        java.math.BigDecimal getValorUnitario();
+    }
+
+    @Query("""
+            SELECT i.compra.dataCompra AS dataCompra, i.quantidade AS quantidade,
+                   i.valorTotal AS valorTotal, i.valorUnitario AS valorUnitario
+              FROM ItemCompraMateriaPrima i
+             WHERE i.materiaPrima.id = :materiaPrimaId
+               AND i.compra.gestor.empresa.id = :empresaId
+               AND i.compra.dataCompra BETWEEN :inicio AND :fim
+             ORDER BY i.compra.dataCompra DESC, i.id DESC
+            """)
+    List<HistoricoPrecoCompraProjection> historicoPrecos(@Param("empresaId") Long empresaId,
+            @Param("materiaPrimaId") Long materiaPrimaId, @Param("inicio") LocalDate inicio,
             @Param("fim") LocalDate fim);
     List<CompraMateriaPrima> findByGestorOrderByDataCompraDesc(Usuario gestor);
 

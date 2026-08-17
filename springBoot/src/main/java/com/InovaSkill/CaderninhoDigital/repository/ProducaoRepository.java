@@ -11,6 +11,7 @@ import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import com.InovaSkill.CaderninhoDigital.dto.response.ResumoProducaoProdutoDTO;
+import java.math.BigDecimal;
 
 public interface ProducaoRepository extends JpaRepository<Producao, Long>, JpaSpecificationExecutor<Producao> {
     List<Producao> findByGestorOrderByDataProducaoDesc(Usuario gestor);
@@ -38,4 +39,26 @@ public interface ProducaoRepository extends JpaRepository<Producao, Long>, JpaSp
 
     @Query("SELECT COALESCE(MAX(p.id), 0) FROM Producao p")
     Long maiorId();
+
+    @Query("""
+            SELECT COALESCE(SUM(i.quantidadeUtilizada), 0)
+              FROM ItemProducaoMateriaPrima i
+             WHERE i.producao.gestor.empresa.id = :empresaId
+               AND i.materiaPrima.id = :materiaPrimaId
+               AND i.producao.dataProducao BETWEEN :inicio AND :fim
+            """)
+    BigDecimal consumoMateriaPrima(@Param("empresaId") Long empresaId,
+            @Param("materiaPrimaId") Long materiaPrimaId, @Param("inicio") LocalDate inicio,
+            @Param("fim") LocalDate fim);
+
+    @EntityGraph(attributePaths = {"produto", "insumos", "insumos.materiaPrima"})
+    @Query("""
+            SELECT DISTINCT p FROM Producao p
+             WHERE p.gestor.empresa.id = :empresaId AND p.produto.id = :produtoId
+               AND p.dataProducao BETWEEN :inicio AND :fim
+             ORDER BY p.dataProducao DESC
+            """)
+    List<Producao> listarParaAnaliseMargem(@Param("empresaId") Long empresaId,
+            @Param("produtoId") Long produtoId, @Param("inicio") LocalDate inicio,
+            @Param("fim") LocalDate fim);
 }

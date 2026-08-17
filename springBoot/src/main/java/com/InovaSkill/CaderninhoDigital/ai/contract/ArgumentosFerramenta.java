@@ -9,7 +9,10 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
         @JsonSubTypes.Type(value = ArgumentosPeriodo.class, name = "PERIODO"),
         @JsonSubTypes.Type(value = ArgumentosProduto.class, name = "PRODUTO"),
         @JsonSubTypes.Type(value = ArgumentosCompraInsumo.class, name = "COMPRA_INSUMO"),
-        @JsonSubTypes.Type(value = ArgumentosComparacaoMercado.class, name = "COMPARACAO_MERCADO")
+        @JsonSubTypes.Type(value = ArgumentosComparacaoMercado.class, name = "COMPARACAO_MERCADO"),
+        @JsonSubTypes.Type(value = ArgumentosProdutoPeriodo.class, name = "PRODUTO_PERIODO"),
+        @JsonSubTypes.Type(value = ArgumentosRentabilidadeProduto.class, name = "RENTABILIDADE_PRODUTO")
 })
 public sealed interface ArgumentosFerramenta permits ArgumentosSemFiltro, ArgumentosPeriodo,
-        ArgumentosProduto, ArgumentosCompraInsumo, ArgumentosComparacaoMercado {}
+        ArgumentosProduto, ArgumentosCompraInsumo, ArgumentosComparacaoMercado, ArgumentosProdutoPeriodo,
+        ArgumentosRentabilidadeProduto {}

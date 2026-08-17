@@ -9,12 +9,15 @@ import com.InovaSkill.CaderninhoDigital.ai.finance.ConsultarResumoRecebiveisFerr
 import com.InovaSkill.CaderninhoDigital.ai.finance.ConsultarResumoVendasFerramenta;
 import com.InovaSkill.CaderninhoDigital.ai.cost.AnalisarComprasInsumoFerramenta;
 import com.InovaSkill.CaderninhoDigital.ai.cost.AnalisarCustoProdutoFerramenta;
+import com.InovaSkill.CaderninhoDigital.ai.cost.AnalisarMargemProdutoFerramenta;
 import com.InovaSkill.CaderninhoDigital.ai.search.CompararPrecoMercadoFerramenta;
+import com.InovaSkill.CaderninhoDigital.ai.profit.AnalisarRentabilidadeProdutoFerramenta;
 import jakarta.validation.Validator;
 import java.time.Clock;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import com.InovaSkill.CaderninhoDigital.repository.UsuarioRepository;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -25,10 +28,13 @@ public class FerramentasConfig {
     CatalogoFerramentas catalogoFerramentas(ConsultarEstoqueCriticoFerramenta estoqueCritico,
             ConsultarResumoVendasFerramenta vendas, ConsultarResumoGastosFerramenta gastos,
             ConsultarResumoRecebiveisFerramenta recebiveis, AnalisarCustoProdutoFerramenta custoProduto,
-            AnalisarComprasInsumoFerramenta comprasInsumo, CompararPrecoMercadoFerramenta mercado,
+            AnalisarMargemProdutoFerramenta margemProduto, AnalisarComprasInsumoFerramenta comprasInsumo,
+            AnalisarRentabilidadeProdutoFerramenta rentabilidadeProduto,
+            CompararPrecoMercadoFerramenta mercado,
             AiOrchestratorProperties properties) {
         var ferramentas = new java.util.ArrayList<com.InovaSkill.CaderninhoDigital.ai.tool.FerramentaLeitura<?>>(
-                List.of(estoqueCritico, vendas, gastos, recebiveis, custoProduto, comprasInsumo));
+                List.of(estoqueCritico, vendas, gastos, recebiveis, custoProduto, margemProduto,
+                        rentabilidadeProduto, comprasInsumo));
         if (properties.getFeatures().isSearch()) ferramentas.add(mercado);
         return new CatalogoFerramentas(ferramentas);
     }
@@ -41,9 +47,10 @@ public class FerramentasConfig {
     @Bean
     ContextoFerramentaFactory contextoFerramentaFactory(
             Clock clock,
-            AiOrchestratorProperties properties
+            AiOrchestratorProperties properties,
+            UsuarioRepository usuarios
     ) {
-        return new ContextoFerramentaFactory(clock, properties);
+        return new ContextoFerramentaFactory(clock, properties, usuarios);
     }
 
     @Bean
