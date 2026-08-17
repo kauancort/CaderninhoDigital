@@ -5,13 +5,21 @@ const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 
+// ALTERADO: modelo fixo, sem depender do roteador "openrouter/free",
+// que escolhia modelos de raciocínio aleatoriamente e estourava o max_tokens.
 const OPENROUTER_MODEL =
-  process.env.OPENROUTER_MODEL || "openrouter/free";
+  process.env.OPENROUTER_MODEL || "google/gemma-2-27b-it:free";
 
 function validarConfiguracao() {
   if (!OPENROUTER_API_KEY) {
     throw new Error(
       "OPENROUTER_API_KEY não está configurada no arquivo .env",
+    );
+  }
+
+  if (!OPENROUTER_API_KEY.trim()) {
+    throw new Error(
+      "OPENROUTER_API_KEY está vazia no arquivo .env",
     );
   }
 }
@@ -73,6 +81,7 @@ Para uma venda, tente identificar:
 - produto
 - quantidade
 - tipo da quantidade
+- tamanho do pote, quando informado
 - preço unitário
 - forma de pagamento
 
@@ -88,11 +97,35 @@ Se disser "2 potes", use tipo "pote".
 
 Se disser "2 unidades", use tipo "unidade".
 
-Se ela não informar o cliente, NÃO invente.
+Se ela informar tamanho do pote, como:
+
+"22 unidades"
+"22 uni"
+"22 unidades por pote"
+"pote de 22"
+
+registre:
+
+"tamanho_pote": 22
+
+Se informar:
+
+"44 unidades"
+"44 uni"
+"44 unidades por pote"
+"pote de 44"
+
+registre:
+
+"tamanho_pote": 44
+
+Se o tamanho do pote não for informado, NÃO invente.
+
+Se a gestora não informar o cliente, NÃO invente.
 
 Nesse caso, informe que está faltando o comprador e faça uma pergunta simples.
 
-Se ela não informar o preço e o sistema precisar do preço, peça o preço.
+Se a gestora não informar o preço e o sistema precisar do preço, peça o preço.
 
 Formas de pagamento válidas:
 
@@ -186,6 +219,10 @@ NÃO escreva explicações fora do JSON.
 
 Sua resposta deve ser SOMENTE um JSON válido.
 
+NÃO use markdown.
+
+NÃO coloque a resposta dentro de \`\`\`.
+
 ==================================================
 FORMATO OBRIGATÓRIO
 ==================================================
@@ -212,7 +249,8 @@ Para venda:
         "produto_nome": "Biriba",
         "quantidade": 2,
         "preco_unitario": 15.00,
-        "tipo": "pote"
+        "tipo": "pote",
+        "tamanho_pote": 22
       }
     ]
   },
@@ -284,6 +322,7 @@ IMPORTANTE:
 - Nunca registre uma venda sem quantidade.
 - Nunca registre uma venda sem preço.
 - Nunca registre uma venda sem forma de pagamento.
+- Nunca invente tamanho de pote.
 `;
 }
 
@@ -292,7 +331,10 @@ function extrairJson(texto) {
     throw new Error("A IA retornou uma resposta vazia.");
   }
 
-  let limpo = texto.trim();
+  let limpo = String(texto).trim();
+
+  console.log("[IA] Conteúdo recebido:");
+  console.log(limpo);
 
   if (limpo.startsWith("```")) {
     limpo = limpo.replace(/^```(?:json)?/i, "");
@@ -305,7 +347,7 @@ function extrairJson(texto) {
 
   if (inicio === -1 || fim === -1 || fim <= inicio) {
     throw new Error(
-      `A IA não retornou um JSON válido. Resposta recebida: ${texto}`,
+      `A IA não retornou um JSON válido. Resposta recebida: ${limpo}`,
     );
   }
 
@@ -314,6 +356,9 @@ function extrairJson(texto) {
   try {
     return JSON.parse(limpo);
   } catch (error) {
+    console.error("[IA] JSON recebido:");
+    console.error(limpo);
+
     throw new Error(
       `Não consegui interpretar o JSON retornado pela IA: ${error.message}`,
     );
@@ -376,9 +421,14 @@ Use esse histórico apenas para entender informações que ainda estejam sendo c
         model: OPENROUTER_MODEL,
         messages: mensagens,
         temperature: 0.1,
-        max_tokens: 1200,
+        max_tokens: 2000, // ALTERADO: era 1200, aumentado como rede de segurança
         response_format: {
           type: "json_object",
+        },
+        // ALTERADO: impede o modelo de gastar tokens "pensando em voz alta"
+        // antes do JSON final. Isso evita respostas cortadas (finish_reason: length).
+        reasoning: {
+          enabled: false,
         },
       },
       {
@@ -392,12 +442,88 @@ Use esse histórico apenas para entender informações que ainda estejam sendo c
       },
     );
 
-    const conteudo =
-      resposta.data?.choices?.[0]?.message?.content;
-
     console.log("[IA] Resposta recebida.");
+    console.log("[IA] Status HTTP:", resposta.status);
+
+    // LOG TEMPORÁRIO PARA DIAGNÓSTICO
+    console.log("[IA] RESPOSTA COMPLETA DO OPENROUTER:");
+    console.dir(resposta.data, {
+      depth: null,
+    });
+
+    const choice = resposta.data?.choices?.[0];
+
+    if (!choice) {
+      throw new Error(
+        "O OpenRouter não retornou nenhuma escolha (choices).",
+      );
+    }
+
+    console.log("[IA] Choice recebida:");
+    console.dir(choice, {
+      depth: null,
+    });
+
+    const mensagem = choice.message;
+
+    if (!mensagem) {
+      throw new Error(
+        "O OpenRouter retornou uma escolha, mas não retornou o objeto message.",
+      );
+    }
+
+    console.log("[IA] Message recebida:");
+    console.dir(mensagem, {
+      depth: null,
+    });
+
+    let conteudo = mensagem.content;
+
+    // Alguns modelos/provedores podem retornar conteúdo em outros campos.
+    if (
+      !conteudo &&
+      Array.isArray(mensagem.content)
+    ) {
+      conteudo = mensagem.content
+        .map((item) => {
+          if (typeof item === "string") {
+            return item;
+          }
+
+          return item?.text || "";
+        })
+        .join("")
+        .trim();
+    }
+
+    if (!conteudo) {
+      console.error(
+        "[IA] O campo message.content veio vazio.",
+      );
+
+      console.error(
+        "[IA] finish_reason:",
+        choice.finish_reason,
+      );
+
+      console.error(
+        "[IA] usage:",
+        resposta.data?.usage,
+      );
+
+      throw new Error(
+        `A IA retornou uma resposta vazia. finish_reason: ${
+          choice.finish_reason || "não informado"
+        }`,
+      );
+    }
 
     const resultado = extrairJson(conteudo);
+
+    console.log("[IA] JSON interpretado com sucesso.");
+    console.dir(resultado, {
+      depth: null,
+    });
 
     return resultado;
   } catch (error) {
@@ -422,9 +548,27 @@ Use esse histórico apenas para entender informações que ainda estejam sendo c
       );
     }
 
+    if (status === 403) {
+      throw new Error(
+        "O OpenRouter recusou a requisição. Verifique a chave e as permissões da conta.",
+      );
+    }
+
+    if (status === 404) {
+      throw new Error(
+        `O modelo "${OPENROUTER_MODEL}" não foi encontrado ou não está disponível.`,
+      );
+    }
+
     if (status === 429) {
       throw new Error(
         "O limite de requisições da IA foi atingido. Tente novamente em alguns instantes.",
+      );
+    }
+
+    if (status >= 500) {
+      throw new Error(
+        "O OpenRouter apresentou um erro interno. Tente novamente em alguns instantes.",
       );
     }
 

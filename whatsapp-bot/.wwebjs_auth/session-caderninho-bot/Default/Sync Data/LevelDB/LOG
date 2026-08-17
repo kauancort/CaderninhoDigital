@@ -1,4 +1,0 @@
-2026/08/01-09:52:32.693 2898 Creating DB C:\Fernanda\docesvocida\Projeto\CaderninhoDigital\whatsapp-bot\.wwebjs_auth\session-caderninho-bot\Default\Sync Data\LevelDB since it was missing.
-2026/08/01-09:52:32.860 2898 Reusing MANIFEST C:\Fernanda\docesvocida\Projeto\CaderninhoDigital\whatsapp-bot\.wwebjs_auth\session-caderninho-bot\Default\Sync Data\LevelDB/MANIFEST-000001
-2026/08/01-09:52:32.861 2898 Recovering log #3
-2026/08/01-09:52:32.862 2898 Reusing old log C:\Fernanda\docesvocida\Projeto\CaderninhoDigital\whatsapp-bot\.wwebjs_auth\session-caderninho-bot\Default\Sync Data\LevelDB/000003.log 

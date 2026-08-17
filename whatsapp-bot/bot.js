@@ -1,3 +1,5 @@
+console.log("🚨 BOT.JS COMEÇOU A EXECUTAR");
+
 const {
   Client,
   LocalAuth,
@@ -19,64 +21,79 @@ const client = new Client({
   puppeteer: {
     headless: false,
 
+    // Aumenta o tempo permitido para o Puppeteer se comunicar
+    // com o Chrome/WhatsApp Web.
+    protocolTimeout: 120000,
+
     args: [
       "--no-sandbox",
       "--disable-setuid-sandbox",
       "--disable-dev-shm-usage",
+      "--disable-gpu",
+      "--disable-software-rasterizer",
+      "--no-first-run",
+      "--no-default-browser-check",
     ],
   },
 });
 
 function normalizarNumero(numero) {
-  if (!numero) {
-    return "";
-  }
-
-  return numero
-    .replace(/\D/g, "")
-    .trim();
+  if (!numero) return "";
+  return numero.replace(/\D/g, "").trim();
 }
 
 function numeroDaGestoraAutorizado(message) {
-  const numeroConfigurado =
-    normalizarNumero(
-      process.env.WHATSAPP_GESTORA,
-    );
+  const numeroConfigurado = normalizarNumero(
+    process.env.WHATSAPP_GESTORA
+  );
 
-  if (!numeroConfigurado) {
+  const lidConfigurado = normalizarNumero(
+    process.env.WHATSAPP_GESTORA_LID
+  );
+
+  if (!numeroConfigurado && !lidConfigurado) {
     console.warn(
-      "⚠️ WHATSAPP_GESTORA não está configurado no .env",
+      "⚠️ Nem WHATSAPP_GESTORA nem WHATSAPP_GESTORA_LID estão configurados no .env"
     );
 
     return false;
   }
 
-  const numeroRemetente =
-    normalizarNumero(
-      message.from,
+  const [idPart, suffix] = (message.from || "").split("@");
+
+  const idDigits = normalizarNumero(idPart);
+
+  if (suffix === "lid") {
+    const autorizado =
+      !!lidConfigurado && idDigits === lidConfigurado;
+
+    console.log(
+      `🔎 Remetente via @lid: ${idDigits} | Autorizado: ${autorizado}`
     );
 
-  /*
-   * O WhatsApp Web.js normalmente entrega o remetente
-   * no formato:
-   *
-   * 5511999999999@c.us
-   *
-   * Depois da normalização fica:
-   *
-   * 5511999999999
-   */
+    return autorizado;
+  }
 
-  return (
-    numeroRemetente ===
-    numeroConfigurado
+  if (suffix === "c.us") {
+    const autorizado =
+      !!numeroConfigurado && idDigits === numeroConfigurado;
+
+    console.log(
+      `🔎 Remetente via @c.us: ${idDigits} | Autorizado: ${autorizado}`
+    );
+
+    return autorizado;
+  }
+
+  console.log(
+    `🔎 Sufixo desconhecido no remetente: ${message.from}`
   );
+
+  return false;
 }
 
 client.on("qr", (qr) => {
-  console.log(
-    "📱 Escaneie o QR Code:",
-  );
+  console.log("📱 Escaneie o QR Code:");
 
   qrcode.generate(qr, {
     small: true,
@@ -84,146 +101,127 @@ client.on("qr", (qr) => {
 });
 
 client.on("authenticated", () => {
-  console.log(
-    "🔐 WhatsApp autenticado!",
-  );
+  console.log("🔐 WhatsApp autenticado!");
 });
 
-client.on("ready", () => {
-  console.log(
-    "✅ WhatsApp conectado e pronto!",
-  );
+client.on("ready", async () => {
+  console.log("✅ WhatsApp conectado e pronto!");
 
-  const gestora =
-    process.env.WHATSAPP_GESTORA;
+  try {
+    const versao = await client.getWWebVersion();
 
-  if (gestora) {
     console.log(
-      "🔒 Bot configurado para aceitar mensagens somente da Gestora.",
+      "🔹 Versão do WhatsApp Web detectada:",
+      versao
+    );
+  } catch (err) {
+    console.error(
+      "❌ Não foi possível detectar a versão do WhatsApp Web:",
+      err.message
+    );
+  }
+
+  if (
+    process.env.WHATSAPP_GESTORA ||
+    process.env.WHATSAPP_GESTORA_LID
+  ) {
+    console.log(
+      "🔒 Bot configurado para aceitar mensagens somente da Gestora."
     );
   } else {
     console.warn(
-      "⚠️ Configure WHATSAPP_GESTORA no arquivo .env.",
+      "⚠️ Configure WHATSAPP_GESTORA e/ou WHATSAPP_GESTORA_LID no arquivo .env."
     );
   }
 });
 
-client.on(
-  "auth_failure",
-  (msg) => {
-    console.error(
-      "❌ Falha na autenticação:",
-      msg,
-    );
-  },
-);
+client.on("auth_failure", (msg) => {
+  console.error(
+    "❌ Falha na autenticação:",
+    msg
+  );
+});
 
-client.on(
-  "disconnected",
-  (reason) => {
+client.on("disconnected", (reason) => {
+  console.log(
+    "⚠️ WhatsApp desconectado:",
+    reason
+  );
+});
+
+// Log cru para diagnóstico
+client.on("message", async (message) => {
+  console.log(
+    "🟢 EVENTO 'message' DISPAROU. From:",
+    message.from,
+    "| Body:",
+    message.body || "(sem texto)"
+  );
+
+  if (!numeroDaGestoraAutorizado(message)) {
     console.log(
-      "⚠️ WhatsApp desconectado:",
-      reason,
-    );
-  },
-);
-
-client.on(
-  "message",
-  async (message) => {
-    console.log(
-      "📩 Mensagem recebida:",
-      message.body ||
-        "(áudio/mídia)",
+      "🚫 Mensagem ignorada: número não autorizado.",
+      message.from
     );
 
-    /*
-     * SEGURANÇA
-     *
-     * Apenas a Gestora pode utilizar o bot.
-     */
-    if (
-      !numeroDaGestoraAutorizado(
-        message,
-      )
-    ) {
-      console.log(
-        "🚫 Mensagem ignorada: número não autorizado.",
-        message.from,
+    return;
+  }
+
+  console.log(
+    "✅ Mensagem autorizada da Gestora."
+  );
+
+  try {
+    const chatId = message.from;
+
+    const ehAudio =
+      message.hasMedia &&
+      (message.type === "ptt" ||
+        message.type === "audio");
+
+    if (ehAudio) {
+      await message.reply(
+        "🎧 Recebi seu áudio, meu bem! Ainda estou terminando a parte de áudio. Por enquanto, pode me mandar essa informação por texto. 💛"
       );
 
       return;
     }
 
-    try {
-      const chatId =
-        message.from;
-
-      /*
-       * Nota de voz / áudio
-       *
-       * Nesta primeira etapa o flow.js ainda
-       * não processa áudio. Estamos deixando
-       * o recebimento preparado para a próxima etapa.
-       */
-      const ehAudio =
-        message.hasMedia &&
-        (
-          message.type === "ptt" ||
-          message.type === "audio"
-        );
-
-      if (ehAudio) {
-        await message.reply(
-          "🎧 Recebi seu áudio, meu bem! " +
-          "Ainda estou terminando a parte de áudio. " +
-          "Por enquanto, pode me mandar essa informação por texto. 💛",
-        );
-
-        return;
-      }
-
-      /*
-       * Mensagem de texto
-       */
-      if (
-        message.body &&
-        message.body.trim()
-      ) {
-        const resposta =
-          await processarMensagem(
-            chatId,
-            {
-              texto:
-                message.body.trim(),
-            },
-          );
-
-        await message.reply(
-          resposta,
-        );
-
-        console.log(
-          "📤 Resposta enviada!",
-        );
-
-        return;
-      }
-    } catch (error) {
-      console.error(
-        "❌ Erro ao processar mensagem:",
-        error,
+    if (
+      message.body &&
+      message.body.trim()
+    ) {
+      console.log(
+        "🧠 Enviando para processarMensagem()..."
       );
 
-      try {
-        await message.reply(
-          "Desculpa, meu bem, tive um probleminha aqui. Pode tentar de novo? 💛",
-        );
-      } catch (_) {
-        // Ignora erro ao tentar responder.
-      }
+      const resposta = await processarMensagem(
+        chatId,
+        {
+          texto: message.body.trim(),
+        }
+      );
+
+      await message.reply(resposta);
+
+      console.log(
+        "📤 Resposta enviada!"
+      );
+
+      return;
     }
-  },
-);
+  } catch (error) {
+    console.error(
+      "❌ Erro ao processar mensagem:",
+      error
+    );
+
+    try {
+      await message.reply(
+        "Desculpa, meu bem, tive um probleminha aqui. Pode tentar de novo? 💛"
+      );
+    } catch (_) {}
+  }
+});
 
 client.initialize();
