@@ -3,6 +3,7 @@ package com.InovaSkill.CaderninhoDigital.dto.request;
 import com.InovaSkill.CaderninhoDigital.enums.FormaPagamento;
 import com.InovaSkill.CaderninhoDigital.enums.StatusPagamento;
 import com.InovaSkill.CaderninhoDigital.enums.TipoCartao;
+import com.InovaSkill.CaderninhoDigital.dto.request.TransportadoraRequestDTO;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
@@ -10,6 +11,7 @@ import java.time.LocalDate;
 import java.util.List;
 import lombok.Getter;
 import lombok.Setter;
+
 
 @Getter
 @Setter
@@ -24,7 +26,15 @@ public class VendaRequestDTO {
     private LocalDate dataVencimento;
     private TipoCartao tipoCartao;
     private Integer parcelas;
+    private String formaEnvio;
+    private java.math.BigDecimal custoEnvio;
+    private String responsavelEntrega;
+    private LocalDate dataEnvio;
+    private LocalDate previsaoEntrega;
+    private String codigoRastreamento;
+    private TransportadoraRequestDTO transportadora;
     @Valid
     @NotEmpty(message = "Informe ao menos um item da venda")
     private List<ItemVendaRequestDTO> itens;
 }
+
