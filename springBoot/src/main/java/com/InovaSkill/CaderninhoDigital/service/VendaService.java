@@ -46,6 +46,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -65,6 +66,7 @@ public class VendaService {
     private final MovimentacaoEstoqueService movimentacaoEstoqueService;
     private final AuditoriaService auditoriaService;
     private final ClassificadorCobrancaService classificadorCobrancaService;
+    private final JdbcTemplate jdbcTemplate;
 
     @Transactional
     public VendaResponseDTO criar(Long usuarioId, VendaRequestDTO dto) {
@@ -239,6 +241,7 @@ public class VendaService {
         venda.setValorTotal(total);
 
         Venda salva = vendaRepository.save(venda);
+        salvarDadosEnvio(salva.getId(), dto);
 
         auditoriaService.registrar(
                 gestor,
@@ -351,6 +354,52 @@ public class VendaService {
                 .stream()
                 .map(this::toResponse)
                 .toList();
+    }
+
+    private void salvarDadosEnvio(Long vendaId, VendaRequestDTO dto) {
+        if (dto.getFormaEnvio() == null || dto.getFormaEnvio().isBlank()) {
+            return;
+        }
+
+        var t = dto.getTransportadora();
+        jdbcTemplate.update("""
+                INSERT INTO envios_venda (
+                    venda_id, forma_envio, custo_envio, responsavel_entrega,
+                    data_envio, previsao_entrega, codigo_rastreamento,
+                    transportadora_nome, transportadora_cnpj, transportadora_telefone,
+                    transportadora_email, transportadora_cep, transportadora_endereco,
+                    transportadora_numero, transportadora_complemento, transportadora_bairro,
+                    transportadora_cidade, transportadora_estado, observacao
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT (venda_id) DO UPDATE SET
+                    forma_envio = EXCLUDED.forma_envio,
+                    custo_envio = EXCLUDED.custo_envio,
+                    responsavel_entrega = EXCLUDED.responsavel_entrega,
+                    data_envio = EXCLUDED.data_envio,
+                    previsao_entrega = EXCLUDED.previsao_entrega,
+                    codigo_rastreamento = EXCLUDED.codigo_rastreamento,
+                    transportadora_nome = EXCLUDED.transportadora_nome,
+                    transportadora_cnpj = EXCLUDED.transportadora_cnpj,
+                    transportadora_telefone = EXCLUDED.transportadora_telefone,
+                    transportadora_email = EXCLUDED.transportadora_email,
+                    transportadora_cep = EXCLUDED.transportadora_cep,
+                    transportadora_endereco = EXCLUDED.transportadora_endereco,
+                    transportadora_numero = EXCLUDED.transportadora_numero,
+                    transportadora_complemento = EXCLUDED.transportadora_complemento,
+                    transportadora_bairro = EXCLUDED.transportadora_bairro,
+                    transportadora_cidade = EXCLUDED.transportadora_cidade,
+                    transportadora_estado = EXCLUDED.transportadora_estado,
+                    observacao = EXCLUDED.observacao
+                """,
+                vendaId, dto.getFormaEnvio(), dto.getCustoEnvio(), dto.getResponsavelEntrega(),
+                dto.getDataEnvio(), dto.getPrevisaoEntrega(), dto.getCodigoRastreamento(),
+                t != null ? t.getNome() : null, t != null ? t.getCnpj() : null,
+                t != null ? t.getTelefone() : null, t != null ? t.getEmail() : null,
+                t != null ? t.getCep() : null, t != null ? t.getEndereco() : null,
+                t != null ? t.getNumero() : null, t != null ? t.getComplemento() : null,
+                t != null ? t.getBairro() : null, t != null ? t.getCidade() : null,
+                t != null ? t.getEstado() : null, t != null ? t.getObservacao() : null
+        );
     }
 
     private void validarRegrasNegocio(

@@ -95,6 +95,16 @@ function RegistrarVenda() {
   const [clienteRapido, setClienteRapido] = useState<ClienteRapidoForm>(clienteRapidoInicial);
   const [erroClienteRapido, setErroClienteRapido] = useState<string | null>(null);
   const [observacao, setObservacao] = useState("");
+  const [formaEnvio, setFormaEnvio] = useState<"RETIRADA" | "PROPRIO" | "TRANSPORTADORA">("RETIRADA");
+  const [custoEnvio, setCustoEnvio] = useState("");
+  const [responsavelEntrega, setResponsavelEntrega] = useState("");
+  const [dataEnvio, setDataEnvio] = useState("");
+  const [previsaoEntrega, setPrevisaoEntrega] = useState("");
+  const [codigoRastreamento, setCodigoRastreamento] = useState("");
+  const [transportadora, setTransportadora] = useState({
+    nome: "", cnpj: "", telefone: "", email: "", cep: "", endereco: "", numero: "",
+    complemento: "", bairro: "", cidade: "", estado: "", observacao: "",
+  });
   const [erro, setErro] = useState<string | null>(null);
   const [confirmar, setConfirmar] = useState(false);
   const [buscaProduto, setBuscaProduto] = useState("");
@@ -398,6 +408,8 @@ function RegistrarVenda() {
       return setErro("Escolha se o pagamento no cartão foi Crédito ou Débito.");
     if (forma === "cartao" && tipoCartao === "CREDITO" && (!parcelas || Number(parcelas) < 1))
       return setErro("Informe a quantidade de parcelas.");
+    if (formaEnvio === "TRANSPORTADORA" && !transportadora.nome.trim())
+      return setErro("Informe o nome da transportadora.");
     setConfirmar(true);
   }
 
@@ -413,6 +425,13 @@ function RegistrarVenda() {
         tipo_cartao: forma === "cartao" ? tipoCartao : null,
         parcelas: forma === "cartao" && tipoCartao === "CREDITO" ? Number(parcelas) : null,
         observacao: observacao.trim() || null,
+        forma_envio: formaEnvio,
+        custo_envio: custoEnvio ? Number(custoEnvio.replace(",", ".")) : null,
+        responsavel_entrega: formaEnvio === "PROPRIO" ? responsavelEntrega.trim() || null : null,
+        data_envio: dataEnvio || null,
+        previsao_entrega: previsaoEntrega || null,
+        codigo_rastreamento: formaEnvio === "TRANSPORTADORA" ? codigoRastreamento.trim() || null : null,
+        transportadora: formaEnvio === "TRANSPORTADORA" ? transportadora : null,
         itens: itensCalculados.map((i) => ({
           produto_final_id: i.is_avulso ? null : i.produto_final_id,
           nome_avulso: i.is_avulso ? i.nome_avulso : null,
@@ -850,6 +869,76 @@ function RegistrarVenda() {
               </div>
             )}
 
+            {/* DADOS DE ENVIO */}
+            <div className="space-y-4 pt-2 border-t border-border">
+              <div>
+                <label className="text-sm font-semibold text-foreground">Forma de envio</label>
+                <select
+                  className="ds-input mt-1"
+                  value={formaEnvio}
+                  onChange={(e) => setFormaEnvio(e.target.value as typeof formaEnvio)}
+                >
+                  <option value="RETIRADA">Retirada pelo cliente</option>
+                  <option value="PROPRIO">Entrega própria</option>
+                  <option value="TRANSPORTADORA">Transportadora</option>
+                </select>
+              </div>
+
+              {formaEnvio !== "RETIRADA" && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-semibold text-muted-foreground mb-1 block">Custo do envio</label>
+                    <input className="ds-input" inputMode="decimal" value={custoEnvio} onChange={(e) => setCustoEnvio(e.target.value)} placeholder="R$ 0,00" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-muted-foreground mb-1 block">Data do envio</label>
+                    <input type="date" className="ds-input" value={dataEnvio} onChange={(e) => setDataEnvio(e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-muted-foreground mb-1 block">Previsão de entrega</label>
+                    <input type="date" className="ds-input" value={previsaoEntrega} onChange={(e) => setPrevisaoEntrega(e.target.value)} />
+                  </div>
+                </div>
+              )}
+
+              {formaEnvio === "PROPRIO" && (
+                <div>
+                  <label className="text-xs font-semibold text-muted-foreground mb-1 block">Responsável pela entrega</label>
+                  <input className="ds-input" value={responsavelEntrega} onChange={(e) => setResponsavelEntrega(e.target.value)} placeholder="Nome do responsável" />
+                </div>
+              )}
+
+              {formaEnvio === "TRANSPORTADORA" && (
+                <div className="space-y-3 rounded-xl border border-border bg-secondary/30 p-4">
+                  <h3 className="font-semibold text-sm text-foreground">Dados da transportadora</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {([
+                      ["nome", "Nome da transportadora *"], ["cnpj", "CNPJ"], ["telefone", "Telefone"], ["email", "E-mail"],
+                      ["cep", "CEP"], ["endereco", "Endereço"], ["numero", "Número"], ["complemento", "Complemento"],
+                      ["bairro", "Bairro"], ["cidade", "Cidade"], ["estado", "Estado"],
+                    ] as const).map(([campo, label]) => (
+                      <div key={campo}>
+                        <label className="text-xs font-semibold text-muted-foreground mb-1 block">{label}</label>
+                        <input
+                          className="ds-input"
+                          value={transportadora[campo]}
+                          onChange={(e) => setTransportadora((atual) => ({ ...atual, [campo]: e.target.value }))}
+                        />
+                      </div>
+                    ))}
+                    <div>
+                      <label className="text-xs font-semibold text-muted-foreground mb-1 block">Código de rastreamento</label>
+                      <input className="ds-input" value={codigoRastreamento} onChange={(e) => setCodigoRastreamento(e.target.value)} placeholder="Código fornecido pela transportadora" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-muted-foreground mb-1 block">Observação do envio</label>
+                    <textarea className="ds-input min-h-[60px]" value={transportadora.observacao} onChange={(e) => setTransportadora((atual) => ({ ...atual, observacao: e.target.value }))} placeholder="Informações adicionais sobre a entrega..." />
+                  </div>
+                </div>
+              )}
+            </div>
+
             <div>
               <label className="text-xs font-semibold text-muted-foreground mb-1 block">
                 Observação
@@ -985,3 +1074,4 @@ function RegistrarVenda() {
     </div>
   );
 }
+
