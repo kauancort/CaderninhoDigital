@@ -13,10 +13,37 @@ const {
   processarMensagem,
 } = require("./flow");
 
+// ADICIONADO: evita que erros internos do Puppeteer/whatsapp-web.js
+// (ex: "Execution context was destroyed", "Runtime.callFunctionOn timed out")
+// derrubem o processo Node inteiro. Sem isso, uma falha de comunicação
+// com o Chrome mata o bot até você reiniciar manualmente.
+process.on("unhandledRejection", (reason) => {
+  console.error(
+    "⚠️ Unhandled Rejection (bot continua rodando):",
+    reason,
+  );
+});
+
+process.on("uncaughtException", (err) => {
+  console.error(
+    "⚠️ Uncaught Exception (bot continua rodando):",
+    err,
+  );
+});
+
 const client = new Client({
   authStrategy: new LocalAuth({
     clientId: "caderninho-teste-2",
   }),
+
+  // ADICIONADO: em vez de buscar remotamente qual versão do WhatsApp Web
+  // usar (podendo ficar dessincronizada com o que o servidor realmente
+  // serve, causando reload da página no meio da injeção do script —
+  // exatamente o que gera "Execution context was destroyed"), usa a
+  // versão do WhatsApp Web embutida na própria lib.
+  webVersionCache: {
+    type: "none",
+  },
 
   puppeteer: {
     headless: false,
@@ -28,16 +55,7 @@ const client = new Client({
     args: [
       "--no-sandbox",
       "--disable-setuid-sandbox",
-      "--disable-dev-shm-usage",
-      "--disable-gpu",
-
-      "--disable-software-rasterizer",
-
-      "--disable-background-timer-throttling",
-
-      "--disable-backgrounding-occluded-windows",
-
-      "--disable-renderer-backgrounding",
+      "--disable-dev-shm-usage"
     ],
   },
 });
