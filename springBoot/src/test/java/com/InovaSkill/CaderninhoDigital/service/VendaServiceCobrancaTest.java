@@ -28,6 +28,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 @ExtendWith(MockitoExtension.class)
 class VendaServiceCobrancaTest {
@@ -39,6 +40,7 @@ class VendaServiceCobrancaTest {
     @Mock private MovimentacaoEstoqueService movimentacaoEstoqueService;
     @Mock private AuditoriaService auditoriaService;
     @Mock private ClassificadorCobrancaService classificadorCobrancaService;
+    @Mock private JdbcTemplate jdbcTemplate;
     @Mock private ResumoCobrancasProjection resumoCobrancasProjection;
 
     private VendaService vendaService;
@@ -54,7 +56,8 @@ class VendaServiceCobrancaTest {
                 new ObjectMapper(),
                 movimentacaoEstoqueService,
                 auditoriaService,
-                classificadorCobrancaService);
+                classificadorCobrancaService,
+                jdbcTemplate);
         gestor = Usuario.builder().id(1L).nome("Gestora").build();
         when(usuarioAcessoService.buscarGestor(1L)).thenReturn(gestor);
     }

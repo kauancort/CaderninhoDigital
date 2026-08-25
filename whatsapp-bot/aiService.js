@@ -270,13 +270,34 @@ Você apenas interpreta a mensagem.
 
 A aplicação Node.js será responsável por executar a ação no sistema.
 
-NÃO escreva explicações fora do JSON.
+==================================================
+FORMATO DE RESPOSTA — REGRA MAIS IMPORTANTE DE TODAS
+==================================================
 
-Sua resposta deve ser SOMENTE um JSON válido.
+Sua resposta INTEIRA deve ser SOMENTE um objeto JSON válido.
+
+NÃO escreva nenhum texto antes do JSON.
+
+NÃO escreva nenhum texto depois do JSON.
+
+NÃO explique o que você está fazendo.
 
 NÃO use markdown.
 
-NÃO coloque a resposta dentro de \`\`\`.
+NÃO coloque a resposta dentro de \`\`\` ou \`\`\`json.
+
+NÃO adicione comentários dentro ou fora do JSON.
+
+A primeira coisa que você escrever deve ser o caractere "{" e a última coisa que você escrever deve ser o caractere "}".
+
+Exemplo de resposta CORRETA (comece exatamente assim, sem nada antes):
+{"tipo": "conversa", "resposta": "Oi, meu bem! Como posso ajudar?", "faltando": [], "perguntaProximo": null}
+
+Exemplo de resposta ERRADA (nunca faça isso):
+Aqui está o JSON solicitado:
+\`\`\`json
+{"tipo": "conversa", ...}
+\`\`\`
 
 ==================================================
 FORMATO OBRIGATÓRIO
@@ -409,6 +430,7 @@ IMPORTANTE:
 - Nunca registre uma venda sem preço.
 - Nunca registre uma venda sem forma de pagamento.
 - Nunca invente tamanho de pote.
+- Lembre-se: responda SOMENTE com o JSON, nada mais.
 `;
 }
 
@@ -422,12 +444,17 @@ function extrairJson(texto) {
   console.log("[IA] Conteúdo recebido:");
   console.log(limpo);
 
+  // Remove blocos de markdown, caso o modelo ignore a instrução
+  // e ainda assim envolva a resposta em ```json ... ``` ou ``` ... ```
   if (limpo.startsWith("```")) {
     limpo = limpo.replace(/^```(?:json)?/i, "");
     limpo = limpo.replace(/```$/i, "");
     limpo = limpo.trim();
   }
 
+  // Alguns modelos free às vezes escrevem uma frase antes/depois do JSON
+  // (ex: "Aqui está o resultado: {...}"). Por isso extraímos apenas o
+  // trecho entre a primeira "{" e a última "}" da resposta.
   const inicio = limpo.indexOf("{");
   const fim = limpo.lastIndexOf("}");
 
@@ -501,6 +528,13 @@ Use esse histórico apenas para entender informações que ainda estejam sendo c
   console.log("[IA] Modelo:", OPENROUTER_MODEL);
 
   try {
+    // ALTERADO: removidos "response_format" e "reasoning".
+    // Vários modelos free do OpenRouter (ex: gemma via Google AI Studio)
+    // não suportam esses parâmetros e retornam erro 400
+    // ("JSON mode is not enabled" / "Developer instruction is not enabled"),
+    // o que fazia TODA mensagem cair no fallback genérico.
+    // Agora contamos apenas com as instruções do prompt + extrairJson()
+    // (que já sabe remover markdown e extrair o trecho { ... } da resposta).
     const resposta = await axios.post(
       OPENROUTER_URL,
       {
@@ -508,12 +542,6 @@ Use esse histórico apenas para entender informações que ainda estejam sendo c
         messages: mensagens,
         temperature: 0.1,
         max_tokens: 2000,
-        response_format: {
-          type: "json_object",
-        },
-        reasoning: {
-          enabled: false,
-        },
       },
       {
         headers: {

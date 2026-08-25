@@ -1,4 +1,23 @@
-2026/08/18-16:26:03.556 2b5c Reusing MANIFEST C:\Fernanda\docesvocida\Projeto\CaderninhoDigital\whatsapp-bot\.wwebjs_auth\session-caderninho-teste-2\Default\IndexedDB\https_web.whatsapp.com_0.indexeddb.leveldb/MANIFEST-000001
-2026/08/18-16:26:03.557 2b5c Recovering log #16
-2026/08/18-16:26:03.623 2b5c Reusing old log C:\Fernanda\docesvocida\Projeto\CaderninhoDigital\whatsapp-bot\.wwebjs_auth\session-caderninho-teste-2\Default\IndexedDB\https_web.whatsapp.com_0.indexeddb.leveldb/000016.log 
-2026/08/18-16:26:03.626 2b5c Delete type=2 #14
+2026/08/20-15:54:24.222 3320 Creating DB C:\Fernanda\docesvocida\Projeto\CaderninhoDigital\whatsapp-bot\.wwebjs_auth\session-caderninho-teste-2\Default\IndexedDB\https_web.whatsapp.com_0.indexeddb.leveldb since it was missing.
+2026/08/20-15:54:24.239 3320 Reusing MANIFEST C:\Fernanda\docesvocida\Projeto\CaderninhoDigital\whatsapp-bot\.wwebjs_auth\session-caderninho-teste-2\Default\IndexedDB\https_web.whatsapp.com_0.indexeddb.leveldb/MANIFEST-000001
+2026/08/20-15:55:09.756 2cd0 Level-0 table #5: started
+2026/08/20-15:55:09.830 2cd0 Level-0 table #5: 1051188 bytes OK
+2026/08/20-15:55:09.832 2cd0 Delete type=0 #3
+2026/08/20-15:55:29.099 2cd0 Level-0 table #7: started
+2026/08/20-15:55:29.163 2cd0 Level-0 table #7: 1044829 bytes OK
+2026/08/20-15:55:29.165 2cd0 Delete type=0 #4
+2026/08/20-15:55:29.223 2cd0 Compacting 1@1 + 1@2 files
+2026/08/20-15:55:29.331 2cd0 Generated table #8@1: 24331 keys, 879473 bytes
+2026/08/20-15:55:29.331 2cd0 Compacted 1@1 + 1@2 files => 879473 bytes
+2026/08/20-15:55:29.335 2cd0 compacted to: files[ 0 0 1 0 0 0 0 ]
+2026/08/20-15:55:29.338 2cd0 Delete type=2 #5
+2026/08/20-15:55:29.338 2cd0 Delete type=2 #7
+2026/08/20-15:56:44.203 3320 Level-0 table #10: started
+2026/08/20-15:56:44.396 3320 Level-0 table #10: 1260611 bytes OK
+2026/08/20-15:56:44.406 3320 Delete type=0 #6
+2026/08/20-15:56:46.826 2cd0 Compacting 1@1 + 1@2 files
+2026/08/20-15:56:46.957 2cd0 Generated table #11@1: 28549 keys, 1414489 bytes
+2026/08/20-15:56:46.957 2cd0 Compacted 1@1 + 1@2 files => 1414489 bytes
+2026/08/20-15:56:46.959 2cd0 compacted to: files[ 0 0 1 0 0 0 0 ]
+2026/08/20-15:56:46.961 2cd0 Delete type=2 #8
+2026/08/20-15:56:46.961 2cd0 Delete type=2 #10

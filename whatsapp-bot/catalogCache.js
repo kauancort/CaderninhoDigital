@@ -3,26 +3,86 @@ const api = require("./apiClient");
 let produtos = [];
 let materiasPrimas = [];
 let clientes = [];
+
 let ultimaAtualizacao = 0;
 
-const TTL_MS = 2 * 60 * 1000; // recarrega no máximo a cada 2 minutos
+const TTL_MS = 2 * 60 * 1000;
+
+let atualizacaoEmAndamento = null;
 
 async function atualizar(force = false) {
-  if (!force && Date.now() - ultimaAtualizacao < TTL_MS) return;
+  if (
+    !force &&
+    Date.now() - ultimaAtualizacao < TTL_MS
+  ) {
+    return;
+  }
 
-  const [prod, mp, cli] = await Promise.all([
-    api.get("/produtos"),
-    api.get("/materias-primas"),
-    api.get("/clientes"),
-  ]);
+  // Se outra mensagem já está atualizando o catálogo,
+  // espera essa atualização terminar.
+  if (atualizacaoEmAndamento) {
+    console.log(
+      "[catalogo] Atualização já está em andamento. Aguardando...",
+    );
 
-  produtos = prod.map((p) => ({ id: p.id, nome: p.nome }));
-  materiasPrimas = mp.map((m) => ({ id: m.id, nome: m.nome }));
-  clientes = cli.map((c) => ({ id: c.id, nome: c.nome }));
-  ultimaAtualizacao = Date.now();
-  console.log(
-    `[catalogo] Atualizado: ${produtos.length} produtos, ${materiasPrimas.length} matérias-primas, ${clientes.length} clientes`,
-  );
+    return await atualizacaoEmAndamento;
+  }
+
+  atualizacaoEmAndamento = atualizarCatalogo();
+
+  try {
+    await atualizacaoEmAndamento;
+  } finally {
+    atualizacaoEmAndamento = null;
+  }
+}
+
+async function atualizarCatalogo() {
+  console.log("[catalogo] Iniciando atualização...");
+
+  try {
+    // Primeiro produtos
+    console.log("[catalogo] Buscando produtos...");
+    const prod = await api.get("/produtos");
+
+    // Depois matérias-primas
+    console.log("[catalogo] Buscando matérias-primas...");
+    const mp = await api.get("/materias-primas");
+
+    // Depois clientes
+    console.log("[catalogo] Buscando clientes...");
+    const cli = await api.get("/clientes");
+
+    produtos = prod.map((p) => ({
+      id: p.id,
+      nome: p.nome,
+    }));
+
+    materiasPrimas = mp.map((m) => ({
+      id: m.id,
+      nome: m.nome,
+    }));
+
+    clientes = cli.map((c) => ({
+      id: c.id,
+      nome: c.nome,
+    }));
+
+    ultimaAtualizacao = Date.now();
+
+    console.log(
+      `[catalogo] Atualizado: ${produtos.length} produtos, ` +
+        `${materiasPrimas.length} matérias-primas, ` +
+        `${clientes.length} clientes`,
+    );
+  } catch (err) {
+    console.error(
+      "[catalogo] Erro ao atualizar catálogo:",
+      err.message,
+    );
+
+    throw err;
+  }
 }
 
 async function getProdutos() {
@@ -44,4 +104,9 @@ async function forcarAtualizacao() {
   await atualizar(true);
 }
 
-module.exports = { getProdutos, getMateriasPrimas, getClientes, forcarAtualizacao };
+module.exports = {
+  getProdutos,
+  getMateriasPrimas,
+  getClientes,
+  forcarAtualizacao,
+};
