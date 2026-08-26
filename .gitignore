@@ -79,6 +79,12 @@ postgres-data/
 !README.md
 !frontEnd/README.md
 !springBoot/FUNCIONALIDADES.md
+!STATUS_IMPORTACAO_DADOS.md
 
 # Documentação operacional local da IA
 docs/
+
+dados/
+
+# Memória local do Codex deste projeto
+/.codex/
