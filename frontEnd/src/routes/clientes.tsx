@@ -12,7 +12,6 @@ import {
   Mail,
   MapPin,
   X,
-  Check,
   Eye,
   Star,
   Sparkles,
@@ -21,19 +20,33 @@ import {
   AlertTriangle,
   ThumbsUp,
 } from "lucide-react";
+
 import { AppShell } from "@/components/AppShell";
+
 import {
   listarClientes,
   criarCliente,
   atualizarCliente,
   excluirCliente,
 } from "@/lib/clientes.functions";
+
 import { listarVendas } from "@/lib/vendas.functions";
+
 import { fmtBRL, fmtDateTime } from "@/lib/format";
 import { mascararCep } from "@/lib/viacep";
+
 import { ClienteFormModal } from "@/components/clientes/ClienteFormModal";
-import { clienteFormVazio, type ClienteFormData } from "@/lib/cliente-form";
-import { mascararDocumento, somenteDigitos } from "@/lib/documento-fiscal";
+
+import {
+  clienteFormVazio,
+  type ClienteFormData,
+} from "@/lib/cliente-form";
+
+import {
+  mascararDocumento,
+  somenteDigitos,
+} from "@/lib/documento-fiscal";
+
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/clientes")({
@@ -60,17 +73,23 @@ type Cliente = {
   inscricaoEstadual: string;
 };
 
-type FiltroCliente = "todos" | "frequentes" | "novos" | "atrasadores";
+type FiltroCliente =
+  | "todos"
+  | "frequentes"
+  | "novos"
+  | "atrasadores";
 
 function Clientes() {
   const qc = useQueryClient();
+
   const fnCriar = useApiFn(criarCliente);
   const fnAtualizar = useApiFn(atualizarCliente);
   const fnExcluir = useApiFn(excluirCliente);
 
   const { data: clientes = [] } = useQuery({
     queryKey: ["clientes"],
-    queryFn: () => listarClientes() as Promise<Cliente[]>,
+    queryFn: () =>
+      listarClientes() as Promise<Cliente[]>,
   });
 
   const { data: vendas = [] } = useQuery({
@@ -79,90 +98,187 @@ function Clientes() {
   });
 
   const [busca, setBusca] = useState("");
-  const [filtro, setFiltro] = useState<FiltroCliente>("todos");
-  const [modalAberto, setModalAberto] = useState(false);
-  const [editando, setEditando] = useState<Cliente | null>(null);
-  const [formInicial, setFormInicial] = useState<ClienteFormData>(clienteFormVazio);
-  const [salvando, setSalvando] = useState(false);
-  const [erro, setErro] = useState<string | null>(null);
-  const [confirmDel, setConfirmDel] = useState<Cliente | null>(null);
-  const [perfilAberto, setPerfilAberto] = useState<Cliente | null>(null);
+  const [filtro, setFiltro] =
+    useState<FiltroCliente>("todos");
+
+  const [modalAberto, setModalAberto] =
+    useState(false);
+
+  const [editando, setEditando] =
+    useState<Cliente | null>(null);
+
+  const [formInicial, setFormInicial] =
+    useState<ClienteFormData>(clienteFormVazio);
+
+  const [salvando, setSalvando] =
+    useState(false);
+
+  const [erro, setErro] =
+    useState<string | null>(null);
+
+  const [confirmDel, setConfirmDel] =
+    useState<Cliente | null>(null);
+
+  const [perfilAberto, setPerfilAberto] =
+    useState<Cliente | null>(null);
 
   const filtrados = useMemo(() => {
     const q = busca.trim().toLowerCase();
+
     let lista = clientes;
+
     if (q) {
-      lista = lista.filter((c) => c.nome.toLowerCase().includes(q));
+      lista = lista.filter((c) =>
+        c.nome.toLowerCase().includes(q),
+      );
     }
-    if (filtro === "todos") return lista;
+
+    if (filtro === "todos") {
+      return lista;
+    }
 
     return lista.filter((c) => {
-      const vendasCliente = vendas.filter((v: any) => v.cliente_id === c.id);
+      const vendasCliente = vendas.filter(
+        (v: any) => v.cliente_id === c.id,
+      );
+
       if (filtro === "frequentes") {
-        return classificarFrequencia(vendasCliente.length) === "frequente";
+        return (
+          classificarFrequencia(
+            vendasCliente.length,
+          ) === "frequente"
+        );
       }
+
       if (filtro === "novos") {
-        return classificarFrequencia(vendasCliente.length) === "novo";
+        return (
+          classificarFrequencia(
+            vendasCliente.length,
+          ) === "novo"
+        );
       }
+
       if (filtro === "atrasadores") {
-        return classificarComportamento(vendasCliente).tipo === "atrasador";
+        return (
+          classificarComportamento(vendasCliente)
+            .tipo === "atrasador"
+        );
       }
+
       return true;
     });
   }, [clientes, vendas, busca, filtro]);
 
   function abrirNovo() {
     setEditando(null);
-    setFormInicial(clienteFormVazio);
+
+    // Usa o objeto completo, incluindo os campos
+    // da transportadora.
+    setFormInicial({
+      ...clienteFormVazio,
+    });
+
     setErro(null);
     setModalAberto(true);
   }
 
   function abrirEditar(c: Cliente) {
     setEditando(c);
-    const documento = somenteDigitos(c.documento ?? "");
+
+    const documento = somenteDigitos(
+      c.documento ?? "",
+    );
+
+    /*
+     * IMPORTANTE:
+     * usamos clienteFormVazio como base.
+     *
+     * Isso garante que os novos campos da
+     * transportadora existam no objeto.
+     *
+     * Depois o ClienteFormModal consulta a
+     * transportadora vinculada através do clienteId.
+     */
     setFormInicial({
-      nome: c.nome,
+      ...clienteFormVazio,
+
+      nome: c.nome ?? "",
       telefone: c.telefone ?? "",
       email: c.email ?? "",
+
       endereco: c.endereco ?? "",
       numero: c.numero ?? "",
       complemento: c.complemento ?? "",
-      documento: mascararDocumento(documento, documento.length > 11 ? "CNPJ" : "CPF"),
+
+      documento: mascararDocumento(
+        documento,
+        documento.length > 11
+          ? "CNPJ"
+          : "CPF",
+      ),
+
       cep: mascararCep(c.cep ?? ""),
+
       bairro: c.bairro ?? "",
       cidade: c.cidade ?? "",
       estado: c.estado ?? "",
-      inscricaoEstadual: c.inscricaoEstadual ?? "",
+
+      inscricaoEstadual:
+        c.inscricaoEstadual ?? "",
     });
+
     setErro(null);
     setModalAberto(true);
   }
 
   function fecharModal() {
     if (salvando) return;
+
     setModalAberto(false);
     setEditando(null);
-    setFormInicial(clienteFormVazio);
+
+    setFormInicial({
+      ...clienteFormVazio,
+    });
+
     setErro(null);
   }
 
   async function salvar(form: ClienteFormData) {
     setErro(null);
     setSalvando(true);
+
     try {
       if (editando) {
-        await fnAtualizar({ data: { ...form, id: editando.id } });
+        await fnAtualizar({
+          data: {
+            ...form,
+            id: editando.id,
+          },
+        });
       } else {
-        await fnCriar({ data: form });
+        await fnCriar({
+          data: form,
+        });
       }
-      qc.invalidateQueries({ queryKey: ["clientes"] });
+
+      await qc.invalidateQueries({
+        queryKey: ["clientes"],
+      });
+
       toast.success(
-        editando ? "Cliente atualizado com sucesso." : "Cliente cadastrado com sucesso.",
+        editando
+          ? "Cliente atualizado com sucesso."
+          : "Cliente cadastrado com sucesso.",
       );
+
       fecharModal();
     } catch (err) {
-      setErro(err instanceof Error ? err.message : "Erro ao salvar");
+      setErro(
+        err instanceof Error
+          ? err.message
+          : "Erro ao salvar",
+      );
     } finally {
       setSalvando(false);
     }
@@ -170,37 +286,77 @@ function Clientes() {
 
   async function confirmarExclusao() {
     if (!confirmDel) return;
+
     try {
-      await fnExcluir({ data: { id: confirmDel.id } });
-      qc.invalidateQueries({ queryKey: ["clientes"] });
+      await fnExcluir({
+        data: {
+          id: confirmDel.id,
+        },
+      });
+
+      await qc.invalidateQueries({
+        queryKey: ["clientes"],
+      });
+
       setConfirmDel(null);
+
+      toast.success(
+        "Cliente excluído com sucesso.",
+      );
     } catch (err) {
-      setErro(err instanceof Error ? err.message : "Erro ao excluir");
+      setErro(
+        err instanceof Error
+          ? err.message
+          : "Erro ao excluir",
+      );
     }
   }
 
-  const filtros: { key: FiltroCliente; label: string }[] = [
-    { key: "todos", label: "Todos" },
-    { key: "frequentes", label: "Frequentes" },
-    { key: "novos", label: "Novos" },
-    { key: "atrasadores", label: "Já atrasou" },
+  const filtros: {
+    key: FiltroCliente;
+    label: string;
+  }[] = [
+    {
+      key: "todos",
+      label: "Todos",
+    },
+    {
+      key: "frequentes",
+      label: "Frequentes",
+    },
+    {
+      key: "novos",
+      label: "Novos",
+    },
+    {
+      key: "atrasadores",
+      label: "Já atrasou",
+    },
   ];
 
   return (
     <div className="space-y-8">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div className="min-w-0">
-          <h1 className="text-2xl md:text-4xl font-display font-bold text-primary">Clientes</h1>
+          <h1 className="text-2xl md:text-4xl font-display font-bold text-primary">
+            Clientes
+          </h1>
+
           <p className="font-body text-sm md:text-base text-muted-foreground mt-1">
             {clientes.length}{" "}
-            {clientes.length === 1 ? "cliente cadastrado" : "clientes cadastrados"}.
+            {clientes.length === 1
+              ? "cliente cadastrado"
+              : "clientes cadastrados"}
+            .
           </p>
         </div>
+
         <button
           onClick={abrirNovo}
           className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground font-bold text-sm px-5 py-3 rounded-md hover:bg-primary-dark shadow-warm-sm"
         >
-          <Plus size={16} /> Novo Cliente
+          <Plus size={16} />
+          Novo Cliente
         </button>
       </header>
 
@@ -210,9 +366,12 @@ function Clientes() {
             size={16}
             className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none"
           />
+
           <input
             value={busca}
-            onChange={(e) => setBusca(e.target.value)}
+            onChange={(e) =>
+              setBusca(e.target.value)
+            }
             placeholder="Pesquisar por nome..."
             className="ds-input ds-input-search"
           />
@@ -222,9 +381,12 @@ function Clientes() {
           {filtros.map((f) => (
             <button
               key={f.key}
-              onClick={() => setFiltro(f.key)}
+              onClick={() =>
+                setFiltro(f.key)
+              }
               className={[
                 "px-3 md:px-4 py-1.5 rounded-full text-[11px] md:text-xs font-bold uppercase tracking-wider transition",
+
                 filtro === f.key
                   ? "bg-primary text-primary-foreground shadow-warm-sm"
                   : "text-muted-foreground hover:text-foreground",
@@ -238,7 +400,11 @@ function Clientes() {
 
       {filtrados.length === 0 ? (
         <div className="text-center py-16 px-6 bg-card border border-dashed border-border rounded-2xl">
-          <Users className="mx-auto text-muted-foreground mb-3" size={40} />
+          <Users
+            className="mx-auto text-muted-foreground mb-3"
+            size={40}
+          />
+
           <p className="font-body text-sm text-muted-foreground">
             {busca || filtro !== "todos"
               ? "Nenhum cliente encontrado com esse filtro."
@@ -248,8 +414,16 @@ function Clientes() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filtrados.map((c) => {
-            const vendasCliente = vendas.filter((v: any) => v.cliente_id === c.id);
-            const frequencia = classificarFrequencia(vendasCliente.length);
+            const vendasCliente = vendas.filter(
+              (v: any) =>
+                v.cliente_id === c.id,
+            );
+
+            const frequencia =
+              classificarFrequencia(
+                vendasCliente.length,
+              );
+
             return (
               <article
                 key={c.id}
@@ -260,18 +434,27 @@ function Clientes() {
                     <h2 className="font-display text-lg font-bold text-foreground truncate">
                       {c.nome}
                     </h2>
-                    <FrequenciaBadge frequencia={frequencia} />
+
+                    <FrequenciaBadge
+                      frequencia={frequencia}
+                    />
                   </div>
+
                   <div className="flex gap-1 shrink-0">
                     <button
-                      onClick={() => abrirEditar(c)}
+                      onClick={() =>
+                        abrirEditar(c)
+                      }
                       aria-label="Editar"
                       className="w-9 h-9 rounded-full bg-secondary text-brown-mid hover:bg-beige-dark flex items-center justify-center"
                     >
                       <Pencil size={14} />
                     </button>
+
                     <button
-                      onClick={() => setConfirmDel(c)}
+                      onClick={() =>
+                        setConfirmDel(c)
+                      }
                       aria-label="Excluir"
                       className="w-9 h-9 rounded-full bg-error-bg text-error hover:bg-error hover:text-error-foreground flex items-center justify-center"
                     >
@@ -281,13 +464,31 @@ function Clientes() {
                 </div>
 
                 <div className="space-y-2 text-sm text-foreground font-body">
-                  <Linha icon={<Phone size={13} />} value={c.telefone} placeholder="Sem telefone" />
-                  <Linha icon={<Mail size={13} />} value={c.email} placeholder="Sem e-mail" />
+                  <Linha
+                    icon={<Phone size={13} />}
+                    value={c.telefone}
+                    placeholder="Sem telefone"
+                  />
+
+                  <Linha
+                    icon={<Mail size={13} />}
+                    value={c.email}
+                    placeholder="Sem e-mail"
+                  />
+
                   <Linha
                     icon={<MapPin size={13} />}
                     value={
                       c.endereco
-                        ? `${c.endereco}${c.numero ? `, ${c.numero}` : ""}${c.complemento ? ` · ${c.complemento}` : ""}`
+                        ? `${c.endereco}${
+                            c.numero
+                              ? `, ${c.numero}`
+                              : ""
+                          }${
+                            c.complemento
+                              ? ` · ${c.complemento}`
+                              : ""
+                          }`
                         : ""
                     }
                     placeholder="Sem endereço"
@@ -300,22 +501,56 @@ function Clientes() {
                   </div>
                 )}
 
-                {(c.cep || c.bairro || c.cidade || c.estado || c.inscricaoEstadual) && (
+                {(c.cep ||
+                  c.bairro ||
+                  c.cidade ||
+                  c.estado ||
+                  c.inscricaoEstadual) && (
                   <div className="text-xs text-muted-foreground bg-secondary/60 rounded-md px-3 py-2 font-body space-y-1">
-                    {c.cep && <div>CEP: {mascararCep(c.cep)}</div>}
-                    {c.bairro && <div>Bairro: {c.bairro}</div>}
-                    {(c.cidade || c.estado) && (
-                      <div>{[c.cidade, c.estado].filter(Boolean).join(" — ")}</div>
+                    {c.cep && (
+                      <div>
+                        CEP:{" "}
+                        {mascararCep(c.cep)}
+                      </div>
                     )}
-                    {c.inscricaoEstadual && <div>Inscrição estadual: {c.inscricaoEstadual}</div>}
+
+                    {c.bairro && (
+                      <div>
+                        Bairro: {c.bairro}
+                      </div>
+                    )}
+
+                    {(c.cidade ||
+                      c.estado) && (
+                      <div>
+                        {[
+                          c.cidade,
+                          c.estado,
+                        ]
+                          .filter(Boolean)
+                          .join(" — ")}
+                      </div>
+                    )}
+
+                    {c.inscricaoEstadual && (
+                      <div>
+                        Inscrição estadual:{" "}
+                        {
+                          c.inscricaoEstadual
+                        }
+                      </div>
+                    )}
                   </div>
                 )}
 
                 <button
-                  onClick={() => setPerfilAberto(c)}
+                  onClick={() =>
+                    setPerfilAberto(c)
+                  }
                   className="mt-1 text-xs font-bold text-primary inline-flex items-center gap-1 self-start"
                 >
-                  <Eye size={13} /> Ver perfil de compras
+                  <Eye size={13} />
+                  Ver perfil de compras
                 </button>
               </article>
             );
@@ -325,39 +560,61 @@ function Clientes() {
 
       <ClienteFormModal
         aberto={modalAberto}
-        titulo={editando ? "Editar cliente" : "Novo cliente"}
+        titulo={
+          editando
+            ? "Editar cliente"
+            : "Novo cliente"
+        }
         inicial={formInicial}
+        clienteId={editando?.id ?? null}
         salvando={salvando}
         erroGeral={erro}
         onClose={fecharModal}
         onSubmit={salvar}
       />
+
       {confirmDel && (
         <div
           className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4"
-          onClick={() => setConfirmDel(null)}
+          onClick={() =>
+            setConfirmDel(null)
+          }
         >
           <div
             className="bg-card max-w-sm w-full rounded-2xl shadow-warm-sm p-6"
-            onClick={(e) => e.stopPropagation()}
+            onClick={(e) =>
+              e.stopPropagation()
+            }
           >
-            <h3 className="font-display text-lg font-bold text-foreground">Excluir cliente?</h3>
+            <h3 className="font-display text-lg font-bold text-foreground">
+              Excluir cliente?
+            </h3>
+
             <p className="text-sm text-muted-foreground mt-2 font-body">
-              Tem certeza que deseja excluir <strong>{confirmDel.nome}</strong>? Essa ação não pode
-              ser desfeita.
+              Tem certeza que deseja excluir{" "}
+              <strong>
+                {confirmDel.nome}
+              </strong>
+              ? Essa ação não pode ser
+              desfeita.
             </p>
+
             <div className="flex gap-3 mt-5">
               <button
-                onClick={() => setConfirmDel(null)}
+                onClick={() =>
+                  setConfirmDel(null)
+                }
                 className="flex-1 px-4 py-2.5 rounded-md font-semibold text-sm border border-border bg-card text-brown-mid hover:bg-secondary"
               >
                 Cancelar
               </button>
+
               <button
                 onClick={confirmarExclusao}
                 className="flex-1 px-4 py-2.5 rounded-md font-semibold text-sm bg-error text-error-foreground hover:opacity-90 inline-flex items-center justify-center gap-2"
               >
-                <Trash2 size={14} /> Excluir
+                <Trash2 size={14} />
+                Excluir
               </button>
             </div>
           </div>
@@ -367,8 +624,14 @@ function Clientes() {
       {perfilAberto && (
         <PerfilClienteModal
           cliente={perfilAberto}
-          vendas={vendas.filter((v: any) => v.cliente_id === perfilAberto.id)}
-          onClose={() => setPerfilAberto(null)}
+          vendas={vendas.filter(
+            (v: any) =>
+              v.cliente_id ===
+              perfilAberto.id,
+          )}
+          onClose={() =>
+            setPerfilAberto(null)
+          }
         />
       )}
     </div>
@@ -377,89 +640,214 @@ function Clientes() {
 
 // ----- Regras de classificação -----
 
-type Frequencia = "sem_compras" | "novo" | "recorrente" | "frequente";
+type Frequencia =
+  | "sem_compras"
+  | "novo"
+  | "recorrente"
+  | "frequente";
 
-function classificarFrequencia(qtdCompras: number): Frequencia {
-  if (qtdCompras === 0) return "sem_compras";
-  if (qtdCompras === 1) return "novo";
-  if (qtdCompras <= 2) return "recorrente";
+function classificarFrequencia(
+  qtdCompras: number,
+): Frequencia {
+  if (qtdCompras === 0) {
+    return "sem_compras";
+  }
+
+  if (qtdCompras === 1) {
+    return "novo";
+  }
+
+  if (qtdCompras <= 2) {
+    return "recorrente";
+  }
+
   return "frequente";
 }
 
-type Comportamento = "sem_historico" | "pontual" | "parcelador" | "atrasador";
+type Comportamento =
+  | "sem_historico"
+  | "pontual"
+  | "parcelador"
+  | "atrasador";
 
-function classificarComportamento(vendasCliente: any[]) {
-  const relevantes = vendasCliente.filter((v) => v.status_pagamento !== "NAO_SE_APLICA");
+function classificarComportamento(
+  vendasCliente: any[],
+) {
+  const relevantes =
+    vendasCliente.filter(
+      (v) =>
+        v.status_pagamento !==
+        "NAO_SE_APLICA",
+    );
+
   if (relevantes.length === 0) {
-    return { tipo: "sem_historico" as Comportamento, qtdAtraso: 0, qtdParcelada: 0, total: 0 };
+    return {
+      tipo: "sem_historico" as Comportamento,
+      qtdAtraso: 0,
+      qtdParcelada: 0,
+      total: 0,
+    };
   }
-  const qtdAtraso = relevantes.filter((v) => v.em_atraso).length;
-  const qtdParcelada = relevantes.filter(
-    (v) => v.tipo_cartao === "CREDITO" && (v.parcelas || 1) > 1,
-  ).length;
 
-  let tipo: Comportamento = "pontual";
+  const qtdAtraso =
+    relevantes.filter(
+      (v) => v.em_atraso,
+    ).length;
+
+  const qtdParcelada =
+    relevantes.filter(
+      (v) =>
+        v.tipo_cartao === "CREDITO" &&
+        (v.parcelas || 1) > 1,
+    ).length;
+
+  let tipo: Comportamento =
+    "pontual";
+
   if (qtdAtraso > 0) {
     tipo = "atrasador";
-  } else if (qtdParcelada / relevantes.length > 0.5) {
+  } else if (
+    qtdParcelada /
+      relevantes.length >
+    0.5
+  ) {
     tipo = "parcelador";
   }
-  return { tipo, qtdAtraso, qtdParcelada, total: relevantes.length };
+
+  return {
+    tipo,
+    qtdAtraso,
+    qtdParcelada,
+    total: relevantes.length,
+  };
 }
 
 // ----- Componentes visuais -----
 
-function FrequenciaBadge({ frequencia }: { frequencia: Frequencia }) {
-  const map: Record<Frequencia, { label: string; cls: string; Icon: any }> = {
-    sem_compras: { label: "Sem compras ainda", cls: "text-muted-foreground", Icon: Clock },
-    novo: { label: "Cliente novo", cls: "text-info", Icon: Sparkles },
-    recorrente: { label: "Cliente recorrente", cls: "text-gold-dark", Icon: Star },
-    frequente: { label: "Cliente frequente", cls: "text-success", Icon: Star },
+function FrequenciaBadge({
+  frequencia,
+}: {
+  frequencia: Frequencia;
+}) {
+  const map: Record<
+    Frequencia,
+    {
+      label: string;
+      cls: string;
+      Icon: any;
+    }
+  > = {
+    sem_compras: {
+      label: "Sem compras ainda",
+      cls: "text-muted-foreground",
+      Icon: Clock,
+    },
+
+    novo: {
+      label: "Cliente novo",
+      cls: "text-info",
+      Icon: Sparkles,
+    },
+
+    recorrente: {
+      label: "Cliente recorrente",
+      cls: "text-gold-dark",
+      Icon: Star,
+    },
+
+    frequente: {
+      label: "Cliente frequente",
+      cls: "text-success",
+      Icon: Star,
+    },
   };
-  const { label, cls, Icon } = map[frequencia];
+
+  const {
+    label,
+    cls,
+    Icon,
+  } = map[frequencia];
+
   return (
-    <div className={`inline-flex items-center gap-1 text-[11px] font-semibold mt-0.5 ${cls}`}>
-      <Icon size={12} /> {label}
+    <div
+      className={`inline-flex items-center gap-1 text-[11px] font-semibold mt-0.5 ${cls}`}
+    >
+      <Icon size={12} />
+      {label}
     </div>
   );
 }
 
-function ComportamentoBadge({ tipo }: { tipo: Comportamento }) {
-  const map: Record<Comportamento, { label: string; cls: string; Icon: any }> = {
+function ComportamentoBadge({
+  tipo,
+}: {
+  tipo: Comportamento;
+}) {
+  const map: Record<
+    Comportamento,
+    {
+      label: string;
+      cls: string;
+      Icon: any;
+    }
+  > = {
     sem_historico: {
       label: "Sem histórico suficiente",
       cls: "bg-secondary text-brown-mid",
       Icon: Clock,
     },
-    pontual: { label: "Costuma pagar em dia", cls: "bg-success-bg text-success", Icon: ThumbsUp },
+
+    pontual: {
+      label: "Costuma pagar em dia",
+      cls: "bg-success-bg text-success",
+      Icon: ThumbsUp,
+    },
+
     parcelador: {
       label: "Prefere parcelar no cartão",
       cls: "bg-info-bg text-info",
       Icon: CreditCard,
     },
+
     atrasador: {
       label: "Já teve atraso no pagamento",
       cls: "bg-error-bg text-error",
       Icon: AlertTriangle,
     },
   };
-  const { label, cls, Icon } = map[tipo];
+
+  const {
+    label,
+    cls,
+    Icon,
+  } = map[tipo];
+
   return (
     <span
       className={`inline-flex items-center gap-2 text-sm font-bold uppercase tracking-wide px-3 py-1.5 rounded-full ${cls}`}
     >
-      <Icon size={16} /> {label}
+      <Icon size={16} />
+      {label}
     </span>
   );
 }
 
-function MiniCard({ label, value }: { label: string; value: string }) {
+function MiniCard({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
   return (
     <div className="bg-secondary/50 rounded-lg px-3 py-3 text-center">
       <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground truncate">
         {label}
       </div>
-      <div className="font-display text-xl font-bold text-primary mt-1 truncate">{value}</div>
+
+      <div className="font-display text-xl font-bold text-primary mt-1 truncate">
+        {value}
+      </div>
     </div>
   );
 }
@@ -473,15 +861,32 @@ function PerfilClienteModal({
   vendas: any[];
   onClose: () => void;
 }) {
-  const totalGasto = vendas.reduce((s, v) => s + Number(v.valor_total), 0);
+  const totalGasto = vendas.reduce(
+    (s, v) =>
+      s + Number(v.valor_total),
+    0,
+  );
+
   const qtdCompras = vendas.length;
-  const ticketMedio = qtdCompras > 0 ? totalGasto / qtdCompras : 0;
+
+  const ticketMedio =
+    qtdCompras > 0
+      ? totalGasto / qtdCompras
+      : 0;
+
   const ultimaCompra = vendas
     .slice()
-    .sort((a, b) => +new Date(b.data_venda) - +new Date(a.data_venda))[0];
+    .sort(
+      (a, b) =>
+        +new Date(b.data_venda) -
+        +new Date(a.data_venda),
+    )[0];
 
-  const frequencia = classificarFrequencia(qtdCompras);
-  const comportamento = classificarComportamento(vendas);
+  const frequencia =
+    classificarFrequencia(qtdCompras);
+
+  const comportamento =
+    classificarComportamento(vendas);
 
   return (
     <div
@@ -490,15 +895,23 @@ function PerfilClienteModal({
     >
       <div
         className="bg-card w-full md:max-w-xl md:rounded-2xl rounded-t-2xl shadow-warm-sm max-h-[90vh] overflow-y-auto"
-        onClick={(e) => e.stopPropagation()}
+        onClick={(e) =>
+          e.stopPropagation()
+        }
       >
         <div className="px-7 py-5 border-b border-border flex items-start justify-between gap-3">
           <div>
-            <h2 className="font-display text-3xl font-bold text-primary">{cliente.nome}</h2>
+            <h2 className="font-display text-3xl font-bold text-primary">
+              {cliente.nome}
+            </h2>
+
             <div className="mt-1 scale-110 origin-left">
-              <FrequenciaBadge frequencia={frequencia} />
+              <FrequenciaBadge
+                frequencia={frequencia}
+              />
             </div>
           </div>
+
           <button
             onClick={onClose}
             aria-label="Fechar"
@@ -513,9 +926,18 @@ function PerfilClienteModal({
             <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground mb-3">
               Dados cadastrais
             </h3>
+
             <div className="space-y-1 text-sm text-foreground">
-              <p>{cliente.email || "Sem e-mail"}</p>
-              <p>{cliente.telefone || "Sem telefone"}</p>
+              <p>
+                {cliente.email ||
+                  "Sem e-mail"}
+              </p>
+
+              <p>
+                {cliente.telefone ||
+                  "Sem telefone"}
+              </p>
+
               {(cliente.endereco ||
                 cliente.numero ||
                 cliente.complemento ||
@@ -526,80 +948,173 @@ function PerfilClienteModal({
                 <p>
                   {[
                     cliente.endereco &&
-                      `${cliente.endereco}${cliente.numero ? `, ${cliente.numero}` : ""}`,
+                      `${cliente.endereco}${
+                        cliente.numero
+                          ? `, ${cliente.numero}`
+                          : ""
+                      }`,
+
                     cliente.complemento,
+
                     cliente.bairro,
-                    [cliente.cidade, cliente.estado].filter(Boolean).join(" — "),
-                    cliente.cep && `CEP ${mascararCep(cliente.cep)}`,
+
+                    [
+                      cliente.cidade,
+                      cliente.estado,
+                    ]
+                      .filter(Boolean)
+                      .join(" — "),
+
+                    cliente.cep &&
+                      `CEP ${mascararCep(
+                        cliente.cep,
+                      )}`,
                   ]
                     .filter(Boolean)
                     .join(" · ")}
                 </p>
               )}
-              {cliente.inscricaoEstadual && <p>Inscrição estadual: {cliente.inscricaoEstadual}</p>}
+
+              {cliente.inscricaoEstadual && (
+                <p>
+                  Inscrição estadual:{" "}
+                  {
+                    cliente.inscricaoEstadual
+                  }
+                </p>
+              )}
             </div>
           </section>
-          {/* Card 1: resumo de compras */}
+
           <section>
             <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground mb-3">
               Resumo de compras
             </h3>
+
             {qtdCompras === 0 ? (
               <p className="text-base text-muted-foreground bg-secondary/50 rounded-lg px-4 py-4">
-                Esse cliente ainda não tem nenhuma compra registrada.
+                Esse cliente ainda não
+                tem nenhuma compra
+                registrada.
               </p>
             ) : (
               <div className="grid grid-cols-3 gap-3">
-                <MiniCard label="Compras" value={String(qtdCompras)} />
-                <MiniCard label="Total gasto" value={fmtBRL(totalGasto)} />
-                <MiniCard label="Ticket médio" value={fmtBRL(ticketMedio)} />
+                <MiniCard
+                  label="Compras"
+                  value={String(
+                    qtdCompras,
+                  )}
+                />
+
+                <MiniCard
+                  label="Total gasto"
+                  value={fmtBRL(
+                    totalGasto,
+                  )}
+                />
+
+                <MiniCard
+                  label="Ticket médio"
+                  value={fmtBRL(
+                    ticketMedio,
+                  )}
+                />
               </div>
             )}
+
             {ultimaCompra && (
               <p className="text-sm text-muted-foreground mt-3">
-                Última compra em {fmtDateTime(ultimaCompra.data_venda)}, no valor de{" "}
-                <strong>{fmtBRL(Number(ultimaCompra.valor_total))}</strong>.
+                Última compra em{" "}
+                {fmtDateTime(
+                  ultimaCompra.data_venda,
+                )}
+                , no valor de{" "}
+                <strong>
+                  {fmtBRL(
+                    Number(
+                      ultimaCompra.valor_total,
+                    ),
+                  )}
+                </strong>
+                .
               </p>
             )}
           </section>
 
-          {/* Card 2: comportamento de pagamento */}
           <section>
             <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground mb-3">
               Comportamento de pagamento
             </h3>
-            <ComportamentoBadge tipo={comportamento.tipo} />
+
+            <ComportamentoBadge
+              tipo={comportamento.tipo}
+            />
+
             {comportamento.total > 0 && (
               <p className="text-sm text-muted-foreground mt-3 leading-relaxed">
-                Baseado nas últimas {comportamento.total}{" "}
-                {comportamento.total === 1 ? "venda" : "vendas"}:{" "}
-                {comportamento.qtdAtraso > 0 && (
+                Baseado nas últimas{" "}
+                {comportamento.total}{" "}
+                {comportamento.total ===
+                1
+                  ? "venda"
+                  : "vendas"}
+                :{" "}
+
+                {comportamento.qtdAtraso >
+                  0 && (
                   <>
-                    {comportamento.qtdAtraso} {comportamento.qtdAtraso === 1 ? "ficou" : "ficaram"}{" "}
+                    {
+                      comportamento.qtdAtraso
+                    }{" "}
+                    {comportamento.qtdAtraso ===
+                    1
+                      ? "ficou"
+                      : "ficaram"}{" "}
                     em atraso
-                    {comportamento.qtdParcelada > 0 ? " · " : ""}
+                    {comportamento.qtdParcelada >
+                    0
+                      ? " · "
+                      : ""}
                   </>
                 )}
-                {comportamento.qtdParcelada > 0 && (
-                  <>{comportamento.qtdParcelada} parcelada(s) no cartão</>
+
+                {comportamento.qtdParcelada >
+                  0 && (
+                  <>
+                    {
+                      comportamento.qtdParcelada
+                    }{" "}
+                    parcelada(s) no
+                    cartão
+                  </>
                 )}
               </p>
             )}
+
             <p className="text-sm text-muted-foreground/80 mt-3 italic leading-relaxed">
-              Estimativa com base no status atual das vendas.
+              Estimativa com base no
+              status atual das vendas.
             </p>
           </section>
 
-          {/* Card 3: histórico completo */}
           {qtdCompras > 0 && (
             <section>
               <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground mb-3">
                 Últimas compras
               </h3>
+
               <ul className="space-y-3 max-h-64 overflow-y-auto">
                 {vendas
                   .slice()
-                  .sort((a, b) => +new Date(b.data_venda) - +new Date(a.data_venda))
+                  .sort(
+                    (a, b) =>
+                      +new Date(
+                        b.data_venda,
+                      ) -
+                      +new Date(
+                        a.data_venda,
+                      ),
+                  )
                   .slice(0, 8)
                   .map((v) => (
                     <li
@@ -608,20 +1123,30 @@ function PerfilClienteModal({
                     >
                       <div className="min-w-0">
                         <div className="text-sm text-muted-foreground">
-                          {fmtDateTime(v.data_venda)}
+                          {fmtDateTime(
+                            v.data_venda,
+                          )}
                         </div>
+
                         <div className="text-sm font-semibold text-muted-foreground mt-0.5">
-                          {v.status_pagamento === "PAGO"
+                          {v.status_pagamento ===
+                          "PAGO"
                             ? "Pago"
                             : v.em_atraso
                               ? "Em atraso"
-                              : v.status_pagamento === "PENDENTE"
+                              : v.status_pagamento ===
+                                  "PENDENTE"
                                 ? "Pendente"
                                 : "—"}
                         </div>
                       </div>
+
                       <span className="font-display font-bold text-lg text-primary">
-                        {fmtBRL(Number(v.valor_total))}
+                        {fmtBRL(
+                          Number(
+                            v.valor_total,
+                          ),
+                        )}
                       </span>
                     </li>
                   ))}
@@ -630,15 +1155,6 @@ function PerfilClienteModal({
           )}
         </div>
       </div>
-    </div>
-  );
-}
-
-function Campo({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <label className="text-sm font-semibold text-foreground mb-1.5 block">{label}</label>
-      {children}
     </div>
   );
 }
@@ -652,13 +1168,25 @@ function Linha({
   value: string;
   placeholder: string;
 }) {
-  const tem = value && value.trim().length > 0;
+  const tem =
+    value &&
+    value.trim().length > 0;
+
   return (
     <div className="flex items-center gap-2">
-      <span className="text-muted-foreground shrink-0">{icon}</span>
-      <span className={tem ? "truncate" : "truncate text-muted-foreground italic"}>
+      <span className="text-muted-foreground shrink-0">
+        {icon}
+      </span>
+
+      <span
+        className={
+          tem
+            ? "truncate"
+            : "truncate text-muted-foreground italic"
+        }
+      >
         {tem ? value : placeholder}
       </span>
     </div>
   );
-}
+};

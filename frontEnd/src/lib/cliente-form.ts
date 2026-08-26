@@ -11,6 +11,21 @@ export type ClienteFormData = {
   bairro: string;
   cidade: string;
   estado: string;
+
+  // Transportadora vinculada ao cliente
+  usaTransportadora: boolean;
+  transportadoraNome: string;
+  transportadoraCnpj: string;
+  transportadoraTelefone: string;
+  transportadoraEmail: string;
+  transportadoraCep: string;
+  transportadoraEndereco: string;
+  transportadoraNumero: string;
+  transportadoraComplemento: string;
+  transportadoraBairro: string;
+  transportadoraCidade: string;
+  transportadoraEstado: string;
+  transportadoraObservacao: string;
 };
 
 export const clienteFormVazio: ClienteFormData = {
@@ -26,6 +41,20 @@ export const clienteFormVazio: ClienteFormData = {
   bairro: "",
   cidade: "",
   estado: "",
+
+  usaTransportadora: false,
+  transportadoraNome: "",
+  transportadoraCnpj: "",
+  transportadoraTelefone: "",
+  transportadoraEmail: "",
+  transportadoraCep: "",
+  transportadoraEndereco: "",
+  transportadoraNumero: "",
+  transportadoraComplemento: "",
+  transportadoraBairro: "",
+  transportadoraCidade: "",
+  transportadoraEstado: "",
+  transportadoraObservacao: "",
 };
 
 export const UFS_BRASIL = [
@@ -53,7 +82,7 @@ export const UFS_BRASIL = [
   "RO",
   "RR",
   "SC",
-  "SP",
   "SE",
+  "SP",
   "TO",
 ] as const;
