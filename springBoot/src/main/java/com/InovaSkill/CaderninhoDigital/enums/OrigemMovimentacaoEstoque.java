@@ -6,5 +6,6 @@ public enum OrigemMovimentacaoEstoque {
     PRODUCAO,
     VENDA,
     AJUSTE_MANUAL,
-    REMOCAO_MANUAL
+    REMOCAO_MANUAL,
+    MIGRACAO
 }
