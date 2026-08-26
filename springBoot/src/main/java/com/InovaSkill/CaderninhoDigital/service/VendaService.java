@@ -1,5 +1,7 @@
 package com.InovaSkill.CaderninhoDigital.service;
 
+import com.InovaSkill.CaderninhoDigital.dto.request.DespachoUpdateRequestDTO;
+import com.InovaSkill.CaderninhoDigital.enums.SituacaoDespacho;
 import com.InovaSkill.CaderninhoDigital.dto.ContatoDTO;
 import com.InovaSkill.CaderninhoDigital.dto.request.ContatoRequestDTO;
 import com.InovaSkill.CaderninhoDigital.dto.request.ItemVendaRequestDTO;
@@ -125,6 +127,11 @@ public class VendaService {
                 .formaPagamento(dto.getFormaPagamento())
                 .statusPagamento(statusSolicitado)
                 .aguardandoEstoque(!possuiEstoqueSuficiente)
+                .situacaoDespacho(
+                        dto.getFormaEnvio() != null && !"RETIRADA".equals(dto.getFormaEnvio())
+                        ? com.InovaSkill.CaderninhoDigital.enums.SituacaoDespacho.AGUARDANDO_DESPACHO
+                        : com.InovaSkill.CaderninhoDigital.enums.SituacaoDespacho.NAO_APLICAVEL
+                )
                 .observacao(dto.getObservacao())
                 .dataVencimento(dataVencimentoFinal)
                 .tipoCartao(
@@ -1013,6 +1020,74 @@ public class VendaService {
         );
 
         return toResponse(salva);
+    }
+
+
+    @Transactional
+    public VendaResponseDTO atualizarDespacho(
+            Long usuarioId,
+            Long vendaId,
+            DespachoUpdateRequestDTO dto
+    ) {
+        Usuario gestor = usuarioAcessoService.buscarGestor(usuarioId);
+
+        Venda venda = buscarVenda(vendaId);
+
+        if (venda.getSituacaoDespacho() == SituacaoDespacho.NAO_APLICAVEL) {
+            throw new BusinessException(
+                    "Esta venda é retirada no local e não passa por despacho."
+            );
+        }
+
+        SituacaoDespacho situacaoAnterior = venda.getSituacaoDespacho();
+
+        venda.setSituacaoDespacho(dto.getSituacaoDespacho());
+
+        Venda salva = vendaRepository.save(venda);
+
+        // Código de rastreamento: se informado, atualiza também em envios_venda.
+        if (dto.getCodigoRastreamento() != null && !dto.getCodigoRastreamento().isBlank()) {
+            jdbcTemplate.update(
+                    "UPDATE envios_venda SET codigo_rastreamento = ? WHERE venda_id = ?",
+                    dto.getCodigoRastreamento(),
+                    vendaId
+            );
+        }
+
+        auditoriaService.registrar(
+                gestor,
+                "VENDA",
+                salva.getId(),
+                "ATUALIZACAO_DESPACHO",
+                situacaoAnterior,
+                dto.getSituacaoDespacho(),
+                "Situação de despacho atualizada",
+                "VENDA"
+        );
+
+        return toResponse(salva);
+    }
+
+    /*
+     * Card 1: alimenta a aba "Transporte" com todas as vendas
+     * que precisam de entrega (própria ou transportadora) e ainda não
+     * foram marcadas como ENTREGUE.
+     */
+    @Transactional(readOnly = true)
+    public List<VendaResponseDTO> listarParaTransporte(Long usuarioId) {
+
+        usuarioAcessoService.buscarGestor(usuarioId);
+
+        return vendaRepository
+                .findBySituacaoDespachoInOrderByDataVendaAsc(
+                        List.of(
+                                SituacaoDespacho.AGUARDANDO_DESPACHO,
+                                SituacaoDespacho.DESPACHADO
+                        )
+                )
+                .stream()
+                .map(this::toResponse)
+                .toList();
     }
 
     @Transactional(readOnly = true)

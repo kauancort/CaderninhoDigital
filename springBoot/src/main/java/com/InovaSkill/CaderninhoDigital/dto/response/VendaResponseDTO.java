@@ -2,6 +2,7 @@ package com.InovaSkill.CaderninhoDigital.dto.response;
 
 import com.InovaSkill.CaderninhoDigital.dto.ContatoDTO;
 import com.InovaSkill.CaderninhoDigital.enums.FormaPagamento;
+import com.InovaSkill.CaderninhoDigital.enums.SituacaoDespacho;
 import com.InovaSkill.CaderninhoDigital.enums.StatusPagamento;
 import com.InovaSkill.CaderninhoDigital.enums.TipoCartao;
 import java.math.BigDecimal;
@@ -28,6 +29,7 @@ public class VendaResponseDTO {
     private Integer parcelas;
     private Boolean emAtraso;
     private Boolean aguardandoEstoque;
+    private SituacaoDespacho situacaoDespacho;
     private List<ContatoDTO> contatos;
     private LocalDateTime criadoEm;
     private List<ItemVendaResponseDTO> itens;

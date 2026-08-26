@@ -1,6 +1,7 @@
 package com.InovaSkill.CaderninhoDigital.controller;
 
 import com.InovaSkill.CaderninhoDigital.dto.request.ContatoRequestDTO;
+import com.InovaSkill.CaderninhoDigital.dto.request.DespachoUpdateRequestDTO;
 import com.InovaSkill.CaderninhoDigital.dto.request.VendaRequestDTO;
 import com.InovaSkill.CaderninhoDigital.dto.response.PaginaResponseDTO;
 import com.InovaSkill.CaderninhoDigital.dto.response.CobrancaResponseDTO;
@@ -50,6 +51,13 @@ public class VendaController {
     @GetMapping("/aguardando-estoque")
     public ResponseEntity<List<VendaResponseDTO>> listarAguardandoEstoque(@UsuarioIdAutenticado Long usuarioId) {
         return ResponseEntity.ok(vendaService.listarAguardandoEstoque(usuarioId));
+    }
+
+    @GetMapping("/transporte")
+    public ResponseEntity<List<VendaResponseDTO>> listarParaTransporte(
+            @UsuarioIdAutenticado Long usuarioId
+    ) {
+        return ResponseEntity.ok(vendaService.listarParaTransporte(usuarioId));
     }
 
     @GetMapping("/pagina")
@@ -160,6 +168,15 @@ public class VendaController {
             @PathVariable Long id
     ) {
         return ResponseEntity.ok(vendaService.confirmarPagamento(usuarioId, id));
+    }
+
+    @PostMapping("/{id}/despacho")
+    public ResponseEntity<VendaResponseDTO> atualizarDespacho(
+            @UsuarioIdAutenticado Long usuarioId,
+            @PathVariable Long id,
+            @RequestBody @Valid DespachoUpdateRequestDTO dto
+    ) {
+        return ResponseEntity.ok(vendaService.atualizarDespacho(usuarioId, id, dto));
     }
 
     @GetMapping("/{id}/duplicacao")
