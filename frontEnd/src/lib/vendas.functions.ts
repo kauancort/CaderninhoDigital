@@ -2,6 +2,26 @@ import { createApiFn } from "@/lib/api-function";
 import { API_URL as BASE_URL, apiFetch as fetch } from "@/lib/api-client";
 import { z } from "zod";
 
+export type SituacaoDespachoApi =
+  | "NAO_APLICAVEL"
+  | "AGUARDANDO_DESPACHO"
+  | "DESPACHADO"
+  | "ENTREGUE";
+
+export type FormaEnvioApi = "RETIRADA" | "PROPRIO" | "TRANSPORTADORA";
+
+export type VendaTransporte = {
+  id: number;
+  clienteId: number | null;
+  clienteNome: string;
+  dataVenda: string;
+  valorTotal: number;
+  situacaoDespacho: SituacaoDespachoApi;
+  formaEnvio: FormaEnvioApi | null;
+  codigoRastreamento: string | null;
+  aguardandoEstoque: boolean;
+};
+
 export const listarVendas = createApiFn({ method: "GET" }).handler(async () => {
   const res = await fetch(`${BASE_URL}/vendas`, {});
   if (!res.ok) throw new Error("Erro ao listar vendas");
@@ -21,6 +41,9 @@ export const listarVendas = createApiFn({ method: "GET" }).handler(async () => {
     parcelas: v.parcelas || null,
     em_atraso: Boolean(v.emAtraso),
     aguardando_estoque: Boolean(v.aguardandoEstoque),
+    situacao_despacho: v.situacaoDespacho ?? "NAO_APLICAVEL",
+    forma_envio: v.formaEnvio ?? null,
+    codigo_rastreamento: v.codigoRastreamento ?? null,
     contatos: (v.contatos || []).map((c: any) => ({
       data: c.data,
       tipo: c.tipo,
@@ -85,6 +108,13 @@ export const registrarVenda = createApiFn({ method: "POST" })
         tipo_cartao: z.enum(["CREDITO", "DEBITO"]).optional().nullable(),
         parcelas: z.number().int().positive().optional().nullable(),
         observacao: z.string().max(1000).optional().nullable(),
+        forma_envio: z.enum(["RETIRADA", "PROPRIO", "TRANSPORTADORA"]).optional().default("RETIRADA"),
+        custo_envio: z.number().min(0).optional().nullable(),
+        responsavel_entrega: z.string().max(160).optional().nullable(),
+        data_envio: z.string().date().optional().nullable(),
+        previsao_entrega: z.string().date().optional().nullable(),
+        codigo_rastreamento: z.string().max(160).optional().nullable(),
+        transportadora: z.record(z.string(), z.any()).optional().nullable(),
         itens: z
           .array(
             z.object({
@@ -110,6 +140,13 @@ export const registrarVenda = createApiFn({ method: "POST" })
       formaPagamento: data.forma_pagamento?.toUpperCase() ?? null,
       statusPagamento: data.status_pagamento,
       observacao: data.observacao || null,
+      formaEnvio: data.forma_envio ?? "RETIRADA",
+      custoEnvio: data.custo_envio ?? null,
+      responsavelEntrega: data.responsavel_entrega ?? null,
+      dataEnvio: data.data_envio ?? null,
+      previsaoEntrega: data.previsao_entrega ?? null,
+      codigoRastreamento: data.codigo_rastreamento ?? null,
+      transportadora: data.transportadora ?? null,
       dataVencimento: data.status_pagamento === "PENDENTE" ? data.data_vencimento : null,
       tipoCartao: data.forma_pagamento === "cartao" ? data.tipo_cartao : null,
       parcelas: data.tipo_cartao === "CREDITO" ? data.parcelas : null,
@@ -181,3 +218,41 @@ export const adicionarContatoVenda = createApiFn({ method: "POST" })
       })),
     };
   });
+
+
+export async function listarVendasParaTransporte() {
+  const res = await fetch(`${BASE_URL}/vendas/transporte`, {});
+  if (!res.ok) throw new Error("Erro ao listar vendas para transporte");
+  const data = await res.json();
+  return data.map((v: any): VendaTransporte => ({
+    id: Number(v.id),
+    clienteId: v.clienteId == null ? null : Number(v.clienteId),
+    clienteNome: v.clienteNome || "Cliente",
+    dataVenda: v.dataVenda,
+    valorTotal: Number(v.valorTotal || 0),
+    situacaoDespacho: v.situacaoDespacho ?? "AGUARDANDO_DESPACHO",
+    formaEnvio: v.formaEnvio ?? null,
+    codigoRastreamento: v.codigoRastreamento || null,
+    aguardandoEstoque: Boolean(v.aguardandoEstoque),
+  }));
+}
+
+export async function atualizarDespachoVenda(
+  vendaId: number,
+  situacaoDespacho: SituacaoDespachoApi,
+  codigoRastreamento?: string | null,
+) {
+  const res = await fetch(`${BASE_URL}/vendas/${vendaId}/despacho`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      situacaoDespacho,
+      codigoRastreamento: codigoRastreamento?.trim() || null,
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: "Erro ao atualizar despacho" }));
+    throw new Error(err.message || "Não foi possível atualizar o despacho.");
+  }
+  return res.json();
+}
