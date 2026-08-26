@@ -5,6 +5,11 @@ spring:
   application:
     name: CaderninhoDigital
 
+  servlet:
+    multipart:
+      max-file-size: ${LEGACY_DATA_MAX_FILE_SIZE:10MB}
+      max-request-size: ${LEGACY_DATA_MAX_REQUEST_SIZE:60MB}
+
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:caderninho_digital}}
     username: ${SPRING_DATASOURCE_USERNAME:${DB_USERNAME:caderninho_user}}
