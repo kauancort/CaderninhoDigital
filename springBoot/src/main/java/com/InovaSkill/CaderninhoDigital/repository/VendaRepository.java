@@ -2,6 +2,7 @@ package com.InovaSkill.CaderninhoDigital.repository;
 
 import com.InovaSkill.CaderninhoDigital.entity.Usuario;
 import com.InovaSkill.CaderninhoDigital.entity.Venda;
+import com.InovaSkill.CaderninhoDigital.enums.SituacaoDespacho;
 import com.InovaSkill.CaderninhoDigital.repository.projection.ResumoCobrancasProjection;
 import com.InovaSkill.CaderninhoDigital.repository.projection.ResumoHistoricoVendasProjection;
 import java.math.BigDecimal;
@@ -34,9 +35,15 @@ public interface VendaRepository extends JpaRepository<Venda, Long>, JpaSpecific
     List<Venda> findByGestorAndDataVendaBetweenOrderByDataVendaDesc(Usuario gestor, LocalDate inicio, LocalDate fim);
     List<Venda> findAllByOrderByDataVendaDesc();
     List<Venda> findByDataVendaBetweenOrderByDataVendaDesc(LocalDate inicio, LocalDate fim);
+    
 
     @EntityGraph(attributePaths = {"cliente", "itens", "itens.produto"})
     List<Venda> findByAguardandoEstoqueTrueOrderByDataVendaAsc();
+
+    // ADICIONADO (Card 1/4): alimenta a aba "Transporte" com vendas que
+    // têm entrega pendente ou já despachada (mas ainda não entregue).
+    @EntityGraph(attributePaths = {"cliente", "itens", "itens.produto"})
+    List<Venda> findBySituacaoDespachoInOrderByDataVendaAsc(List<SituacaoDespacho> situacoes);
 
     @EntityGraph(attributePaths = {"cliente", "gestor", "itens", "itens.produto"})
     @Query("SELECT DISTINCT v FROM Venda v WHERE v.id IN :ids")

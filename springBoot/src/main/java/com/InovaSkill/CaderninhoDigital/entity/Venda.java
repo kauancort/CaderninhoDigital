@@ -1,6 +1,7 @@
 package com.InovaSkill.CaderninhoDigital.entity;
 
 import com.InovaSkill.CaderninhoDigital.enums.FormaPagamento;
+import com.InovaSkill.CaderninhoDigital.enums.SituacaoDespacho;
 import com.InovaSkill.CaderninhoDigital.enums.StatusPagamento;
 import com.InovaSkill.CaderninhoDigital.enums.TipoCartao;
 import jakarta.persistence.CascadeType;
@@ -88,6 +89,17 @@ public class Venda {
     @Builder.Default
     private Boolean aguardandoEstoque = false;
 
+    /*
+     * ADICIONADO (Card 4): situação de despacho/entrega, independente
+     * de statusPagamento (dinheiro) e aguardandoEstoque (produção).
+     * Vendas com retirada no local ficam NAO_APLICAVEL; vendas com
+     * entrega (própria ou transportadora) nascem AGUARDANDO_DESPACHO.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "situacao_despacho", nullable = false, length = 30)
+    @Builder.Default
+    private SituacaoDespacho situacaoDespacho = SituacaoDespacho.NAO_APLICAVEL;
+
     @OneToMany(mappedBy = "venda", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<ItemVenda> itens = new ArrayList<>();
@@ -103,6 +115,9 @@ public class Venda {
         }
         if (this.aguardandoEstoque == null) {
             this.aguardandoEstoque = false;
+        }
+        if (this.situacaoDespacho == null) {
+            this.situacaoDespacho = SituacaoDespacho.NAO_APLICAVEL;
         }
     }
 }
