@@ -5,7 +5,7 @@ import { useApiFn } from "@/lib/api-function";
 import { AlertTriangle, ArrowLeft, Plus, Trash2, UserPlus } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { obterProduto, pesquisarProdutos } from "@/lib/catalogo.functions";
-import { criarCliente, pesquisarClientes } from "@/lib/clientes.functions";
+import { criarCliente, pesquisarClientes, buscarTransportadoraCliente } from "@/lib/clientes.functions";
 import { registrarVenda, listarVendasAguardandoEstoque } from "@/lib/vendas.functions";
 import { fmtBRL, hojeISO, type FormaPagamento, type StatusPagamento } from "@/lib/format";
 import { consumePrefill, type PrefillVenda } from "@/lib/voz-prefill";
@@ -41,6 +41,13 @@ type Cliente = {
   documento: string;
   email: string;
   telefone: string;
+  endereco: string;
+  numero: string;
+  complemento: string;
+  cep: string;
+  bairro: string;
+  cidade: string;
+  estado: string;
 };
 
 type ClienteRapidoForm = ClienteFormData;
@@ -96,15 +103,8 @@ function RegistrarVenda() {
   const [erroClienteRapido, setErroClienteRapido] = useState<string | null>(null);
   const [observacao, setObservacao] = useState("");
   const [formaEnvio, setFormaEnvio] = useState<"RETIRADA" | "PROPRIO" | "TRANSPORTADORA">("RETIRADA");
-  const [custoEnvio, setCustoEnvio] = useState("");
+  const [quilometragemManual, setQuilometragemManual] = useState("");
   const [responsavelEntrega, setResponsavelEntrega] = useState("");
-  const [dataEnvio, setDataEnvio] = useState("");
-  const [previsaoEntrega, setPrevisaoEntrega] = useState("");
-  const [codigoRastreamento, setCodigoRastreamento] = useState("");
-  const [transportadora, setTransportadora] = useState({
-    nome: "", cnpj: "", telefone: "", email: "", cep: "", endereco: "", numero: "",
-    complemento: "", bairro: "", cidade: "", estado: "", observacao: "",
-  });
   const [erro, setErro] = useState<string | null>(null);
   const [confirmar, setConfirmar] = useState(false);
   const [buscaProduto, setBuscaProduto] = useState("");
@@ -169,6 +169,85 @@ function RegistrarVenda() {
     () => (paginaClientes?.registros ?? []) as Cliente[],
     [paginaClientes?.registros],
   );
+
+  const clienteSelecionado = useMemo(
+    () => clientes.find((c) => String(c.id) === String(clienteId)) ?? null,
+    [clientes, clienteId],
+  );
+
+  const transportadoraQuery = useQuery({
+    queryKey: ["clientes", "transportadora", clienteId],
+    queryFn: () => buscarTransportadoraCliente(clienteId!),
+    enabled: Boolean(clienteId && formaEnvio === "TRANSPORTADORA"),
+  });
+
+  const [distanciaAutomatica, setDistanciaAutomatica] = useState<number | null>(null);
+  const [calculandoDistancia, setCalculandoDistancia] = useState(false);
+  const [erroDistancia, setErroDistancia] = useState<string | null>(null);
+  const enderecoFabrica = String(import.meta.env.VITE_FABRICA_ENDERECO ?? "").trim();
+  const custoPorKm = Number(import.meta.env.VITE_CUSTO_KM_ENTREGA_PROPRIA ?? 2);
+  const limiteCustoEntrega = Number(import.meta.env.VITE_LIMITE_CUSTO_ENTREGA_PROPRIA ?? 50);
+  const distanciaManualNumero = Number(quilometragemManual.replace(",", "."));
+  const distanciaEntrega = Number.isFinite(distanciaManualNumero) && distanciaManualNumero > 0
+    ? distanciaManualNumero
+    : distanciaAutomatica;
+  const custoEstimadoEntrega = distanciaEntrega != null
+    ? distanciaEntrega * custoPorKm
+    : null;
+  const entregaViavel = custoEstimadoEntrega != null
+    ? custoEstimadoEntrega <= limiteCustoEntrega
+    : null;
+
+  useEffect(() => {
+    if (formaEnvio !== "PROPRIO" || !clienteSelecionado || !enderecoFabrica) {
+      setDistanciaAutomatica(null);
+      setErroDistancia(null);
+      return;
+    }
+
+    let cancelado = false;
+    setCalculandoDistancia(true);
+    setErroDistancia(null);
+
+    async function geocodificar(endereco: string) {
+      const params = new URLSearchParams({ format: "jsonv2", limit: "1", q: endereco });
+      const response = await fetch(`https://nominatim.openstreetmap.org/search?${params}`);
+      if (!response.ok) throw new Error("Não foi possível consultar a localização.");
+      const dados = await response.json();
+      if (!dados[0]) throw new Error("Endereço não localizado.");
+      return { lat: Number(dados[0].lat), lon: Number(dados[0].lon) };
+    }
+
+    const enderecoCliente = [
+      clienteSelecionado.endereco,
+      clienteSelecionado.numero,
+      clienteSelecionado.bairro,
+      clienteSelecionado.cidade,
+      clienteSelecionado.estado,
+      clienteSelecionado.cep,
+      "Brasil",
+    ].filter(Boolean).join(", ");
+
+    Promise.all([geocodificar(enderecoFabrica), geocodificar(enderecoCliente)])
+      .then(([origem, destino]) => {
+        if (cancelado) return;
+        const toRad = (value: number) => (value * Math.PI) / 180;
+        const dLat = toRad(destino.lat - origem.lat);
+        const dLon = toRad(destino.lon - origem.lon);
+        const a = Math.sin(dLat / 2) ** 2
+          + Math.cos(toRad(origem.lat)) * Math.cos(toRad(destino.lat)) * Math.sin(dLon / 2) ** 2;
+        const distancia = 2 * 6371 * Math.asin(Math.sqrt(a));
+        setDistanciaAutomatica(Number(distancia.toFixed(1)));
+      })
+      .catch((error) => {
+        if (!cancelado) setErroDistancia(error instanceof Error ? error.message : "Não foi possível calcular a distância.");
+      })
+      .finally(() => {
+        if (!cancelado) setCalculandoDistancia(false);
+      });
+
+    return () => { cancelado = true; };
+  }, [formaEnvio, clienteSelecionado, enderecoFabrica]);
 
   // Vendas já salvas que ficaram aguardando produção (cards amarelos persistentes)
   const { data: vendasAguardandoEstoque = [] } = useQuery({
@@ -408,8 +487,10 @@ function RegistrarVenda() {
       return setErro("Escolha se o pagamento no cartão foi Crédito ou Débito.");
     if (forma === "cartao" && tipoCartao === "CREDITO" && (!parcelas || Number(parcelas) < 1))
       return setErro("Informe a quantidade de parcelas.");
-    if (formaEnvio === "TRANSPORTADORA" && !transportadora.nome.trim())
-      return setErro("Informe o nome da transportadora.");
+    if (formaEnvio === "PROPRIO" && !distanciaEntrega)
+      return setErro("Informe a quilometragem da entrega ou configure o endereço da fábrica para o cálculo automático.");
+    if (formaEnvio === "TRANSPORTADORA" && !transportadoraQuery.data)
+      return setErro("Cadastre uma transportadora para este cliente antes de realizar a venda.");
     setConfirmar(true);
   }
 
@@ -426,12 +507,12 @@ function RegistrarVenda() {
         parcelas: forma === "cartao" && tipoCartao === "CREDITO" ? Number(parcelas) : null,
         observacao: observacao.trim() || null,
         forma_envio: formaEnvio,
-        custo_envio: custoEnvio ? Number(custoEnvio.replace(",", ".")) : null,
+        custo_envio: formaEnvio === "PROPRIO" ? custoEstimadoEntrega : null,
         responsavel_entrega: formaEnvio === "PROPRIO" ? responsavelEntrega.trim() || null : null,
-        data_envio: dataEnvio || null,
-        previsao_entrega: previsaoEntrega || null,
-        codigo_rastreamento: formaEnvio === "TRANSPORTADORA" ? codigoRastreamento.trim() || null : null,
-        transportadora: formaEnvio === "TRANSPORTADORA" ? transportadora : null,
+        data_envio: null,
+        previsao_entrega: null,
+        codigo_rastreamento: null,
+        transportadora: null,
         itens: itensCalculados.map((i) => ({
           produto_final_id: i.is_avulso ? null : i.produto_final_id,
           nome_avulso: i.is_avulso ? i.nome_avulso : null,
@@ -869,7 +950,7 @@ function RegistrarVenda() {
               </div>
             )}
 
-            {/* DADOS DE ENVIO */}
+            {/* DADOS DE TRANSPORTE */}
             <div className="space-y-4 pt-2 border-t border-border">
               <div>
                 <label className="text-sm font-semibold text-foreground">Forma de envio</label>
@@ -884,57 +965,106 @@ function RegistrarVenda() {
                 </select>
               </div>
 
-              {formaEnvio !== "RETIRADA" && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs font-semibold text-muted-foreground mb-1 block">Custo do envio</label>
-                    <input className="ds-input" inputMode="decimal" value={custoEnvio} onChange={(e) => setCustoEnvio(e.target.value)} placeholder="R$ 0,00" />
-                  </div>
-                  <div>
-                    <label className="text-xs font-semibold text-muted-foreground mb-1 block">Data do envio</label>
-                    <input type="date" className="ds-input" value={dataEnvio} onChange={(e) => setDataEnvio(e.target.value)} />
-                  </div>
-                  <div>
-                    <label className="text-xs font-semibold text-muted-foreground mb-1 block">Previsão de entrega</label>
-                    <input type="date" className="ds-input" value={previsaoEntrega} onChange={(e) => setPrevisaoEntrega(e.target.value)} />
-                  </div>
-                </div>
-              )}
-
               {formaEnvio === "PROPRIO" && (
-                <div>
-                  <label className="text-xs font-semibold text-muted-foreground mb-1 block">Responsável pela entrega</label>
-                  <input className="ds-input" value={responsavelEntrega} onChange={(e) => setResponsavelEntrega(e.target.value)} placeholder="Nome do responsável" />
+                <div className="space-y-4 rounded-xl border border-border bg-secondary/30 p-4">
+                  <div>
+                    <h3 className="font-semibold text-sm text-foreground">Cálculo da entrega própria</h3>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      O endereço cadastrado do cliente é usado para estimar a distância. Se o cálculo automático não estiver disponível, informe a quilometragem.
+                    </p>
+                  </div>
+
+                  {clienteSelecionado ? (
+                    <div className="rounded-lg border border-border bg-card p-3 text-xs">
+                      <strong className="block text-foreground">Endereço de entrega</strong>
+                      <span className="text-muted-foreground">
+                        {[clienteSelecionado.endereco, clienteSelecionado.numero, clienteSelecionado.bairro, clienteSelecionado.cidade, clienteSelecionado.estado]
+                          .filter(Boolean).join(", ") || "Endereço não cadastrado"}
+                      </span>
+                    </div>
+                  ) : null}
+
+                  {!enderecoFabrica && (
+                    <div className="rounded-lg border border-warning/30 bg-warning-bg p-3 text-xs text-warning">
+                      O cálculo automático precisa da variável <strong>VITE_FABRICA_ENDERECO</strong>. Enquanto ela não estiver configurada, informe a quilometragem manualmente.
+                    </div>
+                  )}
+
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <div>
+                      <label className="text-xs font-semibold text-muted-foreground mb-1 block">Quilometragem manual</label>
+                      <input
+                        className="ds-input"
+                        inputMode="decimal"
+                        value={quilometragemManual}
+                        onChange={(e) => setQuilometragemManual(e.target.value)}
+                        placeholder="Ex.: 18,5 km"
+                      />
+                    </div>
+                    <div className="rounded-lg bg-card border border-border p-3">
+                      <span className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Distância aproximada</span>
+                      <strong className="mt-1 block text-lg text-primary">
+                        {calculandoDistancia ? "Calculando..." : distanciaEntrega != null ? `${distanciaEntrega.toFixed(1)} km` : "Informe a quilometragem"}
+                      </strong>
+                    </div>
+                  </div>
+
+                  {erroDistancia && !quilometragemManual && (
+                    <p className="text-xs text-warning">{erroDistancia} Você pode informar a quilometragem manualmente.</p>
+                  )}
+
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <div className="rounded-lg bg-card border border-border p-3">
+                      <span className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Custo estimado</span>
+                      <strong className="mt-1 block text-lg text-primary">
+                        {custoEstimadoEntrega != null ? fmtBRL(custoEstimadoEntrega) : "—"}
+                      </strong>
+                      <span className="text-[11px] text-muted-foreground">Base: R$ {custoPorKm.toFixed(2).replace(".", ",")} por km</span>
+                    </div>
+                    <div className={`rounded-lg border p-3 ${
+                      entregaViavel === null ? "border-border bg-card" : entregaViavel ? "border-success/30 bg-success-bg" : "border-error/30 bg-error-bg"
+                    }`}>
+                      <span className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Viabilidade</span>
+                      <strong className="mt-1 block text-lg">
+                        {entregaViavel === null ? "Aguardando distância" : entregaViavel ? "Entrega viável" : "Custo acima do limite"}
+                      </strong>
+                      <span className="text-[11px] text-muted-foreground">Limite configurado: {fmtBRL(limiteCustoEntrega)}</span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-semibold text-muted-foreground mb-1 block">Responsável pela entrega</label>
+                    <input className="ds-input" value={responsavelEntrega} onChange={(e) => setResponsavelEntrega(e.target.value)} placeholder="Nome do responsável" />
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    A data de entrega não é obrigatória no cadastro da venda. A saída e a conclusão da entrega são registradas posteriormente na aba Transporte.
+                  </p>
                 </div>
               )}
 
               {formaEnvio === "TRANSPORTADORA" && (
                 <div className="space-y-3 rounded-xl border border-border bg-secondary/30 p-4">
-                  <h3 className="font-semibold text-sm text-foreground">Dados da transportadora</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {([
-                      ["nome", "Nome da transportadora *"], ["cnpj", "CNPJ"], ["telefone", "Telefone"], ["email", "E-mail"],
-                      ["cep", "CEP"], ["endereco", "Endereço"], ["numero", "Número"], ["complemento", "Complemento"],
-                      ["bairro", "Bairro"], ["cidade", "Cidade"], ["estado", "Estado"],
-                    ] as const).map(([campo, label]) => (
-                      <div key={campo}>
-                        <label className="text-xs font-semibold text-muted-foreground mb-1 block">{label}</label>
-                        <input
-                          className="ds-input"
-                          value={transportadora[campo]}
-                          onChange={(e) => setTransportadora((atual) => ({ ...atual, [campo]: e.target.value }))}
-                        />
-                      </div>
-                    ))}
-                    <div>
-                      <label className="text-xs font-semibold text-muted-foreground mb-1 block">Código de rastreamento</label>
-                      <input className="ds-input" value={codigoRastreamento} onChange={(e) => setCodigoRastreamento(e.target.value)} placeholder="Código fornecido pela transportadora" />
+                  <h3 className="font-semibold text-sm text-foreground">Transportadora do cliente</h3>
+                  {transportadoraQuery.isLoading ? (
+                    <p className="text-sm text-muted-foreground">Buscando transportadora cadastrada...</p>
+                  ) : transportadoraQuery.data ? (
+                    <div className="rounded-lg border border-border bg-card p-3 text-sm">
+                      <strong className="block text-foreground">{transportadoraQuery.data.nome}</strong>
+                      <span className="text-xs text-muted-foreground">
+                        {[transportadoraQuery.data.cidade, transportadoraQuery.data.estado].filter(Boolean).join(" / ") || "Localização não informada"}
+                      </span>
+                      {transportadoraQuery.data.telefone && (
+                        <span className="mt-1 block text-xs text-muted-foreground">Telefone: {transportadoraQuery.data.telefone}</span>
+                      )}
                     </div>
-                  </div>
-                  <div>
-                    <label className="text-xs font-semibold text-muted-foreground mb-1 block">Observação do envio</label>
-                    <textarea className="ds-input min-h-[60px]" value={transportadora.observacao} onChange={(e) => setTransportadora((atual) => ({ ...atual, observacao: e.target.value }))} placeholder="Informações adicionais sobre a entrega..." />
-                  </div>
+                  ) : (
+                    <div className="rounded-lg border border-warning/30 bg-warning-bg p-3 text-sm text-warning">
+                      Este cliente ainda não possui transportadora cadastrada. Cadastre a transportadora no cadastro do cliente antes de registrar a venda.
+                    </div>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    O código de rastreamento não é informado nesta etapa. Ele deve ser registrado quando a venda for marcada como <strong>Despachada</strong> na aba Transporte.
+                  </p>
                 </div>
               )}
             </div>

@@ -150,3 +150,73 @@ export const excluirCliente = createApiFn({ method: "POST" })
     if (!res.ok) throw new Error("Erro ao excluir cliente");
     return { ok: true };
   });
+
+
+export type Transportadora = {
+  id: string;
+  clienteId: string;
+  nome: string;
+  cnpj: string;
+  telefone: string;
+  email: string;
+  cep: string;
+  endereco: string;
+  numero: string;
+  complemento: string;
+  bairro: string;
+  cidade: string;
+  estado: string;
+  observacao: string;
+};
+
+export type TransportadoraPayload = Omit<Transportadora, "id" | "clienteId">;
+
+function mapTransportadora(t: any): Transportadora {
+  return {
+    id: String(t.id),
+    clienteId: String(t.clienteId),
+    nome: t.nome || "",
+    cnpj: t.cnpj || "",
+    telefone: t.telefone || "",
+    email: t.email || "",
+    cep: t.cep || "",
+    endereco: t.endereco || "",
+    numero: t.numero || "",
+    complemento: t.complemento || "",
+    bairro: t.bairro || "",
+    cidade: t.cidade || "",
+    estado: t.estado || "",
+    observacao: t.observacao || "",
+  };
+}
+
+export async function buscarTransportadoraCliente(clienteId: string | number) {
+  const res = await fetch(`${BASE_URL}/clientes/${clienteId}/transportadora`, {});
+  if (res.status === 204) return null;
+  if (!res.ok) throw new Error("Erro ao buscar a transportadora do cliente");
+  return mapTransportadora(await res.json());
+}
+
+export async function salvarTransportadoraCliente(
+  clienteId: string | number,
+  data: TransportadoraPayload,
+) {
+  const res = await fetch(`${BASE_URL}/clientes/${clienteId}/transportadora`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: "Erro ao salvar transportadora" }));
+    throw new Error(mensagemCliente(err.message, "Não foi possível salvar a transportadora."));
+  }
+  return mapTransportadora(await res.json());
+}
+
+export async function removerTransportadoraCliente(clienteId: string | number) {
+  const res = await fetch(`${BASE_URL}/clientes/${clienteId}/transportadora`, {
+    method: "DELETE",
+  });
+  if (!res.ok) throw new Error("Erro ao remover a transportadora");
+  return { ok: true };
+}
