@@ -71,6 +71,7 @@ type Cliente = {
   cidade: string;
   estado: string;
   inscricaoEstadual: string;
+  tipo?: "CLIENTE" | "TRANSPORTADORA" | "LOJISTA";
 };
 
 type FiltroCliente =
@@ -98,6 +99,7 @@ function Clientes() {
   });
 
   const [busca, setBusca] = useState("");
+<<<<<<< HEAD
   const [filtro, setFiltro] =
     useState<FiltroCliente>("todos");
 
@@ -127,6 +129,22 @@ function Clientes() {
 
     let lista = clientes;
 
+=======
+  const [filtro, setFiltro] = useState<FiltroCliente>("todos");
+  const [abaAtual, setAbaAtual] = useState<"CLIENTE" | "TRANSPORTADORA" | "LOJISTA">("CLIENTE");
+  const [modalAberto, setModalAberto] = useState(false);
+  const [modalTipo, setModalTipo] = useState<"CLIENTE" | "TRANSPORTADORA" | "LOJISTA">("CLIENTE");
+  const [editando, setEditando] = useState<Cliente | null>(null);
+  const [formInicial, setFormInicial] = useState<ClienteFormData>(clienteFormVazio);
+  const [salvando, setSalvando] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+  const [confirmDel, setConfirmDel] = useState<Cliente | null>(null);
+  const [perfilAberto, setPerfilAberto] = useState<Cliente | null>(null);
+
+  const filtrados = useMemo(() => {
+    const q = busca.trim().toLowerCase();
+    let lista = clientes.filter(c => (c.tipo || "CLIENTE") === abaAtual);
+>>>>>>> f1111f1 (Atualiza cadastro)
     if (q) {
       lista = lista.filter((c) =>
         c.nome.toLowerCase().includes(q),
@@ -167,10 +185,11 @@ function Clientes() {
 
       return true;
     });
-  }, [clientes, vendas, busca, filtro]);
+  }, [clientes, vendas, busca, filtro, abaAtual]);
 
-  function abrirNovo() {
+  function abrirNovo(tipo: "CLIENTE" | "TRANSPORTADORA" | "LOJISTA") {
     setEditando(null);
+<<<<<<< HEAD
 
     // Usa o objeto completo, incluindo os campos
     // da transportadora.
@@ -178,7 +197,11 @@ function Clientes() {
       ...clienteFormVazio,
     });
 
+=======
+    setFormInicial({ ...clienteFormVazio, tipo });
+>>>>>>> f1111f1 (Atualiza cadastro)
     setErro(null);
+    setModalTipo(tipo);
     setModalAberto(true);
   }
 
@@ -222,11 +245,18 @@ function Clientes() {
       bairro: c.bairro ?? "",
       cidade: c.cidade ?? "",
       estado: c.estado ?? "",
+<<<<<<< HEAD
 
       inscricaoEstadual:
         c.inscricaoEstadual ?? "",
     });
 
+=======
+      inscricaoEstadual: c.inscricaoEstadual ?? "",
+      tipo: c.tipo || "CLIENTE",
+    });
+    setModalTipo(c.tipo || "CLIENTE");
+>>>>>>> f1111f1 (Atualiza cadastro)
     setErro(null);
     setModalAberto(true);
   }
@@ -261,6 +291,7 @@ function Clientes() {
           data: form,
         });
       }
+<<<<<<< HEAD
 
       await qc.invalidateQueries({
         queryKey: ["clientes"],
@@ -270,6 +301,12 @@ function Clientes() {
         editando
           ? "Cliente atualizado com sucesso."
           : "Cliente cadastrado com sucesso.",
+=======
+      qc.invalidateQueries({ queryKey: ["clientes"] });
+      const nomeEntidade = modalTipo === "TRANSPORTADORA" ? "Transportadora" : modalTipo === "LOJISTA" ? "Lojista" : "Cliente";
+      toast.success(
+        editando ? "Cadastro atualizado com sucesso." : `${nomeEntidade} cadastrado(a) com sucesso.`,
+>>>>>>> f1111f1 (Atualiza cadastro)
       );
 
       fecharModal();
@@ -350,6 +387,7 @@ function Clientes() {
             .
           </p>
         </div>
+<<<<<<< HEAD
 
         <button
           onClick={abrirNovo}
@@ -358,7 +396,49 @@ function Clientes() {
           <Plus size={16} />
           Novo Cliente
         </button>
+=======
+        <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+          <button
+            onClick={() => abrirNovo("TRANSPORTADORA")}
+            className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 bg-secondary text-primary font-bold text-sm px-4 py-3 rounded-md hover:bg-beige-dark shadow-warm-sm"
+          >
+            <Plus size={16} /> Adicionar transportadora
+          </button>
+          <button
+            onClick={() => abrirNovo("LOJISTA")}
+            className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 bg-secondary text-primary font-bold text-sm px-4 py-3 rounded-md hover:bg-beige-dark shadow-warm-sm"
+          >
+            <Plus size={16} /> Adicionar lojista
+          </button>
+          <button
+            onClick={() => abrirNovo("CLIENTE")}
+            className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground font-bold text-sm px-5 py-3 rounded-md hover:bg-primary-dark shadow-warm-sm"
+          >
+            <Plus size={16} /> Novo Cliente
+          </button>
+        </div>
+>>>>>>> f1111f1 (Atualiza cadastro)
       </header>
+
+      <div className="flex border-b border-border">
+        {(["CLIENTE", "TRANSPORTADORA", "LOJISTA"] as const).map((aba) => (
+          <button
+            key={aba}
+            onClick={() => setAbaAtual(aba)}
+            className={`px-5 py-3 text-sm font-bold border-b-2 -mb-px transition-colors ${
+              abaAtual === aba
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground hover:border-muted"
+            }`}
+          >
+            {aba === "CLIENTE"
+              ? "Clientes"
+              : aba === "TRANSPORTADORA"
+                ? "Transportadoras"
+                : "Lojistas"}
+          </button>
+        ))}
+      </div>
 
       <div className="flex flex-wrap items-center gap-3 justify-between">
         <div className="relative max-w-md flex-1 min-w-[220px]">
@@ -562,8 +642,17 @@ function Clientes() {
         aberto={modalAberto}
         titulo={
           editando
+<<<<<<< HEAD
             ? "Editar cliente"
             : "Novo cliente"
+=======
+            ? "Editar cadastro"
+            : modalTipo === "TRANSPORTADORA"
+              ? "Nova transportadora"
+              : modalTipo === "LOJISTA"
+                ? "Novo lojista"
+                : "Novo cliente"
+>>>>>>> f1111f1 (Atualiza cadastro)
         }
         inicial={formInicial}
         clienteId={editando?.id ?? null}
