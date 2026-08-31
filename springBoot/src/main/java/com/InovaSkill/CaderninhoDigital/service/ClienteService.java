@@ -3,7 +3,6 @@ package com.InovaSkill.CaderninhoDigital.service;
 import com.InovaSkill.CaderninhoDigital.dto.request.ClienteRequestDTO;
 import com.InovaSkill.CaderninhoDigital.dto.response.ClienteResponseDTO;
 import com.InovaSkill.CaderninhoDigital.entity.Cliente;
-import com.InovaSkill.CaderninhoDigital.entity.TipoCliente;
 import com.InovaSkill.CaderninhoDigital.entity.Usuario;
 import com.InovaSkill.CaderninhoDigital.exception.ResourceNotFoundException;
 import com.InovaSkill.CaderninhoDigital.exception.BusinessException;
@@ -41,7 +40,6 @@ public class ClienteService {
                 .estado(dto.getEstado())
                 .inscricaoEstadual(dto.getInscricaoEstadual())
                 .ativo(dto.getAtivo())
-                .tipo(dto.getTipo() != null ? dto.getTipo() : TipoCliente.CLIENTE)
                 .gestor(gestor)
                 .build();
         return toResponse(clienteRepository.save(cliente));
@@ -94,9 +92,6 @@ public class ClienteService {
         cliente.setEstado(dto.getEstado());
         cliente.setInscricaoEstadual(dto.getInscricaoEstadual());
         cliente.setAtivo(dto.getAtivo() != null ? dto.getAtivo() : cliente.getAtivo());
-        if (dto.getTipo() != null) {
-            cliente.setTipo(dto.getTipo());
-        }
         return toResponse(clienteRepository.save(cliente));
     }
 
@@ -126,7 +121,6 @@ public class ClienteService {
                 .estado(cliente.getEstado())
                 .inscricaoEstadual(cliente.getInscricaoEstadual())
                 .ativo(cliente.getAtivo())
-                .tipo(cliente.getTipo())
                 .gestorId(cliente.getGestor().getId())
                 .gestorNome(cliente.getGestor().getNome())
                 .build();

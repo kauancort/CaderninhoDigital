@@ -41,18 +41,15 @@ describe("contrato do chat da assistente", () => {
 
     expect(resposta.resposta).toBe("Resposta segura");
     expect(apiRequest).toHaveBeenCalledOnce();
-    expect(apiRequest).toHaveBeenCalledWith(
-      "/assistente/conversa",
-      expect.objectContaining({
-        method: "POST",
-        body: JSON.stringify({
-          mensagem: "Como estão as vendas?",
-          historico: [{ autor: "assistente", texto: "Como posso ajudar?" }],
-          versaoContrato: "1.1",
-        }),
-        signal: expect.any(AbortSignal),
+    expect(apiRequest).toHaveBeenCalledWith("/assistente/conversa", expect.objectContaining({
+      method: "POST",
+      body: JSON.stringify({
+        mensagem: "Como estão as vendas?",
+        historico: [{ autor: "assistente", texto: "Como posso ajudar?" }],
+        versaoContrato: "1.1",
       }),
-    );
+      signal: expect.any(AbortSignal),
+    }));
   });
 
   it("rejeita campos extras antes da chamada HTTP", async () => {
@@ -87,13 +84,7 @@ describe("contrato do chat da assistente", () => {
       resposta: "Resumo",
       versaoContrato: "1.1",
       status: "SUCESSO",
-      dados: {
-        tipo: "VENDAS",
-        valorTotalValido: 10,
-        quantidadeVendas: 1,
-        ticketMedio: 10,
-        quantidadeItens: 1,
-      },
+      dados: { tipo: "VENDAS", valorTotalValido: 10, quantidadeVendas: 1, ticketMedio: 10, quantidadeItens: 1 },
       acoesSugeridas: [],
       origem: "CAMINHO_RAPIDO",
       avisos: ["Dados parciais"],
@@ -115,138 +106,63 @@ describe("contrato do chat da assistente", () => {
       status: "SUCESSO",
       dados: {
         tipo: "COMPARACAO_VENDAS_GASTOS",
-        vendas: {
-          tipo: "VENDAS",
-          valorTotalValido: 18000,
-          quantidadeVendas: 20,
-          ticketMedio: 900,
-          quantidadeItens: 100,
-        },
+        vendas: { tipo: "VENDAS", valorTotalValido: 18000, quantidadeVendas: 20, ticketMedio: 900, quantidadeItens: 100 },
         gastos: { tipo: "GASTOS", totalGastos: 11000, quantidadeLancamentos: 8 },
-        comparacao: {
-          vendas: 18000,
-          gastos: 11000,
-          diferenca: 7000,
-          percentualVendasSobreGastos: 163.64,
-        },
+        comparacao: { vendas: 18000, gastos: 11000, diferenca: 7000, percentualVendasSobreGastos: 163.64 },
       },
-      acoesSugeridas: [],
-      origem: "ORQUESTRADOR",
-      avisos: [],
-      qualidade: "COMPLETO",
-      correlacao: "corr",
+      acoesSugeridas: [], origem: "ORQUESTRADOR", avisos: [], qualidade: "COMPLETO", correlacao: "corr",
     });
-    const resposta = await conversarComAssistente({
-      mensagem: "Compare vendas e gastos",
-      historico: [],
-    });
+    const resposta = await conversarComAssistente({ mensagem: "Compare vendas e gastos", historico: [] });
     expect(resposta.dados?.tipo).toBe("COMPARACAO_VENDAS_GASTOS");
   });
 
   it("aceita a análise estruturada de rentabilidade do fast path", async () => {
     const modalidade = {
-      tipo: "UNIDADE",
-      unidadesPorModalidade: 1,
-      preco: 2.39,
-      precoEquivalenteUnidade: 2.3879,
-      margemConhecidaUnidade: 2.0799,
-      margemPercentual: 87.1,
-      quantidadeVendidaUnidades: 107,
-      receita: 255.5,
-      fonte: "VENDAS_REAIS",
+      tipo: "UNIDADE", unidadesPorModalidade: 1, preco: 2.39, precoEquivalenteUnidade: 2.3879,
+      margemConhecidaUnidade: 2.0799, margemPercentual: 87.1, quantidadeVendidaUnidades: 107,
+      receita: 255.5, fonte: "VENDAS_REAIS",
     };
     apiRequest.mockResolvedValue({
       resposta: "Considerando os custos cadastrados, a venda não está no prejuízo.",
-      versaoContrato: "1.1",
-      status: "SUCESSO",
-      origem: "CAMINHO_RAPIDO",
-      qualidade: "PARCIAL",
-      acoesSugeridas: [],
-      avisos: ["Não representa lucro líquido"],
-      correlacao: "corr",
-      periodoInicio: "2026-07-18",
-      periodoFim: "2026-08-16",
-      atualizadoEm: "2026-08-16T16:06:56Z",
+      versaoContrato: "1.1", status: "SUCESSO", origem: "CAMINHO_RAPIDO", qualidade: "PARCIAL",
+      acoesSugeridas: [], avisos: ["Não representa lucro líquido"], correlacao: "corr",
+      periodoInicio: "2026-07-18", periodoFim: "2026-08-16", atualizadoEm: "2026-08-16T16:06:56Z",
       dados: {
-        tipo: "RENTABILIDADE_PRODUTO",
-        produtoId: 1,
-        produto: "Paçoca",
-        periodoInicio: "2026-07-18",
-        periodoFim: "2026-08-16",
-        custo: {
-          custoConhecidoUnidade: 0.308,
-          custoProducaoConhecido: 73.93,
-          quantidadeProduzida: 240,
-          criterio: "MEDIA_PONDERADA_PRODUCOES_PERIODO",
-          custosConsiderados: ["Amendoim"],
-          custosNaoDisponiveis: ["energia"],
-          componentes: [{ nome: "Amendoim", custoConhecido: 39.53, percentual: 53.47 }],
-        },
-        vendas: {
-          precoCadastradoUnidade: 2.5,
-          quantidadeVendida: 107,
-          receita: 255.5,
-          precoMedioReal: 2.3879,
-          menorPrecoReal: 2.3,
-          maiorPrecoReal: 2.5,
-          itensVenda: 4,
-          modalidades: [modalidade],
-        },
-        modalidades: [modalidade],
+        tipo: "RENTABILIDADE_PRODUTO", produtoId: 1, produto: "Paçoca",
+        periodoInicio: "2026-07-18", periodoFim: "2026-08-16",
+        custo: { custoConhecidoUnidade: 0.308, custoProducaoConhecido: 73.93,
+          quantidadeProduzida: 240, criterio: "MEDIA_PONDERADA_PRODUCOES_PERIODO",
+          custosConsiderados: ["Amendoim"], custosNaoDisponiveis: ["energia"],
+          componentes: [{ nome: "Amendoim", custoConhecido: 39.53, percentual: 53.47 }] },
+        vendas: { precoCadastradoUnidade: 2.5, quantidadeVendida: 107, receita: 255.5,
+          precoMedioReal: 2.3879, menorPrecoReal: 2.3, maiorPrecoReal: 2.5, itensVenda: 4,
+          modalidades: [modalidade] }, modalidades: [modalidade],
         principalComponenteCusto: { nome: "Amendoim", custoConhecido: 39.53, percentual: 53.47 },
-        mercado: {
-          menorPrecoComparavel: null,
-          mediana: null,
-          maiorPrecoComparavel: null,
-          referenciasValidas: 0,
-          posicao: "DADOS_INSUFICIENTES",
-          pesquisadoEm: "2026-08-16T16:06:56Z",
-          referencias: [],
-          aviso: "Poucas referências comparáveis.",
-        },
-        estimativaCustosIndiretos: {
-          status: "DADOS_INSUFICIENTES",
-          criterio: "MEDIANA_REFERENCIAS_EXTERNAS",
-          precoBaseUnidade: 2.3879,
-          custoIndiretoEstimadoUnidade: null,
-          custoTotalEstimadoUnidade: null,
-          margemEstimadaUnidade: null,
-          margemEstimadaPercentual: null,
-          componentes: [],
-          custosNaoEstimados: [
-            "energia: menos de 2 referências independentes com percentual aplicável",
-          ],
-          aviso:
-            "Cenário externo indicativo; não substitui custos cadastrados nem apuração contábil.",
-        },
-        situacao: "MARGEM_CONHECIDA_POSITIVA",
-        informacaoNecessaria: null,
+        mercado: { menorPrecoComparavel: null, mediana: null, maiorPrecoComparavel: null,
+          referenciasValidas: 0, posicao: "DADOS_INSUFICIENTES", pesquisadoEm: "2026-08-16T16:06:56Z",
+          referencias: [], aviso: "Poucas referências comparáveis." },
+        estimativaCustosIndiretos: { status: "DADOS_INSUFICIENTES",
+          criterio: "MEDIANA_REFERENCIAS_EXTERNAS", precoBaseUnidade: 2.3879,
+          custoIndiretoEstimadoUnidade: null, custoTotalEstimadoUnidade: null,
+          margemEstimadaUnidade: null, margemEstimadaPercentual: null, componentes: [],
+          custosNaoEstimados: ["energia: menos de 2 referências independentes com percentual aplicável"],
+          aviso: "Cenário externo indicativo; não substitui custos cadastrados nem apuração contábil." },
+        situacao: "MARGEM_CONHECIDA_POSITIVA", informacaoNecessaria: null,
       },
     });
 
-    const resposta = await conversarComAssistente({
-      mensagem: "Estou vendendo paçoca no prejuízo?",
-      historico: [],
-    });
+    const resposta = await conversarComAssistente({ mensagem: "Estou vendendo paçoca no prejuízo?", historico: [] });
     expect(resposta.dados?.tipo).toBe("RENTABILIDADE_PRODUTO");
     expect(resposta.origem).toBe("CAMINHO_RAPIDO");
   });
 
   it("rejeita campo desconhecido na resposta do backend", async () => {
     apiRequest.mockResolvedValue({
-      resposta: "Resumo",
-      versaoContrato: "1.1",
-      status: "SUCESSO",
+      resposta: "Resumo", versaoContrato: "1.1", status: "SUCESSO",
       dados: { tipo: "GASTOS", totalGastos: 10, quantidadeLancamentos: 1, sql: "não permitido" },
-      acoesSugeridas: [],
-      origem: "CAMINHO_RAPIDO",
-      avisos: [],
-      qualidade: "COMPLETO",
-      correlacao: null,
+      acoesSugeridas: [], origem: "CAMINHO_RAPIDO", avisos: [], qualidade: "COMPLETO", correlacao: null,
     });
-    await expect(
-      conversarComAssistente({ acaoRapida: "RESUMIR_GASTOS", historico: [] }),
-    ).rejects.toThrow();
+    await expect(conversarComAssistente({ acaoRapida: "RESUMIR_GASTOS", historico: [] })).rejects.toThrow();
   });
 
   it("traduz erros técnicos para orientações simples", () => {
@@ -259,9 +175,9 @@ describe("contrato do chat da assistente", () => {
     expect(mensagemErroAssistente(new ApiError("segredo técnico", 504, "TIMEOUT"))).toContain(
       "demorou",
     );
-    expect(mensagemErroAssistente(new ApiError("segredo técnico", 502, "PLANO_INVALIDO"))).toBe(
-      "Esta consulta ainda não está disponível.",
-    );
+    expect(
+      mensagemErroAssistente(new ApiError("segredo técnico", 502, "PLANO_INVALIDO")),
+    ).toBe("Esta consulta ainda não está disponível.");
     expect(
       mensagemErroAssistente(new ApiError("segredo técnico", 503, "PROVEDOR_INDISPONIVEL")),
     ).toContain("indisponível");

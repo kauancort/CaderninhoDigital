@@ -8,7 +8,12 @@ const InterpretarInput = z
   })
   .strict();
 
-export type VozTipo = "venda" | "compra" | "producao" | "gasto" | "desconhecido";
+export type VozTipo =
+  | "venda"
+  | "compra"
+  | "producao"
+  | "gasto"
+  | "desconhecido";
 
 export type ItemVendaParsed = {
   produto_final_id: string | null;
@@ -38,7 +43,13 @@ export type ProducaoParsed = {
 
 export type GastoParsed = {
   descricao: string;
-  categoria: "materia-prima" | "embalagens" | "energia" | "aluguel" | "transporte" | "outros";
+  categoria:
+    | "materia-prima"
+    | "embalagens"
+    | "energia"
+    | "aluguel"
+    | "transporte"
+    | "outros";
   valor: number | null;
 };
 
@@ -50,7 +61,13 @@ export type VozResultado = {
   venda?: {
     itens: ItemVendaParsed[];
     comprador: string | null;
-    forma_pagamento: "dinheiro" | "pix" | "cartao" | "boleto" | "cheque" | "outro";
+    forma_pagamento:
+      | "dinheiro"
+      | "pix"
+      | "cartao"
+      | "boleto"
+      | "cheque"
+      | "outro";
   };
   compras?: CompraParsed[];
   producao?: ProducaoParsed;
@@ -58,7 +75,11 @@ export type VozResultado = {
 };
 
 // A chave do provedor de IA deve existir somente no Spring Boot.
-export async function interpretarVoz({ data }: { data: unknown }): Promise<VozResultado> {
+export async function interpretarVoz({
+  data,
+}: {
+  data: unknown;
+}): Promise<VozResultado> {
   const parsedData = InterpretarInput.parse(data);
 
   return apiRequest<VozResultado>("/assistente/interpretar-voz", {
