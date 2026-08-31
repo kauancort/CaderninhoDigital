@@ -81,6 +81,14 @@ export const clienteSchema = z.object({
     .max(40)
     .optional()
     .default(""),
+<<<<<<< HEAD
+=======
+  bairro: z.string().trim().min(1, "Informe o bairro.").max(120),
+  cidade: z.string().trim().min(1, "Informe a cidade.").max(120),
+  estado: z.enum(UFS_BRASIL, { message: "Selecione o estado." }),
+  inscricaoEstadual: z.string().max(40).optional().default(""),
+  tipo: z.enum(["CLIENTE", "TRANSPORTADORA", "LOJISTA"]).optional().default("CLIENTE"),
+>>>>>>> f1111f1 (Atualiza cadastro)
 });
 
 export type Transportadora = {
@@ -158,6 +166,7 @@ function mapCliente(c: any) {
     cidade: c.cidade || "",
     estado: c.estado || "",
     inscricaoEstadual: c.inscricaoEstadual || "",
+    tipo: c.tipo || "CLIENTE",
   };
 }
 
@@ -177,6 +186,7 @@ export function clientePayload(
     cidade: data.cidade,
     estado: data.estado,
     inscricaoEstadual: data.inscricaoEstadual || null,
+    tipo: data.tipo,
     ativo: true,
   };
 }

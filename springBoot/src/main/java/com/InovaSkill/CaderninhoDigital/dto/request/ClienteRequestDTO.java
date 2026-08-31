@@ -4,6 +4,7 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
+import com.InovaSkill.CaderninhoDigital.entity.TipoCliente;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -42,4 +43,5 @@ public class ClienteRequestDTO {
     @Size(max = 40, message = "A inscrição estadual deve ter no máximo 40 caracteres")
     private String inscricaoEstadual;
     private Boolean ativo;
+    private TipoCliente tipo;
 }

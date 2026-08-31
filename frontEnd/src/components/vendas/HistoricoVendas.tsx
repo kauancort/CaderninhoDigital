@@ -97,13 +97,13 @@ export function HistoricoVendas() {
 
   const ativos = Boolean(
     filtros.busca ||
-      filtros.clienteId ||
-      filtros.produtoId ||
-      filtros.inicio ||
-      filtros.fim ||
-      filtros.status ||
-      filtros.forma ||
-      filtros.parcelamento,
+    filtros.clienteId ||
+    filtros.produtoId ||
+    filtros.inicio ||
+    filtros.fim ||
+    filtros.status ||
+    filtros.forma ||
+    filtros.parcelamento,
   );
 
   function alterar(campo: keyof typeof filtros, valor: string) {
@@ -121,10 +121,7 @@ export function HistoricoVendas() {
 
   return (
     <div className="space-y-6">
-      <ResumoHistorico
-        carregando={resumoQuery.isLoading}
-        dados={resumoQuery.data}
-      />
+      <ResumoHistorico carregando={resumoQuery.isLoading} dados={resumoQuery.data} />
 
       <FiltrosRecolhiveis
         titulo="Filtros do histórico"
@@ -148,9 +145,7 @@ export function HistoricoVendas() {
               className="ds-input ds-input-search"
               placeholder="Cliente, produto ou observação"
               value={filtros.busca}
-              onChange={(event) =>
-                alterar("busca", event.target.value)
-              }
+              onChange={(event) => alterar("busca", event.target.value)}
             />
           </label>
 
@@ -158,24 +153,20 @@ export function HistoricoVendas() {
             label="Cliente"
             value={filtros.clienteId}
             onChange={(value) => alterar("clienteId", value)}
-            options={(clientesQuery.data?.registros ?? []).map(
-              (item: any) => ({
-                value: String(item.id),
-                label: item.nome,
-              }),
-            )}
+            options={(clientesQuery.data?.registros ?? []).map((item: any) => ({
+              value: String(item.id),
+              label: item.nome,
+            }))}
           />
 
           <Select
             label="Produto"
             value={filtros.produtoId}
             onChange={(value) => alterar("produtoId", value)}
-            options={(produtosQuery.data?.registros ?? []).map(
-              (item: any) => ({
-                value: String(item.id),
-                label: item.nome,
-              }),
-            )}
+            options={(produtosQuery.data?.registros ?? []).map((item: any) => ({
+              value: String(item.id),
+              label: item.nome,
+            }))}
           />
 
           <Select
@@ -313,44 +304,23 @@ export function HistoricoVendas() {
                 <tr>
                   <th className="px-4 py-3">Data</th>
                   <th className="px-4 py-3">Venda / cliente</th>
-                  <th className="px-4 py-3 text-right">
-                    Itens
-                  </th>
-                  <th className="px-4 py-3">
-                    Pagamento
-                  </th>
-                  <th className="px-4 py-3">
-                    Status
-                  </th>
-                  <th className="px-4 py-3 text-right">
-                    Valor
-                  </th>
-                  <th className="px-4 py-3 text-right">
-                    Ação
-                  </th>
+                  <th className="px-4 py-3 text-right">Itens</th>
+                  <th className="px-4 py-3">Pagamento</th>
+                  <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3 text-right">Valor</th>
+                  <th className="px-4 py-3 text-right">Ação</th>
                 </tr>
               </thead>
 
               <tbody className="divide-y divide-border">
                 {dados.registros.map((venda) => (
-                  <tr
-                    key={venda.id}
-                    className="hover:bg-secondary/30"
-                  >
-                    <td className="px-4 py-3">
-                      {formatarDataCobranca(
-                        venda.dataVenda,
-                      )}
-                    </td>
+                  <tr key={venda.id} className="hover:bg-secondary/30">
+                    <td className="px-4 py-3">{formatarDataCobranca(venda.dataVenda)}</td>
 
                     <td className="px-4 py-3">
-                      <strong className="block text-foreground">
-                        Nº da venda: {venda.id}
-                      </strong>
+                      <strong className="block text-foreground">Nº da venda: {venda.id}</strong>
 
-                      <span className="text-xs text-muted-foreground">
-                        {venda.clienteNome}
-                      </span>
+                      <span className="text-xs text-muted-foreground">{venda.clienteNome}</span>
                     </td>
 
                     <td className="px-4 py-3 text-right tabular-nums">
@@ -358,21 +328,13 @@ export function HistoricoVendas() {
                     </td>
 
                     <td className="px-4 py-3">
-                      {rotuloForma(
-                        venda.formaPagamento,
-                      )}
+                      {rotuloForma(venda.formaPagamento)}
 
-                      {venda.parcelas &&
-                      venda.parcelas > 1
-                        ? ` • ${venda.parcelas}x`
-                        : ""}
+                      {venda.parcelas && venda.parcelas > 1 ? ` • ${venda.parcelas}x` : ""}
                     </td>
 
                     <td className="px-4 py-3">
-                      <StatusBadge
-                        status={venda.statusPagamento}
-                        atraso={venda.emAtraso}
-                      />
+                      <StatusBadge status={venda.statusPagamento} atraso={venda.emAtraso} />
                     </td>
 
                     <td className="px-4 py-3 text-right font-display font-bold text-primary tabular-nums">
@@ -382,9 +344,7 @@ export function HistoricoVendas() {
                     <td className="px-4 py-3 text-right">
                       <button
                         type="button"
-                        onClick={() =>
-                          setSelecionada(venda.id)
-                        }
+                        onClick={() => setSelecionada(venda.id)}
                         className="inline-flex min-h-10 items-center gap-1.5 rounded-md bg-secondary px-3 text-xs font-bold text-primary hover:bg-beige-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                       >
                         <Eye size={14} />
@@ -400,85 +360,50 @@ export function HistoricoVendas() {
           {/* Cards para mobile */}
           <div className="grid gap-3 md:hidden">
             {dados.registros.map((venda) => (
-              <article
-                key={venda.id}
-                className="rounded-2xl border border-border bg-card p-4"
-              >
+              <article key={venda.id} className="rounded-2xl border border-border bg-card p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <strong>
-                      Nº da venda: {venda.id}
-                    </strong>
+                    <strong>Nº da venda: {venda.id}</strong>
 
-                    <p className="text-xs text-muted-foreground">
-                      {venda.clienteNome}
-                    </p>
+                    <p className="text-xs text-muted-foreground">{venda.clienteNome}</p>
                   </div>
 
-                  <StatusBadge
-                    status={venda.statusPagamento}
-                    atraso={venda.emAtraso}
-                  />
+                  <StatusBadge status={venda.statusPagamento} atraso={venda.emAtraso} />
                 </div>
 
                 <dl className="mt-3 grid grid-cols-2 gap-2 text-xs">
                   <div>
-                    <dt className="text-muted-foreground">
-                      Data
-                    </dt>
+                    <dt className="text-muted-foreground">Data</dt>
+
+                    <dd>{formatarDataCobranca(venda.dataVenda)}</dd>
+                  </div>
+
+                  <div>
+                    <dt className="text-muted-foreground">Itens</dt>
+
+                    <dd>{Number(venda.quantidadeItens)}</dd>
+                  </div>
+
+                  <div>
+                    <dt className="text-muted-foreground">Pagamento</dt>
 
                     <dd>
-                      {formatarDataCobranca(
-                        venda.dataVenda,
-                      )}
+                      {rotuloForma(venda.formaPagamento)}
+
+                      {venda.parcelas && venda.parcelas > 1 ? ` • ${venda.parcelas}x` : ""}
                     </dd>
                   </div>
 
                   <div>
-                    <dt className="text-muted-foreground">
-                      Itens
-                    </dt>
+                    <dt className="text-muted-foreground">Valor</dt>
 
-                    <dd>
-                      {Number(
-                        venda.quantidadeItens,
-                      )}
-                    </dd>
-                  </div>
-
-                  <div>
-                    <dt className="text-muted-foreground">
-                      Pagamento
-                    </dt>
-
-                    <dd>
-                      {rotuloForma(
-                        venda.formaPagamento,
-                      )}
-
-                      {venda.parcelas &&
-                      venda.parcelas > 1
-                        ? ` • ${venda.parcelas}x`
-                        : ""}
-                    </dd>
-                  </div>
-
-                  <div>
-                    <dt className="text-muted-foreground">
-                      Valor
-                    </dt>
-
-                    <dd className="font-bold text-primary">
-                      {fmtBRL(venda.valorTotal)}
-                    </dd>
+                    <dd className="font-bold text-primary">{fmtBRL(venda.valorTotal)}</dd>
                   </div>
                 </dl>
 
                 <button
                   type="button"
-                  onClick={() =>
-                    setSelecionada(venda.id)
-                  }
+                  onClick={() => setSelecionada(venda.id)}
                   className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-secondary text-sm font-bold text-primary"
                 >
                   <Eye size={15} />
@@ -495,31 +420,16 @@ export function HistoricoVendas() {
         paginas={dados?.totalPaginas ?? 0}
         anterior={Boolean(dados?.temAnterior)}
         proxima={Boolean(dados?.temProxima)}
-        onAnterior={() =>
-          setPagina((valor) =>
-            Math.max(0, valor - 1),
-          )
-        }
-        onProxima={() =>
-          setPagina((valor) => valor + 1)
-        }
+        onAnterior={() => setPagina((valor) => Math.max(0, valor - 1))}
+        onProxima={() => setPagina((valor) => valor + 1)}
       />
 
-      <VendaDetalhesDialog
-        vendaId={selecionada}
-        onClose={() => setSelecionada(null)}
-      />
+      <VendaDetalhesDialog vendaId={selecionada} onClose={() => setSelecionada(null)} />
     </div>
   );
 }
 
-function ResumoHistorico({
-  carregando,
-  dados,
-}: {
-  carregando: boolean;
-  dados?: any;
-}) {
+function ResumoHistorico({ carregando, dados }: { carregando: boolean; dados?: any }) {
   const cards = [
     {
       label: "Faturamento no período",
@@ -527,15 +437,11 @@ function ResumoHistorico({
     },
     {
       label: "Quantidade de vendas",
-      value: String(
-        dados?.quantidadeVendas ?? 0,
-      ),
+      value: String(dados?.quantidadeVendas ?? 0),
     },
     {
       label: "Itens vendidos",
-      value: String(
-        Number(dados?.quantidadeItens ?? 0),
-      ),
+      value: String(Number(dados?.quantidadeItens ?? 0)),
     },
     {
       label: "Ticket médio",
@@ -585,28 +491,13 @@ function Select({
 }) {
   return (
     <label className="space-y-1">
-      <span className="text-xs font-semibold text-muted-foreground">
-        {label}
-      </span>
+      <span className="text-xs font-semibold text-muted-foreground">{label}</span>
 
-      <select
-        className="ds-input"
-        value={value}
-        onChange={(e) =>
-          onChange(e.target.value)
-        }
-      >
-        {allLabel && (
-          <option value="">
-            {allLabel}
-          </option>
-        )}
+      <select className="ds-input" value={value} onChange={(e) => onChange(e.target.value)}>
+        {allLabel && <option value="">{allLabel}</option>}
 
         {options.map((option) => (
-          <option
-            key={option.value}
-            value={option.value}
-          >
+          <option key={option.value} value={option.value}>
             {option.label}
           </option>
         ))}
@@ -626,29 +517,19 @@ function CampoData({
 }) {
   return (
     <label className="space-y-1">
-      <span className="text-xs font-semibold text-muted-foreground">
-        {label}
-      </span>
+      <span className="text-xs font-semibold text-muted-foreground">{label}</span>
 
       <input
         type="date"
         className="ds-input"
         value={value}
-        onChange={(event) =>
-          onChange(event.target.value)
-        }
+        onChange={(event) => onChange(event.target.value)}
       />
     </label>
   );
 }
 
-export function StatusBadge({
-  status,
-  atraso,
-}: {
-  status: string;
-  atraso?: boolean;
-}) {
+export function StatusBadge({ status, atraso }: { status: string; atraso?: boolean }) {
   const label = atraso
     ? "Em atraso"
     : ({
@@ -671,11 +552,7 @@ export function StatusBadge({
     <span
       className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-wider ${classe}`}
     >
-      {(atraso ||
-        status === "ATRASADO") && (
-        <AlertTriangle size={10} />
-      )}{" "}
-      {label}
+      {(atraso || status === "ATRASADO") && <AlertTriangle size={10} />} {label}
     </span>
   );
 }
@@ -693,10 +570,7 @@ function Paginacao(props: {
   }
 
   return (
-    <nav
-      className="flex items-center justify-center gap-3"
-      aria-label="Paginação"
-    >
+    <nav className="flex items-center justify-center gap-3" aria-label="Paginação">
       <button
         className="ds-button-secondary px-3 py-2"
         disabled={!props.anterior}
@@ -707,8 +581,7 @@ function Paginacao(props: {
       </button>
 
       <span className="text-sm text-muted-foreground">
-        Página {props.pagina + 1} de{" "}
-        {props.paginas}
+        Página {props.pagina + 1} de {props.paginas}
       </span>
 
       <button
@@ -726,33 +599,19 @@ function Paginacao(props: {
 function ListaSkeleton() {
   return (
     <div className="space-y-2 rounded-2xl border border-border bg-card p-4">
-      {Array.from({ length: 6 }).map(
-        (_, index) => (
-          <Skeleton
-            key={index}
-            className="h-14 w-full"
-          />
-        ),
-      )}
+      {Array.from({ length: 6 }).map((_, index) => (
+        <Skeleton key={index} className="h-14 w-full" />
+      ))}
     </div>
   );
 }
 
-function EstadoErro({
-  onRetry,
-}: {
-  onRetry: () => void;
-}) {
+function EstadoErro({ onRetry }: { onRetry: () => void }) {
   return (
     <div className="rounded-2xl border border-error/30 bg-error-bg/30 p-10 text-center">
-      <AlertTriangle
-        className="mx-auto text-error"
-        size={32}
-      />
+      <AlertTriangle className="mx-auto text-error" size={32} />
 
-      <p className="mt-2 font-bold">
-        Não foi possível carregar o histórico.
-      </p>
+      <p className="mt-2 font-bold">Não foi possível carregar o histórico.</p>
 
       <button
         onClick={onRetry}
@@ -765,28 +624,17 @@ function EstadoErro({
   );
 }
 
-function EstadoVazio({
-  filtrado,
-}: {
-  filtrado: boolean;
-}) {
+function EstadoVazio({ filtrado }: { filtrado: boolean }) {
   return (
     <div className="rounded-2xl border border-dashed border-border bg-card p-12 text-center">
-      <ReceiptText
-        className="mx-auto text-muted-foreground"
-        size={34}
-      />
+      <ReceiptText className="mx-auto text-muted-foreground" size={34} />
 
       <p className="mt-2 font-bold">
-        {filtrado
-          ? "Nenhuma venda encontrada"
-          : "Nenhuma venda registrada"}
+        {filtrado ? "Nenhuma venda encontrada" : "Nenhuma venda registrada"}
       </p>
 
       <p className="text-sm text-muted-foreground">
-        {filtrado
-          ? "Revise ou limpe os filtros selecionados."
-          : "As novas vendas aparecerão aqui."}
+        {filtrado ? "Revise ou limpe os filtros selecionados." : "As novas vendas aparecerão aqui."}
       </p>
     </div>
   );
