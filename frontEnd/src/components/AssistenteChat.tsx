@@ -74,384 +74,160 @@ function CardsValores({ itens }: { itens: Array<{ rotulo: string; valor: string 
 function DadosResultado({ dados }: { dados: NonNullable<AssistenteResposta["dados"]> }) {
   switch (dados.tipo) {
     case "VENDAS":
-      return (
-        <CardsValores
-          itens={[
-            { rotulo: "Total de vendas", valor: formatarMoeda(dados.valorTotalValido) },
-            { rotulo: "Quantidade de vendas", valor: formatarNumero(dados.quantidadeVendas) },
-            { rotulo: "Valor médio por venda", valor: formatarMoeda(dados.ticketMedio) },
-            { rotulo: "Itens vendidos", valor: formatarNumero(dados.quantidadeItens) },
-          ]}
-        />
-      );
+      return <CardsValores itens={[
+        { rotulo: "Total de vendas", valor: formatarMoeda(dados.valorTotalValido) },
+        { rotulo: "Quantidade de vendas", valor: formatarNumero(dados.quantidadeVendas) },
+        { rotulo: "Valor médio por venda", valor: formatarMoeda(dados.ticketMedio) },
+        { rotulo: "Itens vendidos", valor: formatarNumero(dados.quantidadeItens) },
+      ]} />;
     case "GASTOS":
-      return (
-        <CardsValores
-          itens={[
-            { rotulo: "Total de gastos", valor: formatarMoeda(dados.totalGastos) },
-            { rotulo: "Lançamentos", valor: formatarNumero(dados.quantidadeLancamentos) },
-          ]}
-        />
-      );
+      return <CardsValores itens={[
+        { rotulo: "Total de gastos", valor: formatarMoeda(dados.totalGastos) },
+        { rotulo: "Lançamentos", valor: formatarNumero(dados.quantidadeLancamentos) },
+      ]} />;
     case "RECEBIVEIS":
-      return (
-        <CardsValores
-          itens={[
-            { rotulo: "Total em aberto", valor: formatarMoeda(dados.totalEmAberto) },
-            { rotulo: "Total vencido", valor: formatarMoeda(dados.totalVencido) },
-            { rotulo: "Total a vencer", valor: formatarMoeda(dados.totalAVencer) },
-            { rotulo: "Cobranças", valor: formatarNumero(dados.quantidadeCobrancas) },
-          ]}
-        />
-      );
+      return <CardsValores itens={[
+        { rotulo: "Total em aberto", valor: formatarMoeda(dados.totalEmAberto) },
+        { rotulo: "Total vencido", valor: formatarMoeda(dados.totalVencido) },
+        { rotulo: "Total a vencer", valor: formatarMoeda(dados.totalAVencer) },
+        { rotulo: "Cobranças", valor: formatarNumero(dados.quantidadeCobrancas) },
+      ]} />;
     case "ESTOQUE":
-      return (
-        <>
-          <CardsValores
-            itens={[
-              { rotulo: "Itens críticos", valor: formatarNumero(dados.itensCriticos) },
-              { rotulo: "Itens avaliados", valor: formatarNumero(dados.itensAvaliados) },
-            ]}
-          />
-          {dados.itens.length > 0 && (
-            <details className="rounded-xl border border-border bg-card px-4 py-3">
-              <summary className="cursor-pointer font-semibold min-h-11 flex items-center">
-                Ver itens críticos
-              </summary>
-              <ul className="mt-2 space-y-2">
-                {dados.itens.map((item) => (
-                  <li key={`${item.nome}-${item.unidade}`}>
-                    <strong>{item.nome}</strong>: {formatarNumero(item.quantidadeAtual)}{" "}
-                    {item.unidade}
-                    <span className="text-muted-foreground">
-                      {" "}
-                      (mínimo: {formatarNumero(item.estoqueMinimo)})
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </details>
-          )}
-        </>
-      );
+      return <>
+        <CardsValores itens={[
+          { rotulo: "Itens críticos", valor: formatarNumero(dados.itensCriticos) },
+          { rotulo: "Itens avaliados", valor: formatarNumero(dados.itensAvaliados) },
+        ]} />
+        {dados.itens.length > 0 && <details className="rounded-xl border border-border bg-card px-4 py-3">
+          <summary className="cursor-pointer font-semibold min-h-11 flex items-center">Ver itens críticos</summary>
+          <ul className="mt-2 space-y-2">{dados.itens.map((item) => <li key={`${item.nome}-${item.unidade}`}>
+            <strong>{item.nome}</strong>: {formatarNumero(item.quantidadeAtual)} {item.unidade}
+            <span className="text-muted-foreground"> (mínimo: {formatarNumero(item.estoqueMinimo)})</span>
+          </li>)}</ul>
+        </details>}
+      </>;
     case "COMPARACAO_VENDAS_GASTOS":
-      return (
-        <>
-          <CardsValores
-            itens={[
-              { rotulo: "Vendas", valor: formatarMoeda(dados.comparacao.vendas) },
-              { rotulo: "Gastos", valor: formatarMoeda(dados.comparacao.gastos) },
-              { rotulo: "Diferença", valor: formatarMoeda(dados.comparacao.diferenca) },
-            ]}
-          />
-          <p className="font-semibold">
-            {dados.comparacao.diferenca >= 0
-              ? "As vendas ficaram acima dos gastos."
-              : "Os gastos ficaram acima das vendas."}
-          </p>
-          <p className="text-muted-foreground">
-            A diferença não representa necessariamente lucro líquido.
-          </p>
-        </>
-      );
+      return <>
+        <CardsValores itens={[
+          { rotulo: "Vendas", valor: formatarMoeda(dados.comparacao.vendas) },
+          { rotulo: "Gastos", valor: formatarMoeda(dados.comparacao.gastos) },
+          { rotulo: "Diferença", valor: formatarMoeda(dados.comparacao.diferenca) },
+        ]} />
+        <p className="font-semibold">{dados.comparacao.diferenca >= 0 ? "As vendas ficaram acima dos gastos." : "Os gastos ficaram acima das vendas."}</p>
+        <p className="text-muted-foreground">A diferença não representa necessariamente lucro líquido.</p>
+      </>;
     case "COMPARACAO_VENDAS_PERIODOS":
-      return (
-        <>
-          <CardsValores
-            itens={[
-              {
-                rotulo: `Período anterior (${dados.comparacao.diasPeriodoAnterior} dias)`,
-                valor: formatarMoeda(dados.comparacao.vendasPeriodoAnterior),
-              },
-              {
-                rotulo: `Período atual (${dados.comparacao.diasPeriodoAtual} dias)`,
-                valor: formatarMoeda(dados.comparacao.vendasPeriodoAtual),
-              },
-              { rotulo: "Diferença", valor: formatarMoeda(dados.comparacao.diferenca) },
-            ]}
-          />
-          <p className="font-semibold">
-            {dados.comparacao.diferenca >= 0 ? "As vendas aumentaram." : "As vendas diminuíram."}
-          </p>
-        </>
-      );
+      return <>
+        <CardsValores itens={[
+          { rotulo: `Período anterior (${dados.comparacao.diasPeriodoAnterior} dias)`, valor: formatarMoeda(dados.comparacao.vendasPeriodoAnterior) },
+          { rotulo: `Período atual (${dados.comparacao.diasPeriodoAtual} dias)`, valor: formatarMoeda(dados.comparacao.vendasPeriodoAtual) },
+          { rotulo: "Diferença", valor: formatarMoeda(dados.comparacao.diferenca) },
+        ]} />
+        <p className="font-semibold">{dados.comparacao.diferenca >= 0 ? "As vendas aumentaram." : "As vendas diminuíram."}</p>
+      </>;
     case "CUSTO_PRODUTO":
-      return (
-        <CardsValores
-          itens={[
-            { rotulo: "Custo atual conhecido", valor: formatarMoeda(dados.custoAtualConhecido) },
-            { rotulo: "Custo pela ficha", valor: formatarMoeda(dados.custoUnitarioFicha) },
-            { rotulo: "Componentes sem custo", valor: formatarNumero(dados.componentesSemCusto) },
-          ]}
-        />
-      );
+      return <CardsValores itens={[
+        { rotulo: "Custo atual conhecido", valor: formatarMoeda(dados.custoAtualConhecido) },
+        { rotulo: "Custo pela ficha", valor: formatarMoeda(dados.custoUnitarioFicha) },
+        { rotulo: "Componentes sem custo", valor: formatarNumero(dados.componentesSemCusto) },
+      ]} />;
     case "MARGEM_PRODUTO":
-      return (
-        <>
-          <CardsValores
-            itens={[
-              {
-                rotulo: "Custo conhecido por unidade",
-                valor: formatarMoeda(dados.custoUnitarioConhecido),
-              },
-              { rotulo: "Preço médio de venda", valor: formatarMoeda(dados.precoMedioVenda) },
-              {
-                rotulo: "Margem bruta conhecida",
-                valor: formatarMoeda(dados.margemBrutaConhecidaUnitaria),
-              },
-            ]}
-          />
-          <p className="font-semibold">
-            {dados.situacao === "MARGEM_CONHECIDA_NEGATIVA"
-              ? "Os custos cadastrados estão acima do preço médio de venda."
-              : dados.situacao === "INSUFICIENTE"
-                ? "Ainda faltam dados para calcular a margem conhecida."
-                : "O preço médio está acima dos custos cadastrados."}
-          </p>
-          <p className="text-muted-foreground">
-            Isso não é lucro líquido. Custos não cadastrados: {dados.custosNaoModelados.join(", ")}.
-          </p>
-          {dados.componentes.length > 0 && (
-            <details className="rounded-xl border border-border bg-card px-4 py-3">
-              <summary className="cursor-pointer font-semibold min-h-11 flex items-center">
-                Ver o que mais pesa no custo
-              </summary>
-              <ul className="mt-2 space-y-2">
-                {dados.componentes.map((item) => (
-                  <li key={item.nome}>
-                    <strong>{item.nome}</strong>: {formatarMoeda(item.custoConhecido)}
-                    {item.participacaoPercentual !== null && (
-                      <span className="text-muted-foreground">
-                        {" "}
-                        ({formatarNumero(item.participacaoPercentual)}%)
-                      </span>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </details>
-          )}
-        </>
-      );
+      return <>
+        <CardsValores itens={[
+          { rotulo: "Custo conhecido por unidade", valor: formatarMoeda(dados.custoUnitarioConhecido) },
+          { rotulo: "Preço médio de venda", valor: formatarMoeda(dados.precoMedioVenda) },
+          { rotulo: "Margem bruta conhecida", valor: formatarMoeda(dados.margemBrutaConhecidaUnitaria) },
+        ]} />
+        <p className="font-semibold">{dados.situacao === "MARGEM_CONHECIDA_NEGATIVA"
+          ? "Os custos cadastrados estão acima do preço médio de venda."
+          : dados.situacao === "INSUFICIENTE" ? "Ainda faltam dados para calcular a margem conhecida."
+            : "O preço médio está acima dos custos cadastrados."}</p>
+        <p className="text-muted-foreground">Isso não é lucro líquido. Custos não cadastrados: {dados.custosNaoModelados.join(", ")}.</p>
+        {dados.componentes.length > 0 && <details className="rounded-xl border border-border bg-card px-4 py-3">
+          <summary className="cursor-pointer font-semibold min-h-11 flex items-center">Ver o que mais pesa no custo</summary>
+          <ul className="mt-2 space-y-2">{dados.componentes.map((item) => <li key={item.nome}>
+            <strong>{item.nome}</strong>: {formatarMoeda(item.custoConhecido)}
+            {item.participacaoPercentual !== null && <span className="text-muted-foreground"> ({formatarNumero(item.participacaoPercentual)}%)</span>}
+          </li>)}</ul>
+        </details>}
+      </>;
     case "ANALISE_COMPOSTA":
-      return (
-        <p className="rounded-xl border border-border bg-card px-4 py-3 text-muted-foreground">
-          A explicação acima reúne os dados confirmados das áreas consultadas.
-        </p>
-      );
+      return <p className="rounded-xl border border-border bg-card px-4 py-3 text-muted-foreground">
+        A explicação acima reúne os dados confirmados das áreas consultadas.
+      </p>;
     case "COMPRAS_INSUMO":
-      return (
-        <>
-          <CardsValores
-            itens={[
-              { rotulo: "Total comprado", valor: formatarMoeda(dados.valorTotal) },
-              { rotulo: "Insumos analisados", valor: formatarNumero(dados.insumosAnalisados) },
-              {
-                rotulo: "Economia comprovada",
-                valor: dados.simulacaoMensal.economiaComprovavel
-                  ? formatarMoeda(dados.simulacaoMensal.economiaComprovada)
-                  : "Ainda não calculável",
-              },
-            ]}
-          />
-          <p className="text-muted-foreground">{dados.simulacaoMensal.limitacao}</p>
-          {dados.itens.length > 0 && (
-            <details className="rounded-xl border border-border bg-card px-4 py-3">
-              <summary className="cursor-pointer font-semibold min-h-11 flex items-center">
-                Ver padrão das compras
-              </summary>
-              <ul className="mt-2 space-y-3">
-                {dados.itens.map((item) => (
-                  <li key={item.materiaPrimaId} className="rounded-lg bg-secondary/30 p-3">
-                    <strong>Insumo {item.materiaPrimaId}</strong>
-                    <span className="block">
-                      {formatarNumero(item.quantidadeCompras)} compras · frequência{" "}
-                      {item.frequenciaObservada.toLowerCase()}
-                    </span>
-                    <span className="block text-muted-foreground">
-                      Preço médio: {formatarMoeda(item.precoMedioPonderado)} por {item.unidade}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </details>
-          )}
-        </>
-      );
+      return <>
+        <CardsValores itens={[
+          { rotulo: "Total comprado", valor: formatarMoeda(dados.valorTotal) },
+          { rotulo: "Insumos analisados", valor: formatarNumero(dados.insumosAnalisados) },
+          { rotulo: "Economia comprovada", valor: dados.simulacaoMensal.economiaComprovavel
+            ? formatarMoeda(dados.simulacaoMensal.economiaComprovada) : "Ainda não calculável" },
+        ]} />
+        <p className="text-muted-foreground">{dados.simulacaoMensal.limitacao}</p>
+        {dados.itens.length > 0 && <details className="rounded-xl border border-border bg-card px-4 py-3">
+          <summary className="cursor-pointer font-semibold min-h-11 flex items-center">Ver padrão das compras</summary>
+          <ul className="mt-2 space-y-3">{dados.itens.map((item) => <li key={item.materiaPrimaId}
+            className="rounded-lg bg-secondary/30 p-3">
+            <strong>Insumo {item.materiaPrimaId}</strong>
+            <span className="block">{formatarNumero(item.quantidadeCompras)} compras · frequência {item.frequenciaObservada.toLowerCase()}</span>
+            <span className="block text-muted-foreground">Preço médio: {formatarMoeda(item.precoMedioPonderado)} por {item.unidade}</span>
+          </li>)}</ul>
+        </details>}
+      </>;
     case "COMPARACAO_MERCADO":
-      return (
-        <>
-          <p className="font-semibold">Comparação de preço: {dados.materiaPrima}</p>
-          {dados.metricasHistoricas && (
-            <CardsValores
-              itens={[
-                {
-                  rotulo: "Última compra por unidade",
-                  valor: formatarMoeda(dados.metricasHistoricas.ultimaCompraPreco),
-                },
-                {
-                  rotulo: "Média dos últimos 30 dias",
-                  valor: formatarMoeda(dados.metricasHistoricas.media30Dias),
-                },
-                {
-                  rotulo: "Média dos últimos 90 dias",
-                  valor: formatarMoeda(dados.metricasHistoricas.media90Dias),
-                },
-              ]}
-            />
-          )}
-          <div className="rounded-xl border-2 border-primary bg-primary-bg p-4" role="status">
-            <p className="text-lg font-bold">
-              {dados.situacao === "CUSTO_INTERNO_MENOR"
-                ? `Seu custo atual é menor por ${formatarMoeda(dados.diferencaExternaMenosInterna)}.`
-                : dados.situacao === "OFERTA_EXTERNA_MENOR"
-                  ? `Existe economia potencial de ${formatarMoeda(dados.economiaEstimada)}.`
-                  : dados.situacao === "EQUIVALENTE"
-                    ? "Os custos são equivalentes."
-                    : dados.situacao === "SOMENTE_PEDIDO_MINIMO_MAIOR"
-                      ? "Encontrei ofertas, mas todas exigem uma compra maior."
-                      : "Não há ofertas comparáveis suficientes."}
-            </p>
-            {dados.percentualDiferenca !== null && (
-              <p className="mt-1 text-muted-foreground">
-                Diferença de {formatarNumero(dados.percentualDiferenca)}% para a quantidade
-                pesquisada.
-              </p>
-            )}
-          </div>
-          <CardsValores
-            itens={[
-              {
-                rotulo: `Seu custo atual (${quantidadeComUnidade(dados.quantidadeAlvo, dados.unidade)})`,
-                valor: formatarMoeda(dados.custoInternoComparavel),
-              },
-              {
-                rotulo: `Melhor oferta externa (${quantidadeComUnidade(dados.quantidadeAlvo, dados.unidade)})`,
-                valor: formatarMoeda(dados.menorCustoExterno),
-              },
-              {
-                rotulo:
-                  dados.situacao === "CUSTO_INTERNO_MENOR"
-                    ? "Seu custo é menor por"
-                    : "Economia potencial",
-                valor:
-                  dados.situacao === "CUSTO_INTERNO_MENOR"
-                    ? formatarMoeda(dados.diferencaExternaMenosInterna)
-                    : formatarMoeda(dados.economiaEstimada),
-              },
-            ]}
-          />
-          {(dados.fontes.length > 0 || dados.ofertas.length > 0) && (
-            <details className="rounded-xl border border-border bg-card px-4 py-3">
-              <summary className="cursor-pointer font-semibold min-h-11 flex items-center">
-                Ver fontes pesquisadas
-              </summary>
-              {dados.fontes.length > 0 && (
-                <ul className="mt-2 space-y-3">
-                  {dados.fontes.map((fonte) => (
-                    <li key={fonte.fonteId} className="rounded-lg border border-border p-3">
-                      <a
-                        href={fonte.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="font-semibold underline"
-                      >
-                        {fonte.titulo}
-                      </a>
-                      <span className="block text-muted-foreground">
-                        {fonte.status === "VALIDADA"
-                          ? "Fonte validada"
-                          : fonte.status === "REJEITADA"
-                            ? "Fonte rejeitada"
-                            : "Validação não concluída"}
-                      </span>
-                      {fonte.motivo && (
-                        <span className="block text-muted-foreground">{fonte.motivo}</span>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              )}
-              {dados.ofertas.length > 0 && (
-                <>
-                  <p className="mt-4 font-semibold">
-                    {dados.situacao === "INSUFICIENTE"
-                      ? "Ofertas estruturadas (sem conclusão)"
-                      : "Ofertas validadas"}
-                  </p>
-                  <ul className="mt-2 space-y-3">
-                    {dados.ofertas.map((oferta, indice) => (
-                      <li
-                        key={`${oferta.url}-${indice}`}
-                        className="rounded-lg border border-border p-3"
-                      >
-                        {indice === 0 && oferta.compativelQuantidadeAlvo && (
-                          <span className="mb-1 inline-block rounded-full bg-primary px-2 py-1 text-xs font-bold text-primary-foreground">
-                            Melhor oferta compatível
-                          </span>
-                        )}
-                        <a
-                          href={oferta.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="font-semibold underline"
-                        >
-                          {oferta.titulo}
-                        </a>
-                        <span className="block">
-                          Preço convertido: {formatarMoeda(oferta.precoUnitario)} por{" "}
-                          {dados.unidade}
-                        </span>
-                        <span className="block">
-                          Total para {formatarNumero(oferta.quantidadeCalculada)} {dados.unidade}:{" "}
-                          {formatarMoeda(oferta.custoTotal)}
-                        </span>
-                        {oferta.localizacao && (
-                          <span className="block">Localização: {oferta.localizacao}</span>
-                        )}
-                        {oferta.pedidoMinimo !== null && (
-                          <span className="block font-medium">
-                            Pedido mínimo: {formatarNumero(oferta.pedidoMinimo)} {dados.unidade}
-                          </span>
-                        )}
-                        {oferta.mesesCoberturaPedidoMinimo !== null && (
-                          <span className="block">
-                            Esse mínimo cobre aproximadamente{" "}
-                            {formatarNumero(oferta.mesesCoberturaPedidoMinimo)} mês(es) de consumo.
-                          </span>
-                        )}
-                        {oferta.status.includes("ESTOQUE_EXCESSIVO_PROVAVEL") && (
-                          <span className="block font-semibold text-warning-foreground">
-                            Pode gerar estoque excessivo para o consumo atual.
-                          </span>
-                        )}
-                        {oferta.status.includes("PEDIDO_MINIMO_ACIMA_DA_QUANTIDADE") && (
-                          <span className="block font-semibold text-warning-foreground">
-                            Exige comprar mais do que a quantidade consultada.
-                          </span>
-                        )}
-                        <span className="block text-muted-foreground">
-                          Evidência: “{oferta.evidenciaPreco}”
-                        </span>
-                        <span className="block text-muted-foreground">
-                          {oferta.freteIncluido
-                            ? "Frete identificado e incluído."
-                            : "Frete não informado na fonte."}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                </>
-              )}
-              {dados.ofertas.length === 0 && (
-                <p className="mt-2 text-muted-foreground">
-                  Nenhuma oferta foi validada; os links acima mostram as fontes consultadas.
-                </p>
-              )}
-            </details>
-          )}
-        </>
-      );
+      return <>
+        <p className="font-semibold">Comparação de preço: {dados.materiaPrima}</p>
+        {dados.metricasHistoricas && <CardsValores itens={[
+          { rotulo: "Última compra por unidade", valor: formatarMoeda(dados.metricasHistoricas.ultimaCompraPreco) },
+          { rotulo: "Média dos últimos 30 dias", valor: formatarMoeda(dados.metricasHistoricas.media30Dias) },
+          { rotulo: "Média dos últimos 90 dias", valor: formatarMoeda(dados.metricasHistoricas.media90Dias) },
+        ]} />}
+        <div className="rounded-xl border-2 border-primary bg-primary-bg p-4" role="status">
+          <p className="text-lg font-bold">{dados.situacao === "CUSTO_INTERNO_MENOR"
+            ? `Seu custo atual é menor por ${formatarMoeda(dados.diferencaExternaMenosInterna)}.`
+            : dados.situacao === "OFERTA_EXTERNA_MENOR"
+              ? `Existe economia potencial de ${formatarMoeda(dados.economiaEstimada)}.`
+              : dados.situacao === "EQUIVALENTE" ? "Os custos são equivalentes."
+                : dados.situacao === "SOMENTE_PEDIDO_MINIMO_MAIOR"
+                  ? "Encontrei ofertas, mas todas exigem uma compra maior."
+                  : "Não há ofertas comparáveis suficientes."}</p>
+          {dados.percentualDiferenca !== null && <p className="mt-1 text-muted-foreground">
+            Diferença de {formatarNumero(dados.percentualDiferenca)}% para a quantidade pesquisada.
+          </p>}
+        </div>
+        <CardsValores itens={[
+          { rotulo: `Seu custo atual (${quantidadeComUnidade(dados.quantidadeAlvo, dados.unidade)})`, valor: formatarMoeda(dados.custoInternoComparavel) },
+          { rotulo: `Melhor oferta externa (${quantidadeComUnidade(dados.quantidadeAlvo, dados.unidade)})`, valor: formatarMoeda(dados.menorCustoExterno) },
+          { rotulo: dados.situacao === "CUSTO_INTERNO_MENOR" ? "Seu custo é menor por" : "Economia potencial", valor: dados.situacao === "CUSTO_INTERNO_MENOR" ? formatarMoeda(dados.diferencaExternaMenosInterna) : formatarMoeda(dados.economiaEstimada) },
+        ]} />
+        {(dados.fontes.length > 0 || dados.ofertas.length > 0) && <details className="rounded-xl border border-border bg-card px-4 py-3">
+          <summary className="cursor-pointer font-semibold min-h-11 flex items-center">Ver fontes pesquisadas</summary>
+          {dados.fontes.length > 0 && <ul className="mt-2 space-y-3">{dados.fontes.map((fonte) => <li key={fonte.fonteId} className="rounded-lg border border-border p-3">
+            <a href={fonte.url} target="_blank" rel="noreferrer" className="font-semibold underline">{fonte.titulo}</a>
+            <span className="block text-muted-foreground">{fonte.status === "VALIDADA" ? "Fonte validada" : fonte.status === "REJEITADA" ? "Fonte rejeitada" : "Validação não concluída"}</span>
+            {fonte.motivo && <span className="block text-muted-foreground">{fonte.motivo}</span>}
+          </li>)}</ul>}
+          {dados.ofertas.length > 0 && <>
+            <p className="mt-4 font-semibold">{dados.situacao === "INSUFICIENTE" ? "Ofertas estruturadas (sem conclusão)" : "Ofertas validadas"}</p>
+            <ul className="mt-2 space-y-3">{dados.ofertas.map((oferta, indice) => <li key={`${oferta.url}-${indice}`} className="rounded-lg border border-border p-3">
+              {indice === 0 && oferta.compativelQuantidadeAlvo && <span className="mb-1 inline-block rounded-full bg-primary px-2 py-1 text-xs font-bold text-primary-foreground">Melhor oferta compatível</span>}
+              <a href={oferta.url} target="_blank" rel="noreferrer" className="font-semibold underline">
+                {oferta.titulo}
+              </a>
+              <span className="block">Preço convertido: {formatarMoeda(oferta.precoUnitario)} por {dados.unidade}</span>
+              <span className="block">Total para {formatarNumero(oferta.quantidadeCalculada)} {dados.unidade}: {formatarMoeda(oferta.custoTotal)}</span>
+              {oferta.localizacao && <span className="block">Localização: {oferta.localizacao}</span>}
+              {oferta.pedidoMinimo !== null && <span className="block font-medium">Pedido mínimo: {formatarNumero(oferta.pedidoMinimo)} {dados.unidade}</span>}
+              {oferta.mesesCoberturaPedidoMinimo !== null && <span className="block">Esse mínimo cobre aproximadamente {formatarNumero(oferta.mesesCoberturaPedidoMinimo)} mês(es) de consumo.</span>}
+              {oferta.status.includes("ESTOQUE_EXCESSIVO_PROVAVEL") && <span className="block font-semibold text-warning-foreground">Pode gerar estoque excessivo para o consumo atual.</span>}
+              {oferta.status.includes("PEDIDO_MINIMO_ACIMA_DA_QUANTIDADE") && <span className="block font-semibold text-warning-foreground">Exige comprar mais do que a quantidade consultada.</span>}
+              <span className="block text-muted-foreground">Evidência: “{oferta.evidenciaPreco}”</span>
+              <span className="block text-muted-foreground">{oferta.freteIncluido ? "Frete identificado e incluído." : "Frete não informado na fonte."}</span>
+            </li>)}</ul>
+          </>}
+          {dados.ofertas.length === 0 && <p className="mt-2 text-muted-foreground">Nenhuma oferta foi validada; os links acima mostram as fontes consultadas.</p>}
+        </details>}
+      </>;
   }
 }
 
@@ -496,11 +272,7 @@ function DetalhesResposta({ resultado }: { resultado: AssistenteResposta }) {
           )}
         </div>
       )}
-      {resultado.dados && (
-        <section className="space-y-3" aria-label="Valores da consulta">
-          <DadosResultado dados={resultado.dados} />
-        </section>
-      )}
+      {resultado.dados && <section className="space-y-3" aria-label="Valores da consulta"><DadosResultado dados={resultado.dados} /></section>}
     </div>
   );
 }
@@ -531,15 +303,10 @@ export function AssistenteChat({ open, onClose, onOpenVoice }: Props) {
     fimRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [mensagens, enviando]);
   useEffect(() => {
-    if (!enviando) {
-      setSegundosEspera(0);
-      return;
-    }
+    if (!enviando) { setSegundosEspera(0); return; }
     const inicio = Date.now();
-    const timer = window.setInterval(
-      () => setSegundosEspera(Math.floor((Date.now() - inicio) / 1000)),
-      1000,
-    );
+    const timer = window.setInterval(() => setSegundosEspera(
+      Math.floor((Date.now() - inicio) / 1000)), 1000);
     return () => window.clearInterval(timer);
   }, [enviando]);
 

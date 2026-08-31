@@ -11,7 +11,6 @@ export type ClienteFormData = {
   bairro: string;
   cidade: string;
   estado: string;
-<<<<<<< HEAD
 
   // Transportadora vinculada ao cliente
   usaTransportadora: boolean;
@@ -27,9 +26,6 @@ export type ClienteFormData = {
   transportadoraCidade: string;
   transportadoraEstado: string;
   transportadoraObservacao: string;
-=======
-  tipo?: "CLIENTE" | "TRANSPORTADORA" | "LOJISTA";
->>>>>>> f1111f1 (Atualiza cadastro)
 };
 
 export const clienteFormVazio: ClienteFormData = {
@@ -45,7 +41,6 @@ export const clienteFormVazio: ClienteFormData = {
   bairro: "",
   cidade: "",
   estado: "",
-<<<<<<< HEAD
 
   usaTransportadora: false,
   transportadoraNome: "",
@@ -60,9 +55,6 @@ export const clienteFormVazio: ClienteFormData = {
   transportadoraCidade: "",
   transportadoraEstado: "",
   transportadoraObservacao: "",
-=======
-  tipo: "CLIENTE",
->>>>>>> f1111f1 (Atualiza cadastro)
 };
 
 export const UFS_BRASIL = [
