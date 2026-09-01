@@ -1,3 +1,4 @@
+const { transcreverAudio } = require("./transcricaoService");
 console.log("🚨 BOT.JS COMEÇOU A EXECUTAR");
 
 const {
@@ -46,7 +47,7 @@ const client = new Client({
   },
 
   puppeteer: {
-    headless: false,
+    headless: true,
 
     // Aumenta o tempo permitido para o Puppeteer se comunicar
     // com o Chrome/WhatsApp Web.
@@ -203,9 +204,69 @@ client.on("message", async (message) => {
         message.type === "audio");
 
     if (ehAudio) {
-      await message.reply(
-        "🎧 Recebi seu áudio, meu bem! Ainda estou terminando a parte de áudio. Por enquanto, pode me mandar essa informação por texto. 💛"
-      );
+      console.log("🎧 Áudio recebido, baixando...");
+
+      let media = null;
+      const tentativasMaximas = 3;
+
+      for (let tentativa = 1; tentativa <= tentativasMaximas; tentativa++) {
+        try {
+          await new Promise((resolve) => setTimeout(resolve, 1500));
+
+          media = await message.downloadMedia();
+
+          if (media && media.data) {
+            break;
+          }
+          
+          } catch (erroDownload) {
+          console.error(
+            `🎧 Tentativa ${tentativa} de baixar áudio falhou:`,
+            JSON.stringify(erroDownload, Object.getOwnPropertyNames(erroDownload), 2)
+          );
+
+          if (tentativa === tentativasMaximas) {
+            await message.reply(
+              "Não consegui baixar o áudio depois de várias tentativas, meu bem. Pode tentar mandar de novo ou me escrever por texto? 💛"
+            );
+            return;
+          }
+
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+        }
+      }
+
+      if (!media || !media.data) {
+        await message.reply(
+          "Não consegui baixar o áudio, meu bem. Pode tentar mandar de novo ou me escrever por texto? 💛"
+        );
+        return;
+      }
+
+      try {
+        console.log("🎧 Transcrevendo áudio...");
+
+        const textoTranscrito = await transcreverAudio(
+          media.data,
+          media.mimetype
+        );
+
+        console.log("🎧 Áudio transcrito:", textoTranscrito);
+
+        const resposta = await processarMensagem(chatId, {
+          texto: textoTranscrito,
+        });
+
+        await message.reply(resposta);
+
+        console.log("📤 Resposta enviada (via áudio)!");
+      } catch (error) {
+        console.error("❌ Erro ao processar áudio:", error);
+
+        await message.reply(
+          "Desculpa, meu bem, não consegui entender o áudio. Pode tentar de novo ou me mandar por texto? 💛"
+        );
+      }
 
       return;
     }

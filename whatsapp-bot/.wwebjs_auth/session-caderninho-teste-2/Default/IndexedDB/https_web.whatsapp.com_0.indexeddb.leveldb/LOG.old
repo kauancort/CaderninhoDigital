@@ -1,0 +1,10 @@
+2026/09/01-00:45:55.404 4038 Reusing MANIFEST C:\Fernanda\docesvocida\Projeto\CaderninhoDigital\whatsapp-bot\.wwebjs_auth\session-caderninho-teste-2\Default\IndexedDB\https_web.whatsapp.com_0.indexeddb.leveldb/MANIFEST-000001
+2026/09/01-00:45:55.405 4038 Recovering log #9
+2026/09/01-00:45:55.716 4038 Reusing old log C:\Fernanda\docesvocida\Projeto\CaderninhoDigital\whatsapp-bot\.wwebjs_auth\session-caderninho-teste-2\Default\IndexedDB\https_web.whatsapp.com_0.indexeddb.leveldb/000009.log 
+2026/09/01-00:46:02.846 49e4 Level-0 table #14: started
+2026/09/01-00:46:12.254 49e4 Level-0 table #14: 1379745 bytes OK
+2026/09/01-00:46:12.282 49e4 Delete type=0 #9
+2026/09/01-00:46:14.509 49e4 Compacting 1@1 + 1@2 files
+2026/09/01-00:46:15.310 49e4 Generated table #15@1: 37683 keys, 1772793 bytes
+2026/09/01-00:46:15.336 49e4 Compacted 1@1 + 1@2 files => 1772793 bytes
+2026/09/01-00:46:15.784 49e4 compacted to: files[ 0 0 1 0 0 0 0 ]

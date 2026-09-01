@@ -1,2 +1,3 @@
-2026/08/20-15:54:11.737 c44 Creating DB C:\Fernanda\docesvocida\Projeto\CaderninhoDigital\whatsapp-bot\.wwebjs_auth\session-caderninho-teste-2\Default\Local Storage\leveldb since it was missing.
-2026/08/20-15:54:12.256 c44 Reusing MANIFEST C:\Fernanda\docesvocida\Projeto\CaderninhoDigital\whatsapp-bot\.wwebjs_auth\session-caderninho-teste-2\Default\Local Storage\leveldb/MANIFEST-000001
+2026/09/01-00:55:18.066 2784 Reusing MANIFEST C:\Fernanda\docesvocida\Projeto\CaderninhoDigital\whatsapp-bot\.wwebjs_auth\session-caderninho-teste-2\Default\Local Storage\leveldb/MANIFEST-000001
+2026/09/01-00:55:18.093 2784 Recovering log #4
+2026/09/01-00:55:18.100 2784 Reusing old log C:\Fernanda\docesvocida\Projeto\CaderninhoDigital\whatsapp-bot\.wwebjs_auth\session-caderninho-teste-2\Default\Local Storage\leveldb/000004.log 
