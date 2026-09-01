@@ -28,7 +28,7 @@ async function login() {
       senha: SENHA,
     },
     {
-      timeout: 10000,
+      timeout: 30000,
     },
   );
 
@@ -92,7 +92,7 @@ async function fazerRequisicao(method, path, data, token) {
     headers: {
       Authorization: `Bearer ${token}`,
     },
-    timeout: 15000,
+    timeout: 30000,
   });
 
   return res.data;
