@@ -5,7 +5,11 @@ import { useApiFn } from "@/lib/api-function";
 import { AlertTriangle, ArrowLeft, Plus, Trash2, UserPlus } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { obterProduto, pesquisarProdutos } from "@/lib/catalogo.functions";
-import { criarCliente, pesquisarClientes, buscarTransportadoraCliente } from "@/lib/clientes.functions";
+import {
+  criarCliente,
+  pesquisarClientes,
+  buscarTransportadoraCliente,
+} from "@/lib/clientes.functions";
 import { registrarVenda, listarVendasAguardandoEstoque } from "@/lib/vendas.functions";
 import { fmtBRL, hojeISO, type FormaPagamento, type StatusPagamento } from "@/lib/format";
 import { consumePrefill, type PrefillVenda } from "@/lib/voz-prefill";
@@ -85,7 +89,15 @@ function RegistrarVenda() {
   const quantidadeRefs = useRef<Array<HTMLInputElement | null>>([]);
 
   const [itens, setItens] = useState<ItemForm[]>([
-    { produto_final_id: "", quantidade: "1", preco_unitario: "", tipo: "pote", tamanho_pote: "44", is_avulso: false, nome_avulso: "" },
+    {
+      produto_final_id: "",
+      quantidade: "1",
+      preco_unitario: "",
+      tipo: "pote",
+      tamanho_pote: "44",
+      is_avulso: false,
+      nome_avulso: "",
+    },
   ]);
   const [forma, setForma] = useState<FormaPagamento>("pix");
   const [tipoCartao, setTipoCartao] = useState<TipoCartao | null>(null);
@@ -102,9 +114,29 @@ function RegistrarVenda() {
   const [clienteRapido, setClienteRapido] = useState<ClienteRapidoForm>(clienteRapidoInicial);
   const [erroClienteRapido, setErroClienteRapido] = useState<string | null>(null);
   const [observacao, setObservacao] = useState("");
-  const [formaEnvio, setFormaEnvio] = useState<"RETIRADA" | "PROPRIO" | "TRANSPORTADORA">("RETIRADA");
+  const [formaEnvio, setFormaEnvio] = useState<"RETIRADA" | "PROPRIO" | "TRANSPORTADORA">(
+    "RETIRADA",
+  );
   const [quilometragemManual, setQuilometragemManual] = useState("");
+  const [custoEnvio, setCustoEnvio] = useState("");
   const [responsavelEntrega, setResponsavelEntrega] = useState("");
+  const [dataEnvio, setDataEnvio] = useState("");
+  const [previsaoEntrega, setPrevisaoEntrega] = useState("");
+  const [codigoRastreamento, setCodigoRastreamento] = useState("");
+  const [transportadora, setTransportadora] = useState({
+    nome: "",
+    cnpj: "",
+    telefone: "",
+    email: "",
+    cep: "",
+    endereco: "",
+    numero: "",
+    complemento: "",
+    bairro: "",
+    cidade: "",
+    estado: "",
+    observacao: "",
+  });
   const [erro, setErro] = useState<string | null>(null);
   const [confirmar, setConfirmar] = useState(false);
   const [buscaProduto, setBuscaProduto] = useState("");
@@ -188,15 +220,13 @@ function RegistrarVenda() {
   const custoPorKm = Number(import.meta.env.VITE_CUSTO_KM_ENTREGA_PROPRIA ?? 2);
   const limiteCustoEntrega = Number(import.meta.env.VITE_LIMITE_CUSTO_ENTREGA_PROPRIA ?? 50);
   const distanciaManualNumero = Number(quilometragemManual.replace(",", "."));
-  const distanciaEntrega = Number.isFinite(distanciaManualNumero) && distanciaManualNumero > 0
-    ? distanciaManualNumero
-    : distanciaAutomatica;
-  const custoEstimadoEntrega = distanciaEntrega != null
-    ? distanciaEntrega * custoPorKm
-    : null;
-  const entregaViavel = custoEstimadoEntrega != null
-    ? custoEstimadoEntrega <= limiteCustoEntrega
-    : null;
+  const distanciaEntrega =
+    Number.isFinite(distanciaManualNumero) && distanciaManualNumero > 0
+      ? distanciaManualNumero
+      : distanciaAutomatica;
+  const custoEstimadoEntrega = distanciaEntrega != null ? distanciaEntrega * custoPorKm : null;
+  const entregaViavel =
+    custoEstimadoEntrega != null ? custoEstimadoEntrega <= limiteCustoEntrega : null;
 
   useEffect(() => {
     if (formaEnvio !== "PROPRIO" || !clienteSelecionado || !enderecoFabrica) {
@@ -226,7 +256,9 @@ function RegistrarVenda() {
       clienteSelecionado.estado,
       clienteSelecionado.cep,
       "Brasil",
-    ].filter(Boolean).join(", ");
+    ]
+      .filter(Boolean)
+      .join(", ");
 
     Promise.all([geocodificar(enderecoFabrica), geocodificar(enderecoCliente)])
       .then(([origem, destino]) => {
@@ -234,19 +266,25 @@ function RegistrarVenda() {
         const toRad = (value: number) => (value * Math.PI) / 180;
         const dLat = toRad(destino.lat - origem.lat);
         const dLon = toRad(destino.lon - origem.lon);
-        const a = Math.sin(dLat / 2) ** 2
-          + Math.cos(toRad(origem.lat)) * Math.cos(toRad(destino.lat)) * Math.sin(dLon / 2) ** 2;
+        const a =
+          Math.sin(dLat / 2) ** 2 +
+          Math.cos(toRad(origem.lat)) * Math.cos(toRad(destino.lat)) * Math.sin(dLon / 2) ** 2;
         const distancia = 2 * 6371 * Math.asin(Math.sqrt(a));
         setDistanciaAutomatica(Number(distancia.toFixed(1)));
       })
       .catch((error) => {
-        if (!cancelado) setErroDistancia(error instanceof Error ? error.message : "Não foi possível calcular a distância.");
+        if (!cancelado)
+          setErroDistancia(
+            error instanceof Error ? error.message : "Não foi possível calcular a distância.",
+          );
       })
       .finally(() => {
         if (!cancelado) setCalculandoDistancia(false);
       });
 
-    return () => { cancelado = true; };
+    return () => {
+      cancelado = true;
+    };
   }, [formaEnvio, clienteSelecionado, enderecoFabrica]);
 
   // Vendas já salvas que ficaram aguardando produção (cards amarelos persistentes)
@@ -363,7 +401,9 @@ function RegistrarVenda() {
 
         // Se mudou o tamanho do pote ou o produto, recalcular preço automaticamente
         if (patch.tamanho_pote !== undefined || patch.produto_final_id !== undefined) {
-          const p = produtos.find((prod: any) => prod.id === itemAtualizado.produto_final_id) as any;
+          const p = produtos.find(
+            (prod: any) => prod.id === itemAtualizado.produto_final_id,
+          ) as any;
           if (p?.nome) {
             const precoCalculado = obterPrecoPote(p.nome, itemAtualizado.tamanho_pote);
             if (precoCalculado !== undefined) {
@@ -380,7 +420,15 @@ function RegistrarVenda() {
     const novoIndice = itens.length;
     setItens((atuais) => [
       ...atuais,
-      { produto_final_id: "", quantidade: "1", preco_unitario: "", tipo: "pote", tamanho_pote: "44", is_avulso: false, nome_avulso: "" },
+      {
+        produto_final_id: "",
+        quantidade: "1",
+        preco_unitario: "",
+        tipo: "pote",
+        tamanho_pote: "44",
+        is_avulso: false,
+        nome_avulso: "",
+      },
     ]);
     window.setTimeout(() => produtoRefs.current[novoIndice]?.focus(), 0);
   }
@@ -458,7 +506,7 @@ function RegistrarVenda() {
     e.preventDefault();
     setErro(null);
     if (!clienteId) return setErro("Selecione um cliente na lista para continuar com a venda.");
-    
+
     for (let idx = 0; idx < itens.length; idx++) {
       const it = itens[idx];
       if (it.is_avulso) {
@@ -470,11 +518,11 @@ function RegistrarVenda() {
           return setErro(`Escolha o produto no item ${idx + 1}.`);
         }
       }
-      
+
       if (!it.quantidade || Number(it.quantidade) <= 0) {
         return setErro(`A quantidade no item ${idx + 1} é obrigatória e deve ser maior que zero.`);
       }
-      
+
       const preco = Number(it.preco_unitario.replace(",", "."));
       if (isNaN(preco) || preco <= 0) {
         return setErro(`O preço no item ${idx + 1} deve ser válido e maior que zero.`);
@@ -488,7 +536,9 @@ function RegistrarVenda() {
     if (forma === "cartao" && tipoCartao === "CREDITO" && (!parcelas || Number(parcelas) < 1))
       return setErro("Informe a quantidade de parcelas.");
     if (formaEnvio === "PROPRIO" && !distanciaEntrega)
-      return setErro("Informe a quilometragem da entrega ou configure o endereço da fábrica para o cálculo automático.");
+      return setErro(
+        "Informe a quilometragem da entrega ou configure o endereço da fábrica para o cálculo automático.",
+      );
     if (formaEnvio === "TRANSPORTADORA" && !transportadoraQuery.data)
       return setErro("Cadastre uma transportadora para este cliente antes de realizar a venda.");
     setConfirmar(true);
@@ -507,12 +557,19 @@ function RegistrarVenda() {
         parcelas: forma === "cartao" && tipoCartao === "CREDITO" ? Number(parcelas) : null,
         observacao: observacao.trim() || null,
         forma_envio: formaEnvio,
-        custo_envio: formaEnvio === "PROPRIO" ? custoEstimadoEntrega : null,
+        custo_envio:
+          formaEnvio === "PROPRIO"
+            ? custoEstimadoEntrega
+            : formaEnvio !== "RETIRADA" && custoEnvio.trim()
+              ? Number(custoEnvio.replace(",", "."))
+              : null,
         responsavel_entrega: formaEnvio === "PROPRIO" ? responsavelEntrega.trim() || null : null,
-        data_envio: null,
-        previsao_entrega: null,
-        codigo_rastreamento: null,
-        transportadora: null,
+        data_envio: dataEnvio || null,
+        previsao_entrega: previsaoEntrega || null,
+        codigo_rastreamento:
+          formaEnvio === "TRANSPORTADORA" ? codigoRastreamento.trim() || null : null,
+        transportadora:
+          formaEnvio === "TRANSPORTADORA" ? (transportadoraQuery.data ?? transportadora) : null,
         itens: itensCalculados.map((i) => ({
           produto_final_id: i.is_avulso ? null : i.produto_final_id,
           nome_avulso: i.is_avulso ? i.nome_avulso : null,
@@ -603,12 +660,16 @@ function RegistrarVenda() {
                     type="button"
                     onClick={() => selecionarCliente(c)}
                     className={`w-full text-left px-4 py-2.5 text-sm flex items-center justify-between transition-colors ${
-                      idx === sugestaoAtiva ? "bg-primary/10 text-primary font-semibold" : "hover:bg-secondary"
+                      idx === sugestaoAtiva
+                        ? "bg-primary/10 text-primary font-semibold"
+                        : "hover:bg-secondary"
                     }`}
                   >
                     <div>
                       <div className="font-medium text-foreground">{c.nome}</div>
-                      <div className="text-xs text-muted-foreground">{c.telefone || c.email || c.documento}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {c.telefone || c.email || c.documento}
+                      </div>
                     </div>
                   </button>
                 ))}
@@ -630,9 +691,14 @@ function RegistrarVenda() {
             )}
 
             {itens.map((it, idx) => (
-              <div key={idx} className="space-y-3 border border-border rounded-xl p-4 bg-secondary/30">
+              <div
+                key={idx}
+                className="space-y-3 border border-border rounded-xl p-4 bg-secondary/30"
+              >
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-muted-foreground uppercase">Item {idx + 1}</span>
+                  <span className="text-xs font-bold text-muted-foreground uppercase">
+                    Item {idx + 1}
+                  </span>
                   <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
                     <input
                       type="checkbox"
@@ -713,7 +779,10 @@ function RegistrarVenda() {
                     </div>
 
                     <div className="text-right text-xs text-muted-foreground">
-                      Subtotal item: <strong className="text-foreground">{fmtBRL(itensCalculados[idx]?.subtotal ?? 0)}</strong>
+                      Subtotal item:{" "}
+                      <strong className="text-foreground">
+                        {fmtBRL(itensCalculados[idx]?.subtotal ?? 0)}
+                      </strong>
                     </div>
                   </div>
                 ) : (
@@ -828,14 +897,19 @@ function RegistrarVenda() {
                             <input
                               className="ds-input"
                               value={it.preco_unitario}
-                              onChange={(e) => atualizarItem(idx, { preco_unitario: e.target.value })}
+                              onChange={(e) =>
+                                atualizarItem(idx, { preco_unitario: e.target.value })
+                              }
                               placeholder="R$ 0,00"
                             />
                           </div>
                         </div>
 
                         <div className="text-right text-xs text-muted-foreground">
-                          Subtotal item: <strong className="text-foreground">{fmtBRL(itensCalculados[idx]?.subtotal ?? 0)}</strong>
+                          Subtotal item:{" "}
+                          <strong className="text-foreground">
+                            {fmtBRL(itensCalculados[idx]?.subtotal ?? 0)}
+                          </strong>
                         </div>
                       </div>
                     )}
@@ -968,9 +1042,12 @@ function RegistrarVenda() {
               {formaEnvio === "PROPRIO" && (
                 <div className="space-y-4 rounded-xl border border-border bg-secondary/30 p-4">
                   <div>
-                    <h3 className="font-semibold text-sm text-foreground">Cálculo da entrega própria</h3>
+                    <h3 className="font-semibold text-sm text-foreground">
+                      Cálculo da entrega própria
+                    </h3>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      O endereço cadastrado do cliente é usado para estimar a distância. Se o cálculo automático não estiver disponível, informe a quilometragem.
+                      O endereço cadastrado do cliente é usado para estimar a distância. Se o
+                      cálculo automático não estiver disponível, informe a quilometragem.
                     </p>
                   </div>
 
@@ -978,21 +1055,32 @@ function RegistrarVenda() {
                     <div className="rounded-lg border border-border bg-card p-3 text-xs">
                       <strong className="block text-foreground">Endereço de entrega</strong>
                       <span className="text-muted-foreground">
-                        {[clienteSelecionado.endereco, clienteSelecionado.numero, clienteSelecionado.bairro, clienteSelecionado.cidade, clienteSelecionado.estado]
-                          .filter(Boolean).join(", ") || "Endereço não cadastrado"}
+                        {[
+                          clienteSelecionado.endereco,
+                          clienteSelecionado.numero,
+                          clienteSelecionado.bairro,
+                          clienteSelecionado.cidade,
+                          clienteSelecionado.estado,
+                        ]
+                          .filter(Boolean)
+                          .join(", ") || "Endereço não cadastrado"}
                       </span>
                     </div>
                   ) : null}
 
                   {!enderecoFabrica && (
                     <div className="rounded-lg border border-warning/30 bg-warning-bg p-3 text-xs text-warning">
-                      O cálculo automático precisa da variável <strong>VITE_FABRICA_ENDERECO</strong>. Enquanto ela não estiver configurada, informe a quilometragem manualmente.
+                      O cálculo automático precisa da variável{" "}
+                      <strong>VITE_FABRICA_ENDERECO</strong>. Enquanto ela não estiver configurada,
+                      informe a quilometragem manualmente.
                     </div>
                   )}
 
                   <div className="grid gap-3 md:grid-cols-2">
                     <div>
-                      <label className="text-xs font-semibold text-muted-foreground mb-1 block">Quilometragem manual</label>
+                      <label className="text-xs font-semibold text-muted-foreground mb-1 block">
+                        Quilometragem manual
+                      </label>
                       <input
                         className="ds-input"
                         inputMode="decimal"
@@ -1002,69 +1090,165 @@ function RegistrarVenda() {
                       />
                     </div>
                     <div className="rounded-lg bg-card border border-border p-3">
-                      <span className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Distância aproximada</span>
+                      <span className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                        Distância aproximada
+                      </span>
                       <strong className="mt-1 block text-lg text-primary">
-                        {calculandoDistancia ? "Calculando..." : distanciaEntrega != null ? `${distanciaEntrega.toFixed(1)} km` : "Informe a quilometragem"}
+                        {calculandoDistancia
+                          ? "Calculando..."
+                          : distanciaEntrega != null
+                            ? `${distanciaEntrega.toFixed(1)} km`
+                            : "Informe a quilometragem"}
                       </strong>
                     </div>
                   </div>
 
                   {erroDistancia && !quilometragemManual && (
-                    <p className="text-xs text-warning">{erroDistancia} Você pode informar a quilometragem manualmente.</p>
+                    <p className="text-xs text-warning">
+                      {erroDistancia} Você pode informar a quilometragem manualmente.
+                    </p>
                   )}
 
                   <div className="grid gap-3 md:grid-cols-2">
                     <div className="rounded-lg bg-card border border-border p-3">
-                      <span className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Custo estimado</span>
+                      <span className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                        Custo estimado
+                      </span>
                       <strong className="mt-1 block text-lg text-primary">
                         {custoEstimadoEntrega != null ? fmtBRL(custoEstimadoEntrega) : "—"}
                       </strong>
-                      <span className="text-[11px] text-muted-foreground">Base: R$ {custoPorKm.toFixed(2).replace(".", ",")} por km</span>
+                      <span className="text-[11px] text-muted-foreground">
+                        Base: R$ {custoPorKm.toFixed(2).replace(".", ",")} por km
+                      </span>
                     </div>
-                    <div className={`rounded-lg border p-3 ${
-                      entregaViavel === null ? "border-border bg-card" : entregaViavel ? "border-success/30 bg-success-bg" : "border-error/30 bg-error-bg"
-                    }`}>
-                      <span className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Viabilidade</span>
+                    <div
+                      className={`rounded-lg border p-3 ${
+                        entregaViavel === null
+                          ? "border-border bg-card"
+                          : entregaViavel
+                            ? "border-success/30 bg-success-bg"
+                            : "border-error/30 bg-error-bg"
+                      }`}
+                    >
+                      <span className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                        Viabilidade
+                      </span>
                       <strong className="mt-1 block text-lg">
-                        {entregaViavel === null ? "Aguardando distância" : entregaViavel ? "Entrega viável" : "Custo acima do limite"}
+                        {entregaViavel === null
+                          ? "Aguardando distância"
+                          : entregaViavel
+                            ? "Entrega viável"
+                            : "Custo acima do limite"}
                       </strong>
-                      <span className="text-[11px] text-muted-foreground">Limite configurado: {fmtBRL(limiteCustoEntrega)}</span>
+                      <span className="text-[11px] text-muted-foreground">
+                        Limite configurado: {fmtBRL(limiteCustoEntrega)}
+                      </span>
                     </div>
                   </div>
 
                   <div>
-                    <label className="text-xs font-semibold text-muted-foreground mb-1 block">Responsável pela entrega</label>
-                    <input className="ds-input" value={responsavelEntrega} onChange={(e) => setResponsavelEntrega(e.target.value)} placeholder="Nome do responsável" />
+                    <label className="text-xs font-semibold text-muted-foreground mb-1 block">
+                      Responsável pela entrega
+                    </label>
+                    <input
+                      className="ds-input"
+                      value={responsavelEntrega}
+                      onChange={(e) => setResponsavelEntrega(e.target.value)}
+                      placeholder="Nome do responsável"
+                    />
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    A data de entrega não é obrigatória no cadastro da venda. A saída e a conclusão da entrega são registradas posteriormente na aba Transporte.
+                    A data de entrega não é obrigatória no cadastro da venda. A saída e a conclusão
+                    da entrega são registradas posteriormente na aba Transporte.
                   </p>
+                </div>
+              )}
+
+              {formaEnvio !== "RETIRADA" && (
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <div>
+                    <label className="text-xs font-semibold text-muted-foreground mb-1 block">
+                      Custo do envio
+                    </label>
+                    <input
+                      className="ds-input"
+                      inputMode="decimal"
+                      value={custoEnvio}
+                      onChange={(e) => setCustoEnvio(e.target.value)}
+                      placeholder="R$ 0,00"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-muted-foreground mb-1 block">
+                      Data do envio
+                    </label>
+                    <input
+                      type="date"
+                      className="ds-input"
+                      value={dataEnvio}
+                      onChange={(e) => setDataEnvio(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-muted-foreground mb-1 block">
+                      Previsão de entrega
+                    </label>
+                    <input
+                      type="date"
+                      className="ds-input"
+                      value={previsaoEntrega}
+                      onChange={(e) => setPrevisaoEntrega(e.target.value)}
+                    />
+                  </div>
                 </div>
               )}
 
               {formaEnvio === "TRANSPORTADORA" && (
                 <div className="space-y-3 rounded-xl border border-border bg-secondary/30 p-4">
-                  <h3 className="font-semibold text-sm text-foreground">Transportadora do cliente</h3>
+                  <h3 className="font-semibold text-sm text-foreground">
+                    Transportadora do cliente
+                  </h3>
                   {transportadoraQuery.isLoading ? (
-                    <p className="text-sm text-muted-foreground">Buscando transportadora cadastrada...</p>
+                    <p className="text-sm text-muted-foreground">
+                      Buscando transportadora cadastrada...
+                    </p>
                   ) : transportadoraQuery.data ? (
                     <div className="rounded-lg border border-border bg-card p-3 text-sm">
-                      <strong className="block text-foreground">{transportadoraQuery.data.nome}</strong>
+                      <strong className="block text-foreground">
+                        {transportadoraQuery.data.nome}
+                      </strong>
                       <span className="text-xs text-muted-foreground">
-                        {[transportadoraQuery.data.cidade, transportadoraQuery.data.estado].filter(Boolean).join(" / ") || "Localização não informada"}
+                        {[transportadoraQuery.data.cidade, transportadoraQuery.data.estado]
+                          .filter(Boolean)
+                          .join(" / ") || "Localização não informada"}
                       </span>
                       {transportadoraQuery.data.telefone && (
-                        <span className="mt-1 block text-xs text-muted-foreground">Telefone: {transportadoraQuery.data.telefone}</span>
+                        <span className="mt-1 block text-xs text-muted-foreground">
+                          Telefone: {transportadoraQuery.data.telefone}
+                        </span>
                       )}
                     </div>
                   ) : (
                     <div className="rounded-lg border border-warning/30 bg-warning-bg p-3 text-sm text-warning">
-                      Este cliente ainda não possui transportadora cadastrada. Cadastre a transportadora no cadastro do cliente antes de registrar a venda.
+                      Este cliente ainda não possui transportadora cadastrada. Cadastre a
+                      transportadora no cadastro do cliente antes de registrar a venda.
                     </div>
                   )}
                   <p className="text-xs text-muted-foreground">
-                    O código de rastreamento não é informado nesta etapa. Ele deve ser registrado quando a venda for marcada como <strong>Despachada</strong> na aba Transporte.
+                    O código de rastreamento não é informado nesta etapa. Ele deve ser registrado
+                    quando a venda for marcada como <strong>Despachada</strong> na aba Transporte.
                   </p>
+                  <div>
+                    <label className="text-xs font-semibold text-muted-foreground mb-1 block">
+                      Código de rastreamento
+                    </label>
+                    <input
+                      className="ds-input"
+                      value={codigoRastreamento}
+                      onChange={(e) => setCodigoRastreamento(e.target.value)}
+                      placeholder="Código fornecido pela transportadora"
+                    />
+                  </div>
                 </div>
               )}
             </div>
@@ -1093,7 +1277,9 @@ function RegistrarVenda() {
             <div className="space-y-2 text-sm">
               <div className="flex justify-between text-muted-foreground">
                 <span>Total de itens:</span>
-                <strong className="text-foreground">{itensCalculados.reduce((s, i) => s + i.potes, 0)} potes</strong>
+                <strong className="text-foreground">
+                  {itensCalculados.reduce((s, i) => s + i.potes, 0)} potes
+                </strong>
               </div>
               <div className="flex justify-between text-base pt-2 border-t border-border">
                 <span className="font-bold">Total Venda:</span>
@@ -1169,10 +1355,19 @@ function RegistrarVenda() {
               Confira os dados da venda antes de confirmar o registro:
             </p>
             <div className="bg-secondary/40 p-4 rounded-xl space-y-2 text-sm">
-              <div><strong>Cliente:</strong> {cliente}</div>
-              <div><strong>Itens:</strong> {itensCalculados.map(i => `${i.nome} (${i.potes} potes)`).join(", ")}</div>
-              <div><strong>Total:</strong> {fmtBRL(total)}</div>
-              <div><strong>Pagamento:</strong> {formaLabel[forma]} ({statusPagamento})</div>
+              <div>
+                <strong>Cliente:</strong> {cliente}
+              </div>
+              <div>
+                <strong>Itens:</strong>{" "}
+                {itensCalculados.map((i) => `${i.nome} (${i.potes} potes)`).join(", ")}
+              </div>
+              <div>
+                <strong>Total:</strong> {fmtBRL(total)}
+              </div>
+              <div>
+                <strong>Pagamento:</strong> {formaLabel[forma]} ({statusPagamento})
+              </div>
               {temItemPendente && (
                 <div className="text-amber-600 dark:text-amber-400 text-xs font-semibold pt-1">
                   ⚠️ Esta venda contém itens com estoque insuficiente e ficará pendente de produção.
@@ -1204,4 +1399,3 @@ function RegistrarVenda() {
     </div>
   );
 }
-

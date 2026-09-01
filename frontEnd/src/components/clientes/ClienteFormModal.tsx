@@ -1,14 +1,18 @@
 import {
   cloneElement,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
+
+import { useQuery } from "@tanstack/react-query";
 
 import {
   Check,
   FileText,
   MapPin,
+  Search,
   Truck,
   UserRound,
   X,
@@ -17,6 +21,7 @@ import {
 import {
   buscarTransportadoraCliente,
   clienteSchema,
+  pesquisarClientes,
 } from "@/lib/clientes.functions";
 
 import {
@@ -67,6 +72,22 @@ type Props = {
   ) => void | Promise<void>;
 };
 
+type TransportadoraBusca = {
+  id: string;
+  nome: string;
+  documento: string;
+  telefone: string;
+  email: string;
+  cep: string;
+  endereco: string;
+  numero: string;
+  complemento: string;
+  bairro: string;
+  cidade: string;
+  estado: string;
+  observacao?: string;
+};
+
 export function ClienteFormModal({
   aberto,
   titulo,
@@ -98,6 +119,12 @@ export function ClienteFormModal({
     statusTransportadora,
     setStatusTransportadora,
   ] = useState<string | null>(null);
+
+  const [buscaTransportadora, setBuscaTransportadora] = useState("");
+  const [transportadoraSelecionada, setTransportadoraSelecionada] =
+    useState<TransportadoraBusca | null>(null);
+  const [cadastrandoNovaTransportadora, setCadastrandoNovaTransportadora] =
+    useState(false);
 
   const formRef =
     useRef<HTMLFormElement>(null);
@@ -135,6 +162,93 @@ export function ClienteFormModal({
 
   const envioTravado = useRef(false);
 
+  const termoBuscaTransportadora = buscaTransportadora.trim();
+  const documentoBuscaTransportadora = somenteDigitos(
+    termoBuscaTransportadora,
+  );
+  const termoApiTransportadora =
+    documentoBuscaTransportadora.length >= 8
+      ? documentoBuscaTransportadora
+      : termoBuscaTransportadora;
+
+  const { data: paginaTransportadoras, isFetching: buscandoTransportadoras } =
+    useQuery({
+      queryKey: ["transportadoras", "pesquisa", termoApiTransportadora],
+      queryFn: () =>
+        pesquisarClientes({
+          data: {
+            busca: termoApiTransportadora,
+            pagina: 0,
+            tamanho: 10,
+          },
+        }),
+      enabled:
+        form.usaTransportadora &&
+        !transportadoraSelecionada &&
+        termoApiTransportadora.length >= 2,
+      placeholderData: (anterior) => anterior,
+    });
+
+  const transportadorasEncontradas = useMemo(
+    () =>
+      (paginaTransportadoras?.registros ?? []).filter(
+        (registro: any) => registro.tipo === "TRANSPORTADORA",
+      ) as TransportadoraBusca[],
+    [paginaTransportadoras?.registros],
+  );
+
+  function preencherTransportadora(transportadora: TransportadoraBusca) {
+    setTransportadoraSelecionada(transportadora);
+    setCadastrandoNovaTransportadora(false);
+    setBuscaTransportadora(transportadora.nome);
+    setForm((atual) => ({
+      ...atual,
+      usaTransportadora: true,
+      transportadoraNome: transportadora.nome || "",
+      transportadoraCnpj: transportadora.documento || "",
+      transportadoraTelefone: transportadora.telefone || "",
+      transportadoraEmail: transportadora.email || "",
+      transportadoraCep: mascararCep(transportadora.cep || ""),
+      transportadoraEndereco: transportadora.endereco || "",
+      transportadoraNumero: transportadora.numero || "",
+      transportadoraComplemento: transportadora.complemento || "",
+      transportadoraBairro: transportadora.bairro || "",
+      transportadoraCidade: transportadora.cidade || "",
+      transportadoraEstado: transportadora.estado || "",
+      transportadoraObservacao: transportadora.observacao || "",
+    }));
+    setStatusTransportadora("Transportadora selecionada.");
+  }
+
+  function limparDadosTransportadora(atual: ClienteFormData) {
+    return {
+      ...atual,
+      transportadoraNome: "",
+      transportadoraCnpj: "",
+      transportadoraTelefone: "",
+      transportadoraEmail: "",
+      transportadoraCep: "",
+      transportadoraEndereco: "",
+      transportadoraNumero: "",
+      transportadoraComplemento: "",
+      transportadoraBairro: "",
+      transportadoraCidade: "",
+      transportadoraEstado: "",
+      transportadoraObservacao: "",
+    };
+  }
+
+  function iniciarCadastroNovaTransportadora() {
+    setTransportadoraSelecionada(null);
+    setBuscaTransportadora("");
+    setCadastrandoNovaTransportadora(true);
+    setStatusTransportadora(null);
+    setForm((atual) => ({
+      ...limparDadosTransportadora(atual),
+      usaTransportadora: true,
+    }));
+  }
+
   useEffect(() => {
     if (!aberto) return;
 
@@ -149,6 +263,9 @@ export function ClienteFormModal({
     setErros({});
     setStatusCep(null);
     setStatusTransportadora(null);
+    setBuscaTransportadora("");
+    setTransportadoraSelecionada(null);
+    setCadastrandoNovaTransportadora(false);
 
     ultimoCep.current =
       apenasDigitosCep(inicial.cep) || null;
@@ -237,6 +354,24 @@ export function ClienteFormModal({
           transportadoraObservacao:
             transportadora.observacao || "",
         }));
+
+        setTransportadoraSelecionada({
+          id: String(transportadora.id),
+          nome: transportadora.nome || "",
+          documento: transportadora.cnpj || "",
+          telefone: transportadora.telefone || "",
+          email: transportadora.email || "",
+          cep: transportadora.cep || "",
+          endereco: transportadora.endereco || "",
+          numero: transportadora.numero || "",
+          complemento: transportadora.complemento || "",
+          bairro: transportadora.bairro || "",
+          cidade: transportadora.cidade || "",
+          estado: transportadora.estado || "",
+          observacao: transportadora.observacao || "",
+        });
+        setBuscaTransportadora(transportadora.nome || "");
+        setCadastrandoNovaTransportadora(false);
 
         setStatusTransportadora(
           "Transportadora cadastrada para este cliente.",
@@ -629,6 +764,14 @@ export function ClienteFormModal({
     await onSubmit(normalizado);
   }
 
+  const cadastroAtual = form.tipo ?? "CLIENTE";
+  const nomeCadastro =
+    cadastroAtual === "TRANSPORTADORA"
+      ? "transportadora"
+      : cadastroAtual === "LOJISTA"
+        ? "lojista"
+        : "cliente";
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-end justify-center bg-black/45 p-0 backdrop-blur-sm md:items-center md:p-4"
@@ -642,13 +785,13 @@ export function ClienteFormModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="cliente-modal-title"
-        className="flex max-h-[96vh] w-full flex-col overflow-hidden rounded-t-3xl bg-card shadow-warm-lg md:max-h-[92vh] md:max-w-4xl md:rounded-3xl"
+        className="flex max-h-[90vh] w-full flex-col overflow-hidden rounded-t-3xl bg-card shadow-warm-lg md:max-h-[88vh] md:max-w-3xl md:rounded-3xl"
       >
-        <header className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-card px-5 py-4 md:px-8">
+        <header className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-card px-4 py-3 md:px-6">
           <div>
             <h2
               id="cliente-modal-title"
-              className="font-display text-2xl font-bold text-primary"
+              className="font-display text-xl font-bold text-primary"
             >
               {titulo}
             </h2>
@@ -665,7 +808,7 @@ export function ClienteFormModal({
             disabled={salvando}
             onClick={onClose}
             aria-label="Fechar cadastro de cliente"
-            className="flex min-h-11 min-w-11 items-center justify-center rounded-full hover:bg-secondary focus-visible:ring-2 focus-visible:ring-primary"
+            className="flex min-h-10 min-w-10 items-center justify-center rounded-full hover:bg-secondary focus-visible:ring-2 focus-visible:ring-primary"
           >
             <X size={22} />
           </button>
@@ -678,12 +821,12 @@ export function ClienteFormModal({
           aria-busy={salvando}
           className="flex min-h-0 flex-1 flex-col"
         >
-          <div className="min-h-0 flex-1 space-y-7 overflow-y-auto bg-background/40 px-5 py-6 md:px-8">
+          <div className="min-h-0 flex-1 space-y-5 overflow-y-auto bg-background/40 px-4 py-4 md:px-6">
             <Secao
               icon={<UserRound size={20} />}
               titulo="Dados principais"
             >
-              <div className="grid gap-5 md:grid-cols-2">
+              <div className="grid gap-4 md:grid-cols-2">
                 <Campo
                   campo="nome"
                   label="Nome completo ou razão social"
@@ -700,7 +843,7 @@ export function ClienteFormModal({
                         e.target.value,
                       )
                     }
-                    className="ds-input min-h-12 text-base"
+                    className="ds-input min-h-10 text-sm"
                     placeholder="Ex.: Maria da Silva ou Mercado da Maria"
                   />
                 </Campo>
@@ -723,7 +866,7 @@ export function ClienteFormModal({
                         ),
                       )
                     }
-                    className="ds-input min-h-12 text-base"
+                    className="ds-input min-h-10 text-sm"
                     placeholder="(00) 00000-0000"
                   />
                 </Campo>
@@ -743,7 +886,7 @@ export function ClienteFormModal({
                         e.target.value,
                       )
                     }
-                    className="ds-input min-h-12 text-base"
+                    className="ds-input min-h-10 text-sm"
                     placeholder="cliente@email.com"
                   />
                 </Campo>
@@ -755,8 +898,8 @@ export function ClienteFormModal({
               titulo="Documento"
             >
               <fieldset>
-                <legend className="mb-3 text-base font-semibold text-foreground">
-                  Tipo de cliente
+                <legend className="mb-3 text-sm font-semibold text-foreground">
+                  Tipo de documento
                 </legend>
 
                 <div className="grid grid-cols-2 gap-3">
@@ -776,7 +919,7 @@ export function ClienteFormModal({
                           "",
                         );
                       }}
-                      className={`min-h-12 rounded-xl border-2 px-3 text-base font-bold ${
+                      className={`min-h-10 rounded-xl border-2 px-3 text-sm font-bold ${
                         tipo === item
                           ? "border-primary bg-primary text-primary-foreground"
                           : "border-border bg-card text-foreground hover:bg-secondary"
@@ -791,7 +934,7 @@ export function ClienteFormModal({
               </fieldset>
 
               <div
-                className={`mt-5 grid gap-5 ${
+                className={`mt-4 grid gap-4 ${
                   tipo === "CNPJ"
                     ? "md:grid-cols-2"
                     : ""
@@ -815,7 +958,7 @@ export function ClienteFormModal({
                         ),
                       )
                     }
-                    className="ds-input min-h-12 text-base"
+                    className="ds-input min-h-10 text-sm"
                     placeholder={
                       tipo === "CPF"
                         ? "000.000.000-00"
@@ -843,7 +986,7 @@ export function ClienteFormModal({
                           e.target.value,
                         )
                       }
-                      className="ds-input min-h-12 text-base"
+                      className="ds-input min-h-10 text-sm"
                       placeholder="Número ou ISENTO"
                     />
                   </Campo>
@@ -855,7 +998,7 @@ export function ClienteFormModal({
               icon={<MapPin size={20} />}
               titulo="Endereço"
             >
-              <div className="grid gap-5 md:grid-cols-6">
+              <div className="grid gap-4 md:grid-cols-6">
                 <Campo
                   campo="cep"
                   label="CEP (opcional)"
@@ -894,7 +1037,7 @@ export function ClienteFormModal({
                       }
                     }}
                     onBlur={buscarCep}
-                    className="ds-input min-h-12 text-base"
+                    className="ds-input min-h-10 text-sm"
                     placeholder="00000-000"
                     aria-describedby="cep-status"
                   />
@@ -903,7 +1046,7 @@ export function ClienteFormModal({
                 <div
                   id="cep-status"
                   role="status"
-                  className="flex min-h-12 items-end pb-3 text-sm font-medium text-muted-foreground md:col-span-4"
+                  className="flex min-h-10 items-end pb-2 text-sm font-medium text-muted-foreground md:col-span-4"
                 >
                   {statusCep}
                 </div>
@@ -923,7 +1066,7 @@ export function ClienteFormModal({
                         e.target.value,
                       )
                     }
-                    className="ds-input min-h-12 text-base"
+                    className="ds-input min-h-10 text-sm"
                     placeholder="Ex.: Rua das Flores"
                   />
                 </Campo>
@@ -944,7 +1087,7 @@ export function ClienteFormModal({
                         e.target.value,
                       )
                     }
-                    className="ds-input min-h-12 text-base"
+                    className="ds-input min-h-10 text-sm"
                     placeholder="123"
                   />
                 </Campo>
@@ -964,7 +1107,7 @@ export function ClienteFormModal({
                         e.target.value,
                       )
                     }
-                    className="ds-input min-h-12 text-base"
+                    className="ds-input min-h-10 text-sm"
                     placeholder="Casa 2, fundos ou apartamento"
                   />
                 </Campo>
@@ -984,7 +1127,7 @@ export function ClienteFormModal({
                         e.target.value,
                       )
                     }
-                    className="ds-input min-h-12 text-base"
+                    className="ds-input min-h-10 text-sm"
                     placeholder="Ex.: Centro"
                   />
                 </Campo>
@@ -1004,7 +1147,7 @@ export function ClienteFormModal({
                         e.target.value,
                       )
                     }
-                    className="ds-input min-h-12 text-base"
+                    className="ds-input min-h-10 text-sm"
                     placeholder="Ex.: São Paulo"
                   />
                 </Campo>
@@ -1024,7 +1167,7 @@ export function ClienteFormModal({
                         e.target.value,
                       )
                     }
-                    className="ds-input min-h-12 text-base"
+                    className="ds-input min-h-10 text-sm"
                   >
                     <option value="">
                       Selecione
@@ -1045,13 +1188,14 @@ export function ClienteFormModal({
               </div>
             </Secao>
 
-            <Secao
-              icon={<Truck size={20} />}
-              titulo="Transportadora vinculada"
-            >
-              <div className="space-y-5">
+            {cadastroAtual === "CLIENTE" && (
+              <Secao
+                icon={<Truck size={20} />}
+                titulo="Transportadora vinculada"
+              >
+              <div className="space-y-4">
                 <div>
-                  <p className="text-base font-semibold text-foreground">
+                  <p className="text-sm font-semibold text-foreground">
                     Este cliente utiliza uma transportadora?
                   </p>
 
@@ -1062,16 +1206,16 @@ export function ClienteFormModal({
                   </p>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
-                    onClick={() =>
-                      alterar(
-                        "usaTransportadora",
-                        false,
-                      )
-                    }
-                    className={`min-h-12 rounded-xl border-2 px-3 text-base font-bold ${
+                    onClick={() => {
+                      alterar("usaTransportadora", false);
+                      setBuscaTransportadora("");
+                      setTransportadoraSelecionada(null);
+                      setCadastrandoNovaTransportadora(false);
+                    }}
+                    className={`min-h-10 rounded-xl border-2 px-3 text-sm font-bold ${
                       !form.usaTransportadora
                         ? "border-primary bg-primary text-primary-foreground"
                         : "border-border bg-card text-foreground hover:bg-secondary"
@@ -1082,13 +1226,11 @@ export function ClienteFormModal({
 
                   <button
                     type="button"
-                    onClick={() =>
-                      alterar(
-                        "usaTransportadora",
-                        true,
-                      )
-                    }
-                    className={`min-h-12 rounded-xl border-2 px-3 text-base font-bold ${
+                    onClick={() => {
+                      alterar("usaTransportadora", true);
+                      setCadastrandoNovaTransportadora(false);
+                    }}
+                    className={`min-h-10 rounded-xl border-2 px-3 text-sm font-bold ${
                       form.usaTransportadora
                         ? "border-primary bg-primary text-primary-foreground"
                         : "border-border bg-card text-foreground hover:bg-secondary"
@@ -1098,14 +1240,136 @@ export function ClienteFormModal({
                   </button>
                 </div>
 
+                {form.usaTransportadora && (
+                  <div className="space-y-2 rounded-xl border border-border bg-background/50 p-3">
+                    <div>
+                      <label className="block text-sm font-semibold text-foreground">
+                        Buscar transportadora cadastrada
+                      </label>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Digite o nome ou CNPJ para localizar uma transportadora existente.
+                      </p>
+                    </div>
+
+                    <div className="relative">
+                      <Search
+                        size={16}
+                        className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+                      />
+                      <input
+                        value={buscaTransportadora}
+                        onChange={(event) => {
+                          setBuscaTransportadora(event.target.value);
+                          setTransportadoraSelecionada(null);
+                          setCadastrandoNovaTransportadora(false);
+                          setStatusTransportadora(null);
+                        }}
+                        className="ds-input min-h-10 pl-10 text-sm"
+                        placeholder="Nome ou CNPJ da transportadora"
+                        autoComplete="off"
+                      />
+                    </div>
+
+                    {transportadoraSelecionada ? (
+                      <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-success/30 bg-success-bg px-3 py-2.5">
+                        <div className="min-w-0 text-sm">
+                          <strong className="block truncate text-foreground">
+                            {transportadoraSelecionada.nome}
+                          </strong>
+                          <span className="text-xs text-muted-foreground">
+                            {transportadoraSelecionada.documento || "CNPJ não informado"}
+                          </span>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setTransportadoraSelecionada(null);
+                              setBuscaTransportadora("");
+                              setCadastrandoNovaTransportadora(true);
+                            }}
+                            className="rounded-md px-2.5 py-1.5 text-xs font-bold text-primary hover:bg-card"
+                          >
+                            Editar dados
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setTransportadoraSelecionada(null);
+                              setBuscaTransportadora("");
+                              setCadastrandoNovaTransportadora(false);
+                              setStatusTransportadora(null);
+                            }}
+                            className="rounded-md px-2.5 py-1.5 text-xs font-bold text-muted-foreground hover:bg-card hover:text-foreground"
+                          >
+                            Trocar
+                          </button>
+                        </div>
+                      </div>
+                    ) : termoApiTransportadora.length >= 2 ? (
+                      <div className="rounded-lg border border-border bg-card p-1">
+                        {buscandoTransportadoras ? (
+                          <p className="px-3 py-2 text-xs text-muted-foreground">
+                            Buscando transportadoras...
+                          </p>
+                        ) : transportadorasEncontradas.length > 0 ? (
+                          transportadorasEncontradas.map((transportadora) => (
+                            <button
+                              key={transportadora.id}
+                              type="button"
+                              onClick={() => preencherTransportadora(transportadora)}
+                              className="flex w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-left hover:bg-secondary"
+                            >
+                              <span className="min-w-0">
+                                <strong className="block truncate text-sm text-foreground">
+                                  {transportadora.nome}
+                                </strong>
+                                <span className="block text-xs text-muted-foreground">
+                                  {transportadora.documento || "CNPJ não informado"}
+                                </span>
+                              </span>
+                              <span className="shrink-0 text-xs font-semibold text-primary">
+                                Selecionar
+                              </span>
+                            </button>
+                          ))
+                        ) : (
+                          <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
+                            <span className="text-xs text-muted-foreground">
+                              Nenhuma transportadora encontrada.
+                            </span>
+                            <button
+                              type="button"
+                              onClick={iniciarCadastroNovaTransportadora}
+                              className="rounded-md bg-primary px-2.5 py-1.5 text-xs font-bold text-primary-foreground hover:bg-primary-dark"
+                            >
+                              Cadastrar nova
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ) : null}
+
+                    {!transportadoraSelecionada && !cadastrandoNovaTransportadora && (
+                      <button
+                        type="button"
+                        onClick={iniciarCadastroNovaTransportadora}
+                        className="text-left text-xs font-bold text-primary hover:underline"
+                      >
+                        + Cadastrar nova transportadora
+                      </button>
+                    )}
+                  </div>
+                )}
+
                 {statusTransportadora && (
                   <div className="rounded-xl border border-border bg-secondary/50 px-4 py-3 text-sm text-muted-foreground">
                     {statusTransportadora}
                   </div>
                 )}
 
-                {form.usaTransportadora && (
-                  <div className="space-y-5 rounded-2xl border border-border bg-background/50 p-4 md:p-5">
+                {form.usaTransportadora && cadastrandoNovaTransportadora && !transportadoraSelecionada && (
+                  <div className="space-y-4 rounded-2xl border border-border bg-background/50 p-3 md:p-4">
                     <Campo
                       campo="transportadoraNome"
                       label="Nome da transportadora"
@@ -1124,12 +1388,12 @@ export function ClienteFormModal({
                             e.target.value,
                           )
                         }
-                        className="ds-input min-h-12 text-base"
+                        className="ds-input min-h-10 text-sm"
                         placeholder="Ex.: Jadlog"
                       />
                     </Campo>
 
-                    <div className="grid gap-5 md:grid-cols-2">
+                    <div className="grid gap-4 md:grid-cols-2">
                       <Campo
                         campo="transportadoraCnpj"
                         label="CNPJ (opcional)"
@@ -1149,7 +1413,7 @@ export function ClienteFormModal({
                               e.target.value,
                             )
                           }
-                          className="ds-input min-h-12 text-base"
+                          className="ds-input min-h-10 text-sm"
                           placeholder="00.000.000/0000-00"
                         />
                       </Campo>
@@ -1176,7 +1440,7 @@ export function ClienteFormModal({
                               ),
                             )
                           }
-                          className="ds-input min-h-12 text-base"
+                          className="ds-input min-h-10 text-sm"
                           placeholder="(00) 00000-0000"
                         />
                       </Campo>
@@ -1201,17 +1465,17 @@ export function ClienteFormModal({
                             e.target.value,
                           )
                         }
-                        className="ds-input min-h-12 text-base"
+                        className="ds-input min-h-10 text-sm"
                         placeholder="transportadora@email.com"
                       />
                     </Campo>
 
-                    <div className="border-t border-border pt-5">
-                      <h4 className="mb-4 text-sm font-bold uppercase tracking-wider text-muted-foreground">
+                    <div className="border-t border-border pt-4">
+                      <h4 className="mb-3 text-sm font-bold uppercase tracking-wider text-muted-foreground">
                         Endereço da transportadora
                       </h4>
 
-                      <div className="grid gap-5 md:grid-cols-6">
+                      <div className="grid gap-4 md:grid-cols-6">
                         <Campo
                           campo="transportadoraCep"
                           label="CEP"
@@ -1258,7 +1522,7 @@ export function ClienteFormModal({
                             onBlur={
                               buscarCepTransportadora
                             }
-                            className="ds-input min-h-12 text-base"
+                            className="ds-input min-h-10 text-sm"
                             placeholder="00000-000"
                           />
                         </Campo>
@@ -1284,7 +1548,7 @@ export function ClienteFormModal({
                                 e.target.value,
                               )
                             }
-                            className="ds-input min-h-12 text-base"
+                            className="ds-input min-h-10 text-sm"
                             placeholder="Ex.: Rua das Flores"
                           />
                         </Campo>
@@ -1308,7 +1572,7 @@ export function ClienteFormModal({
                                 e.target.value,
                               )
                             }
-                            className="ds-input min-h-12 text-base"
+                            className="ds-input min-h-10 text-sm"
                             placeholder="123"
                           />
                         </Campo>
@@ -1332,7 +1596,7 @@ export function ClienteFormModal({
                                 e.target.value,
                               )
                             }
-                            className="ds-input min-h-12 text-base"
+                            className="ds-input min-h-10 text-sm"
                             placeholder="Sala 2, galpão..."
                           />
                         </Campo>
@@ -1356,7 +1620,7 @@ export function ClienteFormModal({
                                 e.target.value,
                               )
                             }
-                            className="ds-input min-h-12 text-base"
+                            className="ds-input min-h-10 text-sm"
                             placeholder="Ex.: Centro"
                           />
                         </Campo>
@@ -1380,7 +1644,7 @@ export function ClienteFormModal({
                                 e.target.value,
                               )
                             }
-                            className="ds-input min-h-12 text-base"
+                            className="ds-input min-h-10 text-sm"
                             placeholder="Ex.: São Paulo"
                           />
                         </Campo>
@@ -1404,7 +1668,7 @@ export function ClienteFormModal({
                                 e.target.value,
                               )
                             }
-                            className="ds-input min-h-12 text-base"
+                            className="ds-input min-h-10 text-sm"
                           >
                             <option value="">
                               Selecione
@@ -1443,31 +1707,32 @@ export function ClienteFormModal({
                             e.target.value,
                           )
                         }
-                        className="ds-input min-h-24 resize-y py-3 text-base"
+                        className="ds-input min-h-24 resize-y py-3 text-sm"
                         placeholder="Informações adicionais sobre a transportadora..."
                       />
                     </Campo>
                   </div>
                 )}
               </div>
-            </Secao>
+              </Secao>
+            )}
 
             {erroGeral && (
               <div
                 role="alert"
-                className="rounded-xl border border-error/30 bg-error-bg px-4 py-3 text-base font-semibold text-error"
+                className="rounded-xl border border-error/30 bg-error-bg px-4 py-3 text-sm font-semibold text-error"
               >
                 {erroGeral}
               </div>
             )}
           </div>
 
-          <footer className="sticky bottom-0 flex gap-3 border-t border-border bg-card px-5 py-4 md:justify-end md:px-8">
+          <footer className="sticky bottom-0 flex gap-2 border-t border-border bg-card px-4 py-3 md:justify-end md:px-6">
             <button
               type="button"
               disabled={salvando}
               onClick={onClose}
-              className="min-h-12 rounded-xl border border-border px-6 text-base font-bold text-foreground hover:bg-secondary disabled:opacity-50"
+              className="min-h-10 rounded-xl border border-border px-5 text-sm font-bold text-foreground hover:bg-secondary disabled:opacity-50"
             >
               Cancelar
             </button>
@@ -1475,13 +1740,13 @@ export function ClienteFormModal({
             <button
               type="submit"
               disabled={salvando}
-              className="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-primary px-7 text-base font-bold text-primary-foreground hover:bg-primary-dark disabled:opacity-60 md:flex-none"
+              className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-xl bg-primary px-6 text-sm font-bold text-primary-foreground hover:bg-primary-dark disabled:opacity-60 md:flex-none"
             >
               <Check size={18} />
 
               {salvando
                 ? "Salvando..."
-                : "Salvar cliente"}
+                : `Salvar ${nomeCadastro}`}
             </button>
           </footer>
         </form>
@@ -1500,8 +1765,8 @@ function Secao({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-2xl border border-border bg-card p-5 shadow-warm-sm md:p-6">
-      <h3 className="mb-5 flex items-center gap-2 border-b border-border pb-3 font-display text-xl font-bold text-primary">
+    <section className="rounded-2xl border border-border bg-card p-4 shadow-warm-sm md:p-5">
+      <h3 className="mb-4 flex items-center gap-2 border-b border-border pb-2 font-display text-lg font-bold text-primary">
         {icon}
         {titulo}
       </h3>
@@ -1530,7 +1795,7 @@ function Campo({
 
   return (
     <div className={className}>
-      <label className="mb-2 block text-base font-bold text-foreground">
+      <label className="mb-2 block text-sm font-bold text-foreground">
         {label}
       </label>
 
