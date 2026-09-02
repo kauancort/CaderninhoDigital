@@ -1,5 +1,6 @@
 package com.InovaSkill.CaderninhoDigital.dto.response;
 
+import com.InovaSkill.CaderninhoDigital.entity.TipoCliente;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -22,4 +23,5 @@ public class ClienteResponseDTO {
     private Boolean ativo;
     private Long gestorId;
     private String gestorNome;
+    private TipoCliente tipo;
 }

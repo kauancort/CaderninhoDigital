@@ -175,6 +175,14 @@
     -webkit-tap-highlight-color: transparent;
   }
 
+  button:not(:disabled) {
+    cursor: pointer;
+  }
+
+  button:disabled {
+    cursor: not-allowed;
+  }
+
   :where(button, a, input, select, textarea):focus-visible {
     outline: 3px solid color-mix(in oklch, var(--color-ring) 35%, transparent);
     outline-offset: 2px;

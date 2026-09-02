@@ -32,9 +32,9 @@ public class VendaRequestDTO {
     private LocalDate dataEnvio;
     private LocalDate previsaoEntrega;
     private String codigoRastreamento;
+    @Valid
     private TransportadoraRequestDTO transportadora;
     @Valid
     @NotEmpty(message = "Informe ao menos um item da venda")
     private List<ItemVendaRequestDTO> itens;
 }
-

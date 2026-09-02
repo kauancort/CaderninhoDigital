@@ -44,11 +44,14 @@ class CaderninhoDigitalApplicationTests {
 
 	@Test
 	void contextLoads() {
-		assertThat(flyway.info().applied()).hasSize(25);
+		assertThat(flyway.info().applied()).hasSize(28);
 		assertThat(jdbcTemplate.queryForObject(
 				"SELECT senha LIKE '$2%' FROM usuarios WHERE email = 'adm@gmail.com'", Boolean.class)).isTrue();
 		assertThat(jdbcTemplate.queryForObject(
 				"SELECT troca_senha_obrigatoria FROM usuarios WHERE email = 'adm@gmail.com'", Boolean.class)).isTrue();
+		assertThat(jdbcTemplate.queryForObject(
+				"SELECT COUNT(*) FROM information_schema.columns WHERE table_name = 'clientes' AND column_name = 'tipo'",
+				Integer.class)).isEqualTo(1);
 	}
 
 	@Test

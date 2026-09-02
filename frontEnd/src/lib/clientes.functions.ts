@@ -1,8 +1,5 @@
 import { createApiFn } from "@/lib/api-function";
-import {
-  API_URL as BASE_URL,
-  apiFetch as fetch,
-} from "@/lib/api-client";
+import { API_URL as BASE_URL, apiFetch as fetch } from "@/lib/api-client";
 import { z } from "zod";
 import { UFS_BRASIL } from "./cliente-form";
 
@@ -11,77 +8,69 @@ const emailOpcional = z.union([
   z.string().trim().email("Informe um e-mail válido.").max(160),
 ]);
 
-export const clienteSchema = z.object({
-  nome: z
-    .string()
-    .trim()
-    .min(1, "Informe o nome do cliente.")
-    .max(120),
+const clienteCamposSchema = z.object({
+  nome: z.string().trim().min(1, "Informe o nome do cliente.").max(120),
 
   telefone: z
     .string()
     .trim()
-    .regex(
-      /^(?:\D*\d){10,11}\D*$/,
-      "Informe um telefone válido.",
-    ),
+    .regex(/^$|^(?:\D*\d){10,11}\D*$/, "Informe um telefone válido.")
+    .default(""),
 
   email: emailOpcional.default(""),
 
-  endereco: z
-    .string()
-    .trim()
-    .min(1, "Informe a rua ou o endereço.")
-    .max(255),
+  endereco: z.string().trim().max(255).default(""),
 
-  numero: z
-    .string()
-    .trim()
-    .min(1, "Informe o número.")
-    .max(20),
+  numero: z.string().trim().max(20).default(""),
 
-  complemento: z
-    .string()
-    .max(120)
-    .optional()
-    .default(""),
+  complemento: z.string().max(120).optional().default(""),
 
-  documento: z
-    .string()
-    .min(1, "Informe o CPF ou CNPJ.")
-    .max(40),
+  documento: z.string().trim().max(40).default(""),
 
   cep: z
     .string()
-    .regex(
-      /^$|^\d{8}$/,
-      "Informe os 8 dígitos do CEP.",
-    )
+    .regex(/^$|^\d{8}$/, "Informe os 8 dígitos do CEP.")
     .optional()
     .default(""),
 
-  bairro: z
-    .string()
-    .trim()
-    .min(1, "Informe o bairro.")
-    .max(120),
+  bairro: z.string().trim().max(120).default(""),
 
-  cidade: z
-    .string()
-    .trim()
-    .min(1, "Informe a cidade.")
-    .max(120),
+  cidade: z.string().trim().max(120).default(""),
 
-  estado: z.enum(UFS_BRASIL, {
-    message: "Selecione o estado.",
-  }),
+  estado: z.union([z.enum(UFS_BRASIL), z.literal("")]).default(""),
 
-  inscricaoEstadual: z
-    .string()
-    .max(40)
-    .optional()
-    .default(""),
+  inscricaoEstadual: z.string().max(40).optional().default(""),
+  tipo: z.enum(["CLIENTE", "TRANSPORTADORA", "LOJISTA"]).optional().default("CLIENTE"),
 });
+
+function validarCamposCliente(
+  data: z.infer<typeof clienteCamposSchema>,
+  contexto: z.RefinementCtx,
+) {
+  if (data.tipo === "TRANSPORTADORA") return;
+
+  const obrigatorios: Array<[keyof typeof data, string]> = [
+    ["telefone", "Informe um telefone válido."],
+    ["documento", "Informe o CPF ou CNPJ."],
+    ["endereco", "Informe a rua ou o endereço."],
+    ["numero", "Informe o número."],
+    ["bairro", "Informe o bairro."],
+    ["cidade", "Informe a cidade."],
+    ["estado", "Selecione o estado."],
+  ];
+
+  for (const [campo, mensagem] of obrigatorios) {
+    if (!String(data[campo] ?? "").trim()) {
+      contexto.addIssue({
+        code: "custom",
+        path: [campo],
+        message: mensagem,
+      });
+    }
+  }
+}
+
+export const clienteSchema = clienteCamposSchema.superRefine(validarCamposCliente);
 
 export type Transportadora = {
   id: string;
@@ -100,17 +89,31 @@ export type Transportadora = {
   observacao: string;
 };
 
-export type TransportadoraPayload = Omit<
-  Transportadora,
-  "id" | "clienteId"
->;
+export type TransportadoraPayload = Omit<Transportadora, "id" | "clienteId">;
+
+export type TransportadoraDetalhes = {
+  id: string;
+  nome: string;
+  clientesVinculados: Array<{
+    id: string;
+    nome: string;
+    tipo: "CLIENTE" | "TRANSPORTADORA" | "LOJISTA" | null;
+  }>;
+  historico: Array<{
+    vendaId: string;
+    clienteId: string;
+    clienteNome: string;
+    dataVenda: string;
+    custoEnvio: number | null;
+    dataEnvio: string | null;
+    previsaoEntrega: string | null;
+    codigoRastreamento: string | null;
+    situacaoDespacho: string | null;
+  }>;
+};
 
 const transportadoraPayloadSchema = z.object({
-  nome: z
-    .string()
-    .trim()
-    .min(1, "Informe o nome da transportadora.")
-    .max(160),
+  nome: z.string().trim().min(1, "Informe o nome da transportadora.").max(160),
 
   cnpj: z.string().max(20).optional().default(""),
   telefone: z.string().max(30).optional().default(""),
@@ -125,23 +128,27 @@ const transportadoraPayloadSchema = z.object({
   observacao: z.string().max(500).optional().default(""),
 });
 
-export type ClienteComTransportadora = z.infer<
-  typeof clienteSchema
-> & {
-  usaTransportadora?: boolean;
-  transportadoraNome?: string;
-  transportadoraCnpj?: string;
-  transportadoraTelefone?: string;
-  transportadoraEmail?: string;
-  transportadoraCep?: string;
-  transportadoraEndereco?: string;
-  transportadoraNumero?: string;
-  transportadoraComplemento?: string;
-  transportadoraBairro?: string;
-  transportadoraCidade?: string;
-  transportadoraEstado?: string;
-  transportadoraObservacao?: string;
+const camposTransportadoraVinculada = {
+  usaTransportadora: z.boolean().optional().default(false),
+  transportadoraNome: z.string().optional().default(""),
+  transportadoraCnpj: z.string().optional().default(""),
+  transportadoraTelefone: z.string().optional().default(""),
+  transportadoraEmail: z.string().optional().default(""),
+  transportadoraCep: z.string().optional().default(""),
+  transportadoraEndereco: z.string().optional().default(""),
+  transportadoraNumero: z.string().optional().default(""),
+  transportadoraComplemento: z.string().optional().default(""),
+  transportadoraBairro: z.string().optional().default(""),
+  transportadoraCidade: z.string().optional().default(""),
+  transportadoraEstado: z.string().optional().default(""),
+  transportadoraObservacao: z.string().optional().default(""),
 };
+
+const clienteComTransportadoraSchema = clienteCamposSchema
+  .extend(camposTransportadoraVinculada)
+  .superRefine(validarCamposCliente);
+
+export type ClienteComTransportadora = z.infer<typeof clienteComTransportadoraSchema>;
 
 function mapCliente(c: any) {
   return {
@@ -158,12 +165,11 @@ function mapCliente(c: any) {
     cidade: c.cidade || "",
     estado: c.estado || "",
     inscricaoEstadual: c.inscricaoEstadual || "",
+    tipo: c.tipo || "CLIENTE",
   };
 }
 
-export function clientePayload(
-  data: z.infer<typeof clienteSchema>,
-) {
+export function clientePayload(data: z.infer<typeof clienteSchema>) {
   return {
     nome: data.nome,
     email: data.email || null,
@@ -177,48 +183,34 @@ export function clientePayload(
     cidade: data.cidade,
     estado: data.estado,
     inscricaoEstadual: data.inscricaoEstadual || null,
+    tipo: data.tipo,
     ativo: true,
   };
 }
 
-function mensagemCliente(
-  message: string,
-  fallback: string,
-) {
+function mensagemCliente(message: string, fallback: string) {
   if (!message) return fallback;
 
   return message
     .split("; ")
-    .map((parte) =>
-      parte.replace(/^[\wÀ-ÿ]+:\s*/, ""),
-    )
+    .map((parte) => parte.replace(/^[\wÀ-ÿ]+:\s*/, ""))
     .join(" ");
 }
 
-function montarTransportadoraPayload(
-  data: ClienteComTransportadora,
-): TransportadoraPayload {
+function montarTransportadoraPayload(data: ClienteComTransportadora): TransportadoraPayload {
   return {
     nome: data.transportadoraNome?.trim() || "",
     cnpj: data.transportadoraCnpj?.trim() || "",
-    telefone:
-      data.transportadoraTelefone?.trim() || "",
+    telefone: data.transportadoraTelefone?.trim() || "",
     email: data.transportadoraEmail?.trim() || "",
     cep: data.transportadoraCep?.replace(/\D/g, "") || "",
-    endereco:
-      data.transportadoraEndereco?.trim() || "",
-    numero:
-      data.transportadoraNumero?.trim() || "",
-    complemento:
-      data.transportadoraComplemento?.trim() || "",
-    bairro:
-      data.transportadoraBairro?.trim() || "",
-    cidade:
-      data.transportadoraCidade?.trim() || "",
-    estado:
-      data.transportadoraEstado?.trim() || "",
-    observacao:
-      data.transportadoraObservacao?.trim() || "",
+    endereco: data.transportadoraEndereco?.trim() || "",
+    numero: data.transportadoraNumero?.trim() || "",
+    complemento: data.transportadoraComplemento?.trim() || "",
+    bairro: data.transportadoraBairro?.trim() || "",
+    cidade: data.transportadoraCidade?.trim() || "",
+    estado: data.transportadoraEstado?.trim() || "",
+    observacao: data.transportadoraObservacao?.trim() || "",
   };
 }
 
@@ -229,22 +221,13 @@ async function sincronizarTransportadora(
   if (data.usaTransportadora) {
     const transportadora = montarTransportadoraPayload(data);
 
-    const resultado =
-      transportadoraPayloadSchema.safeParse(
-        transportadora,
-      );
+    const resultado = transportadoraPayloadSchema.safeParse(transportadora);
 
     if (!resultado.success) {
-      throw new Error(
-        resultado.error.issues[0]?.message ||
-          "Dados da transportadora inválidos.",
-      );
+      throw new Error(resultado.error.issues[0]?.message || "Dados da transportadora inválidos.");
     }
 
-    await salvarTransportadoraCliente(
-      clienteId,
-      resultado.data,
-    );
+    await salvarTransportadoraCliente(clienteId, resultado.data);
 
     return;
   }
@@ -286,10 +269,7 @@ export const pesquisarClientes = createApiFn({
       ativo: "true",
     });
 
-    const res = await fetch(
-      `${BASE_URL}/clientes/pagina?${params}`,
-      {},
-    );
+    const res = await fetch(`${BASE_URL}/clientes/pagina?${params}`, {});
 
     if (!res.ok) {
       throw new Error("Erro ao pesquisar clientes");
@@ -306,110 +286,29 @@ export const pesquisarClientes = createApiFn({
 export const criarCliente = createApiFn({
   method: "POST",
 })
-  .inputValidator((d) =>
-    clienteSchema
-      .extend({
-        usaTransportadora: z
-          .boolean()
-          .optional()
-          .default(false),
-
-        transportadoraNome: z
-          .string()
-          .optional()
-          .default(""),
-
-        transportadoraCnpj: z
-          .string()
-          .optional()
-          .default(""),
-
-        transportadoraTelefone: z
-          .string()
-          .optional()
-          .default(""),
-
-        transportadoraEmail: z
-          .string()
-          .optional()
-          .default(""),
-
-        transportadoraCep: z
-          .string()
-          .optional()
-          .default(""),
-
-        transportadoraEndereco: z
-          .string()
-          .optional()
-          .default(""),
-
-        transportadoraNumero: z
-          .string()
-          .optional()
-          .default(""),
-
-        transportadoraComplemento: z
-          .string()
-          .optional()
-          .default(""),
-
-        transportadoraBairro: z
-          .string()
-          .optional()
-          .default(""),
-
-        transportadoraCidade: z
-          .string()
-          .optional()
-          .default(""),
-
-        transportadoraEstado: z
-          .string()
-          .optional()
-          .default(""),
-
-        transportadoraObservacao: z
-          .string()
-          .optional()
-          .default(""),
-      })
-      .parse(d),
-  )
+  .inputValidator((d) => clienteComTransportadoraSchema.parse(d))
   .handler(async ({ data }) => {
     const res = await fetch(`${BASE_URL}/clientes`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(
-        clientePayload(data),
-      ),
+      body: JSON.stringify(clientePayload(data)),
     });
 
     if (!res.ok) {
-      const err = await res
-        .json()
-        .catch(() => ({
-          message: "Erro ao criar cliente",
-        }));
+      const err = await res.json().catch(() => ({
+        message: "Erro ao criar cliente",
+      }));
 
-      throw new Error(
-        mensagemCliente(
-          err.message,
-          "Não foi possível criar o cliente.",
-        ),
-      );
+      throw new Error(mensagemCliente(err.message, "Não foi possível criar o cliente."));
     }
 
     const cliente = await res.json();
 
     const clienteMapeado = mapCliente(cliente);
 
-    await sincronizarTransportadora(
-      clienteMapeado.id,
-      data,
-    );
+    await sincronizarTransportadora(clienteMapeado.id, data);
 
     return clienteMapeado;
   });
@@ -418,78 +317,8 @@ export const atualizarCliente = createApiFn({
   method: "POST",
 })
   .inputValidator((d) =>
-    clienteSchema
-      .extend({
-        id: z.union([
-          z.string(),
-          z.number(),
-        ]),
-
-        usaTransportadora: z
-          .boolean()
-          .optional()
-          .default(false),
-
-        transportadoraNome: z
-          .string()
-          .optional()
-          .default(""),
-
-        transportadoraCnpj: z
-          .string()
-          .optional()
-          .default(""),
-
-        transportadoraTelefone: z
-          .string()
-          .optional()
-          .default(""),
-
-        transportadoraEmail: z
-          .string()
-          .optional()
-          .default(""),
-
-        transportadoraCep: z
-          .string()
-          .optional()
-          .default(""),
-
-        transportadoraEndereco: z
-          .string()
-          .optional()
-          .default(""),
-
-        transportadoraNumero: z
-          .string()
-          .optional()
-          .default(""),
-
-        transportadoraComplemento: z
-          .string()
-          .optional()
-          .default(""),
-
-        transportadoraBairro: z
-          .string()
-          .optional()
-          .default(""),
-
-        transportadoraCidade: z
-          .string()
-          .optional()
-          .default(""),
-
-        transportadoraEstado: z
-          .string()
-          .optional()
-          .default(""),
-
-        transportadoraObservacao: z
-          .string()
-          .optional()
-          .default(""),
-      })
+    clienteComTransportadoraSchema
+      .and(z.object({ id: z.union([z.string(), z.number()]) }))
       .parse(d),
   )
   .handler(async ({ data }) => {
@@ -511,32 +340,20 @@ export const atualizarCliente = createApiFn({
       ...rest
     } = data;
 
-    const res = await fetch(
-      `${BASE_URL}/clientes/${id}`,
-      {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(
-          clientePayload(rest),
-        ),
+    const res = await fetch(`${BASE_URL}/clientes/${id}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
       },
-    );
+      body: JSON.stringify(clientePayload(rest)),
+    });
 
     if (!res.ok) {
-      const err = await res
-        .json()
-        .catch(() => ({
-          message: "Erro ao atualizar cliente",
-        }));
+      const err = await res.json().catch(() => ({
+        message: "Erro ao atualizar cliente",
+      }));
 
-      throw new Error(
-        mensagemCliente(
-          err.message,
-          "Não foi possível atualizar o cliente.",
-        ),
-      );
+      throw new Error(mensagemCliente(err.message, "Não foi possível atualizar o cliente."));
     }
 
     await sincronizarTransportadora(id, {
@@ -565,20 +382,14 @@ export const excluirCliente = createApiFn({
   .inputValidator((d) =>
     z
       .object({
-        id: z.union([
-          z.string(),
-          z.number(),
-        ]),
+        id: z.union([z.string(), z.number()]),
       })
       .parse(d),
   )
   .handler(async ({ data }) => {
-    const res = await fetch(
-      `${BASE_URL}/clientes/${data.id}`,
-      {
-        method: "DELETE",
-      },
-    );
+    const res = await fetch(`${BASE_URL}/clientes/${data.id}`, {
+      method: "DELETE",
+    });
 
     if (!res.ok) {
       throw new Error("Erro ao excluir cliente");
@@ -606,74 +417,82 @@ function mapTransportadora(t: any): Transportadora {
   };
 }
 
-export async function buscarTransportadoraCliente(
-  clienteId: string | number,
-) {
-  const res = await fetch(
-    `${BASE_URL}/clientes/${clienteId}/transportadora`,
-    {},
-  );
+export async function buscarTransportadoraCliente(clienteId: string | number) {
+  const res = await fetch(`${BASE_URL}/clientes/${clienteId}/transportadora`, {});
 
   if (res.status === 204) {
     return null;
   }
 
   if (!res.ok) {
-    throw new Error(
-      "Erro ao buscar a transportadora do cliente",
-    );
+    throw new Error("Erro ao buscar a transportadora do cliente");
   }
 
   return mapTransportadora(await res.json());
+}
+
+export async function buscarDetalhesTransportadora(clienteId: string | number) {
+  const res = await fetch(`${BASE_URL}/clientes/${clienteId}/transportadora/detalhes`, {});
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: "Erro ao buscar detalhes" }));
+    throw new Error(err.message || "Não foi possível carregar os detalhes da transportadora.");
+  }
+
+  const data = await res.json();
+
+  return {
+    id: String(data.id),
+    nome: data.nome,
+    clientesVinculados: (data.clientesVinculados ?? []).map((cliente: any) => ({
+      id: String(cliente.id),
+      nome: cliente.nome,
+      tipo: cliente.tipo ?? null,
+    })),
+    historico: (data.historico ?? []).map((uso: any) => ({
+      vendaId: String(uso.vendaId),
+      clienteId: String(uso.clienteId),
+      clienteNome: uso.clienteNome,
+      dataVenda: uso.dataVenda,
+      custoEnvio: uso.custoEnvio == null ? null : Number(uso.custoEnvio),
+      dataEnvio: uso.dataEnvio ?? null,
+      previsaoEntrega: uso.previsaoEntrega ?? null,
+      codigoRastreamento: uso.codigoRastreamento ?? null,
+      situacaoDespacho: uso.situacaoDespacho ?? null,
+    })),
+  } satisfies TransportadoraDetalhes;
 }
 
 export async function salvarTransportadoraCliente(
   clienteId: string | number,
   data: TransportadoraPayload,
 ) {
-  const res = await fetch(
-    `${BASE_URL}/clientes/${clienteId}/transportadora`,
-    {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(data),
+  const res = await fetch(`${BASE_URL}/clientes/${clienteId}/transportadora`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
     },
-  );
+    body: JSON.stringify(data),
+  });
 
   if (!res.ok) {
-    const err = await res
-      .json()
-      .catch(() => ({
-        message: "Erro ao salvar transportadora",
-      }));
+    const err = await res.json().catch(() => ({
+      message: "Erro ao salvar transportadora",
+    }));
 
-    throw new Error(
-      mensagemCliente(
-        err.message,
-        "Não foi possível salvar a transportadora.",
-      ),
-    );
+    throw new Error(mensagemCliente(err.message, "Não foi possível salvar a transportadora."));
   }
 
   return mapTransportadora(await res.json());
 }
 
-export async function removerTransportadoraCliente(
-  clienteId: string | number,
-) {
-  const res = await fetch(
-    `${BASE_URL}/clientes/${clienteId}/transportadora`,
-    {
-      method: "DELETE",
-    },
-  );
+export async function removerTransportadoraCliente(clienteId: string | number) {
+  const res = await fetch(`${BASE_URL}/clientes/${clienteId}/transportadora`, {
+    method: "DELETE",
+  });
 
   if (!res.ok) {
-    throw new Error(
-      "Erro ao remover a transportadora",
-    );
+    throw new Error("Erro ao remover a transportadora");
   }
 
   return { ok: true };
