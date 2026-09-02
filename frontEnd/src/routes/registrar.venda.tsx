@@ -539,8 +539,11 @@ function RegistrarVenda() {
       return setErro(
         "Informe a quilometragem da entrega ou configure o endereço da fábrica para o cálculo automático.",
       );
-    if (formaEnvio === "TRANSPORTADORA" && !transportadoraQuery.data)
-      return setErro("Cadastre uma transportadora para este cliente antes de realizar a venda.");
+    if (
+      formaEnvio === "TRANSPORTADORA" &&
+      !(transportadoraQuery.data?.nome || transportadora.nome).trim()
+    )
+      return setErro("Informe o nome da transportadora para continuar.");
     setConfirmar(true);
   }
 
@@ -1164,6 +1167,70 @@ function RegistrarVenda() {
                 </div>
               )}
 
+              {formaEnvio === "TRANSPORTADORA" && (
+                <div className="space-y-3 rounded-xl border border-border bg-secondary/30 p-4">
+                  <h3 className="font-semibold text-sm text-foreground">
+                    Transportadora do cliente
+                  </h3>
+                  {transportadoraQuery.isLoading ? (
+                    <p className="text-sm text-muted-foreground">
+                      Buscando transportadora cadastrada...
+                    </p>
+                  ) : transportadoraQuery.data ? (
+                    <div className="rounded-lg border border-border bg-card p-3 text-sm">
+                      <strong className="block text-foreground">
+                        {transportadoraQuery.data.nome}
+                      </strong>
+                      <span className="text-xs text-muted-foreground">
+                        {[transportadoraQuery.data.cidade, transportadoraQuery.data.estado]
+                          .filter(Boolean)
+                          .join(" / ") || "Localização não informada"}
+                      </span>
+                      {transportadoraQuery.data.telefone && (
+                        <span className="mt-1 block text-xs text-muted-foreground">
+                          Telefone: {transportadoraQuery.data.telefone}
+                        </span>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <label className="block text-xs font-semibold text-muted-foreground">
+                        Nome da transportadora
+                      </label>
+                      <input
+                        className="ds-input"
+                        value={transportadora.nome}
+                        onChange={(e) =>
+                          setTransportadora((atual) => ({
+                            ...atual,
+                            nome: e.target.value,
+                          }))
+                        }
+                        placeholder="Ex.: Jadlog, Correios ou transportadora local"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Esse nome será registrado nos dados do envio desta venda.
+                      </p>
+                    </div>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    O código de rastreamento não é informado nesta etapa. Ele deve ser registrado
+                    quando a venda for marcada como <strong>Despachada</strong> na aba Transporte.
+                  </p>
+                  <div>
+                    <label className="text-xs font-semibold text-muted-foreground mb-1 block">
+                      Código de rastreamento
+                    </label>
+                    <input
+                      className="ds-input"
+                      value={codigoRastreamento}
+                      onChange={(e) => setCodigoRastreamento(e.target.value)}
+                      placeholder="Código fornecido pela transportadora"
+                    />
+                  </div>
+                </div>
+              )}
+
               {formaEnvio !== "RETIRADA" && (
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                   <div>
@@ -1198,55 +1265,6 @@ function RegistrarVenda() {
                       className="ds-input"
                       value={previsaoEntrega}
                       onChange={(e) => setPrevisaoEntrega(e.target.value)}
-                    />
-                  </div>
-                </div>
-              )}
-
-              {formaEnvio === "TRANSPORTADORA" && (
-                <div className="space-y-3 rounded-xl border border-border bg-secondary/30 p-4">
-                  <h3 className="font-semibold text-sm text-foreground">
-                    Transportadora do cliente
-                  </h3>
-                  {transportadoraQuery.isLoading ? (
-                    <p className="text-sm text-muted-foreground">
-                      Buscando transportadora cadastrada...
-                    </p>
-                  ) : transportadoraQuery.data ? (
-                    <div className="rounded-lg border border-border bg-card p-3 text-sm">
-                      <strong className="block text-foreground">
-                        {transportadoraQuery.data.nome}
-                      </strong>
-                      <span className="text-xs text-muted-foreground">
-                        {[transportadoraQuery.data.cidade, transportadoraQuery.data.estado]
-                          .filter(Boolean)
-                          .join(" / ") || "Localização não informada"}
-                      </span>
-                      {transportadoraQuery.data.telefone && (
-                        <span className="mt-1 block text-xs text-muted-foreground">
-                          Telefone: {transportadoraQuery.data.telefone}
-                        </span>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="rounded-lg border border-warning/30 bg-warning-bg p-3 text-sm text-warning">
-                      Este cliente ainda não possui transportadora cadastrada. Cadastre a
-                      transportadora no cadastro do cliente antes de registrar a venda.
-                    </div>
-                  )}
-                  <p className="text-xs text-muted-foreground">
-                    O código de rastreamento não é informado nesta etapa. Ele deve ser registrado
-                    quando a venda for marcada como <strong>Despachada</strong> na aba Transporte.
-                  </p>
-                  <div>
-                    <label className="text-xs font-semibold text-muted-foreground mb-1 block">
-                      Código de rastreamento
-                    </label>
-                    <input
-                      className="ds-input"
-                      value={codigoRastreamento}
-                      onChange={(e) => setCodigoRastreamento(e.target.value)}
-                      placeholder="Código fornecido pela transportadora"
                     />
                   </div>
                 </div>

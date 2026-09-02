@@ -25,23 +25,24 @@ public class ClienteService {
     private final UsuarioAcessoService usuarioAcessoService;
 
     public ClienteResponseDTO criar(Long usuarioId, ClienteRequestDTO dto) {
-        validarDocumento(dto.getDocumento());
+        TipoCliente tipo = tipoCadastro(dto.getTipo());
+        validarCadastro(dto, tipo);
         Usuario gestor = usuarioAcessoService.buscarGestor(usuarioId);
         Cliente cliente = Cliente.builder()
                 .nome(dto.getNome())
                 .email(normalizarOpcional(dto.getEmail()))
-                .telefone(dto.getTelefone())
-                .documento(somenteDigitos(dto.getDocumento()))
-                .endereco(dto.getEndereco())
-                .numero(dto.getNumero())
-                .complemento(dto.getComplemento())
+                .telefone(normalizarOpcional(dto.getTelefone()))
+                .documento(normalizarOpcional(somenteDigitos(dto.getDocumento())))
+                .endereco(normalizarOpcional(dto.getEndereco()))
+                .numero(normalizarOpcional(dto.getNumero()))
+                .complemento(normalizarOpcional(dto.getComplemento()))
                 .cep(normalizarCep(dto.getCep()))
-                .bairro(dto.getBairro())
-                .cidade(dto.getCidade())
-                .estado(dto.getEstado())
-                .inscricaoEstadual(dto.getInscricaoEstadual())
+                .bairro(normalizarOpcional(dto.getBairro()))
+                .cidade(normalizarOpcional(dto.getCidade()))
+                .estado(normalizarOpcional(dto.getEstado()))
+                .inscricaoEstadual(normalizarOpcional(dto.getInscricaoEstadual()))
                 .ativo(dto.getAtivo())
-                .tipo(dto.getTipo() != null ? dto.getTipo() : TipoCliente.CLIENTE)
+                .tipo(tipo)
                 .gestor(gestor)
                 .build();
         return toResponse(clienteRepository.save(cliente));
@@ -78,21 +79,22 @@ public class ClienteService {
     }
 
     public ClienteResponseDTO atualizar(Long usuarioId, Long id, ClienteRequestDTO dto) {
-        validarDocumento(dto.getDocumento());
+        TipoCliente tipo = tipoCadastro(dto.getTipo());
+        validarCadastro(dto, tipo);
         usuarioAcessoService.buscarGestor(usuarioId);
         Cliente cliente = buscarEntidade(id);
         cliente.setNome(dto.getNome());
         cliente.setEmail(normalizarOpcional(dto.getEmail()));
-        cliente.setTelefone(dto.getTelefone());
-        cliente.setDocumento(somenteDigitos(dto.getDocumento()));
-        cliente.setEndereco(dto.getEndereco());
-        cliente.setNumero(dto.getNumero());
-        cliente.setComplemento(dto.getComplemento());
+        cliente.setTelefone(normalizarOpcional(dto.getTelefone()));
+        cliente.setDocumento(normalizarOpcional(somenteDigitos(dto.getDocumento())));
+        cliente.setEndereco(normalizarOpcional(dto.getEndereco()));
+        cliente.setNumero(normalizarOpcional(dto.getNumero()));
+        cliente.setComplemento(normalizarOpcional(dto.getComplemento()));
         cliente.setCep(normalizarCep(dto.getCep()));
-        cliente.setBairro(dto.getBairro());
-        cliente.setCidade(dto.getCidade());
-        cliente.setEstado(dto.getEstado());
-        cliente.setInscricaoEstadual(dto.getInscricaoEstadual());
+        cliente.setBairro(normalizarOpcional(dto.getBairro()));
+        cliente.setCidade(normalizarOpcional(dto.getCidade()));
+        cliente.setEstado(normalizarOpcional(dto.getEstado()));
+        cliente.setInscricaoEstadual(normalizarOpcional(dto.getInscricaoEstadual()));
         cliente.setAtivo(dto.getAtivo() != null ? dto.getAtivo() : cliente.getAtivo());
         if (dto.getTipo() != null) {
             cliente.setTipo(dto.getTipo());
@@ -143,6 +145,35 @@ public class ClienteService {
 
     private String somenteDigitos(String valor) {
         return valor == null ? "" : valor.replaceAll("\\D", "");
+    }
+
+    private TipoCliente tipoCadastro(TipoCliente tipo) {
+        return tipo == null ? TipoCliente.CLIENTE : tipo;
+    }
+
+    private void validarCadastro(ClienteRequestDTO dto, TipoCliente tipo) {
+        if (dto.getNome() == null || dto.getNome().isBlank()) {
+            throw new BusinessException("O nome é obrigatório");
+        }
+
+        if (tipo == TipoCliente.TRANSPORTADORA) {
+            return;
+        }
+
+        exigirPreenchido(dto.getTelefone(), "O telefone é obrigatório");
+        exigirPreenchido(dto.getDocumento(), "Informe o CPF ou CNPJ");
+        exigirPreenchido(dto.getEndereco(), "Informe a rua ou o endereço");
+        exigirPreenchido(dto.getNumero(), "Informe o número");
+        exigirPreenchido(dto.getBairro(), "Informe o bairro");
+        exigirPreenchido(dto.getCidade(), "Informe a cidade");
+        exigirPreenchido(dto.getEstado(), "Selecione o estado");
+        validarDocumento(dto.getDocumento());
+    }
+
+    private void exigirPreenchido(String valor, String mensagem) {
+        if (valor == null || valor.isBlank()) {
+            throw new BusinessException(mensagem);
+        }
     }
 
     private void validarDocumento(String documento) {

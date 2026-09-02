@@ -32,11 +32,12 @@ import {
   criarCliente,
   atualizarCliente,
   excluirCliente,
+  buscarDetalhesTransportadora,
 } from "@/lib/clientes.functions";
 
 import { listarVendas } from "@/lib/vendas.functions";
 
-import { fmtBRL, fmtDateTime } from "@/lib/format";
+import { fmtBRL, fmtDate, fmtDateTime } from "@/lib/format";
 import { mascararCep } from "@/lib/viacep";
 
 import { ClienteFormModal } from "@/components/clientes/ClienteFormModal";
@@ -458,6 +459,7 @@ function Clientes() {
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
           {filtrados.map((c) => {
             const vendasCliente = vendas.filter((v: any) => v.cliente_id === c.id);
+            const ehTransportadora = c.tipo === "TRANSPORTADORA";
 
             const frequencia = classificarFrequencia(vendasCliente.length);
 
@@ -472,7 +474,14 @@ function Clientes() {
                       {c.nome}
                     </h2>
 
-                    <FrequenciaBadge frequencia={frequencia} />
+                    {ehTransportadora ? (
+                      <div className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary">
+                        <Truck size={12} />
+                        Transportadora
+                      </div>
+                    ) : (
+                      <FrequenciaBadge frequencia={frequencia} />
+                    )}
                   </div>
 
                   <div className="flex gap-1 shrink-0">
@@ -494,42 +503,50 @@ function Clientes() {
                   </div>
                 </div>
 
-                <div className="space-y-2 text-sm text-foreground font-body">
-                  <Linha icon={<Phone size={13} />} value={c.telefone} placeholder="Sem telefone" />
-
-                  <Linha icon={<Mail size={13} />} value={c.email} placeholder="Sem e-mail" />
-
-                  <Linha
-                    icon={<MapPin size={13} />}
-                    value={
-                      c.endereco
-                        ? `${c.endereco}${c.numero ? `, ${c.numero}` : ""}${
-                            c.complemento ? ` · ${c.complemento}` : ""
-                          }`
-                        : ""
-                    }
-                    placeholder="Sem endereço"
-                  />
-                </div>
-
-                {c.documento && (
-                  <div className="text-xs text-muted-foreground bg-secondary/60 rounded-md px-3 py-2 font-body">
-                    Documento: {c.documento}
+                {ehTransportadora ? (
+                  <div className="rounded-xl border border-primary/15 bg-primary/5 px-3 py-4 text-sm text-muted-foreground">
+                    Cadastro simplificado. Consulte os clientes vinculados e o histórico de uso.
                   </div>
-                )}
+                ) : (
+                  <>
+                    <div className="space-y-2 text-sm text-foreground font-body">
+                      <Linha icon={<Phone size={13} />} value={c.telefone} placeholder="Sem telefone" />
 
-                {(c.cep || c.bairro || c.cidade || c.estado || c.inscricaoEstadual) && (
-                  <div className="text-xs text-muted-foreground bg-secondary/60 rounded-md px-3 py-2 font-body space-y-1">
-                    {c.cep && <div>CEP: {mascararCep(c.cep)}</div>}
+                      <Linha icon={<Mail size={13} />} value={c.email} placeholder="Sem e-mail" />
 
-                    {c.bairro && <div>Bairro: {c.bairro}</div>}
+                      <Linha
+                        icon={<MapPin size={13} />}
+                        value={
+                          c.endereco
+                            ? `${c.endereco}${c.numero ? `, ${c.numero}` : ""}${
+                                c.complemento ? ` · ${c.complemento}` : ""
+                              }`
+                            : ""
+                        }
+                        placeholder="Sem endereço"
+                      />
+                    </div>
 
-                    {(c.cidade || c.estado) && (
-                      <div>{[c.cidade, c.estado].filter(Boolean).join(" — ")}</div>
+                    {c.documento && (
+                      <div className="text-xs text-muted-foreground bg-secondary/60 rounded-md px-3 py-2 font-body">
+                        Documento: {c.documento}
+                      </div>
                     )}
 
-                    {c.inscricaoEstadual && <div>Inscrição estadual: {c.inscricaoEstadual}</div>}
-                  </div>
+                    {(c.cep || c.bairro || c.cidade || c.estado || c.inscricaoEstadual) && (
+                      <div className="text-xs text-muted-foreground bg-secondary/60 rounded-md px-3 py-2 font-body space-y-1">
+                        {c.cep && <div>CEP: {mascararCep(c.cep)}</div>}
+
+                        {c.bairro && <div>Bairro: {c.bairro}</div>}
+
+                        {(c.cidade || c.estado) && (
+                          <div>{[c.cidade, c.estado].filter(Boolean).join(" — ")}</div>
+                        )}
+
+                        {c.inscricaoEstadual && <div>Inscrição estadual: {c.inscricaoEstadual}</div>}
+                      </div>
+                    )}
+                  </>
                 )}
 
                 <button
@@ -537,7 +554,7 @@ function Clientes() {
                   className="mt-1 text-xs font-bold text-primary inline-flex items-center gap-1 self-start"
                 >
                   <Eye size={13} />
-                  Ver perfil de compras
+                  {ehTransportadora ? "Ver detalhes da transportadora" : "Ver perfil de compras"}
                 </button>
               </article>
             );
@@ -780,6 +797,10 @@ function PerfilClienteModal({
   vendas: any[];
   onClose: () => void;
 }) {
+  if (cliente.tipo === "TRANSPORTADORA") {
+    return <PerfilTransportadoraModal cliente={cliente} onClose={onClose} />;
+  }
+
   const totalGasto = vendas.reduce((s, v) => s + Number(v.valor_total), 0);
 
   const qtdCompras = vendas.length;
@@ -960,6 +981,177 @@ function PerfilClienteModal({
         </div>
       </div>
     </div>
+  );
+}
+
+function PerfilTransportadoraModal({
+  cliente,
+  onClose,
+}: {
+  cliente: Cliente;
+  onClose: () => void;
+}) {
+  const detalhesQuery = useQuery({
+    queryKey: ["transportadoras", "detalhes", cliente.id],
+    queryFn: () => buscarDetalhesTransportadora(cliente.id),
+  });
+  const detalhes = detalhesQuery.data;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 backdrop-blur-sm md:items-center md:p-4"
+      onClick={onClose}
+    >
+      <div
+        className="max-h-[90vh] w-full overflow-y-auto rounded-t-2xl bg-card shadow-warm-sm md:max-w-2xl md:rounded-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3 border-b border-border px-6 py-5">
+          <div className="flex items-start gap-3">
+            <div className="mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <Truck size={20} />
+            </div>
+            <div>
+              <h2 className="font-display text-2xl font-bold text-primary">{cliente.nome}</h2>
+              <p className="mt-1 text-sm text-muted-foreground">Detalhes da transportadora</p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Fechar detalhes da transportadora"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full hover:bg-secondary"
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        {detalhesQuery.isLoading ? (
+          <div className="flex min-h-48 items-center justify-center text-sm text-muted-foreground">
+            Carregando vínculos e histórico...
+          </div>
+        ) : detalhesQuery.isError || !detalhes ? (
+          <div className="px-6 py-12 text-center">
+            <p className="text-sm text-error">Não foi possível carregar os detalhes.</p>
+            <button
+              type="button"
+              onClick={() => detalhesQuery.refetch()}
+              className="mt-3 text-sm font-bold text-primary hover:underline"
+            >
+              Tentar novamente
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-6 p-6">
+            <section className="rounded-xl border border-primary/15 bg-primary/5 p-4">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                Cadastro
+              </p>
+              <p className="mt-1 text-lg font-bold text-foreground">{detalhes.nome}</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Cadastro simplificado: esta transportadora não possui dados de cliente comum.
+              </p>
+            </section>
+
+            <div className="grid grid-cols-2 gap-3">
+              <MiniCard
+                label="Clientes vinculados"
+                value={String(detalhes.clientesVinculados.length)}
+              />
+              <MiniCard label="Usos em vendas" value={String(detalhes.historico.length)} />
+            </div>
+
+            <section>
+              <h3 className="mb-3 text-sm font-bold uppercase tracking-wider text-muted-foreground">
+                Clientes vinculados
+              </h3>
+              {detalhes.clientesVinculados.length === 0 ? (
+                <p className="rounded-xl bg-secondary/50 px-4 py-4 text-sm text-muted-foreground">
+                  Nenhum cliente está vinculado a esta transportadora.
+                </p>
+              ) : (
+                <ul className="grid gap-2 sm:grid-cols-2">
+                  {detalhes.clientesVinculados.map((vinculo) => (
+                    <li
+                      key={vinculo.id}
+                      className="flex items-center gap-2 rounded-xl border border-border bg-secondary/40 px-3 py-3 text-sm"
+                    >
+                      <UserRound size={15} className="shrink-0 text-primary" />
+                      <span className="min-w-0 truncate font-semibold text-foreground">
+                        {vinculo.nome}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+
+            <section>
+              <h3 className="mb-3 text-sm font-bold uppercase tracking-wider text-muted-foreground">
+                Histórico de uso nas vendas
+              </h3>
+              {detalhes.historico.length === 0 ? (
+                <p className="rounded-xl bg-secondary/50 px-4 py-4 text-sm text-muted-foreground">
+                  Esta transportadora ainda não foi utilizada em nenhuma venda.
+                </p>
+              ) : (
+                <ul className="space-y-3">
+                  {detalhes.historico.map((uso) => (
+                    <li key={uso.vendaId} className="rounded-xl border border-border bg-secondary/30 p-4">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <p className="text-sm font-bold text-foreground">Venda #{uso.vendaId}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {uso.clienteNome} · {fmtDate(uso.dataVenda)}
+                          </p>
+                        </div>
+                        <span className="text-sm font-bold text-primary">
+                          {uso.custoEnvio == null ? "Frete não informado" : fmtBRL(uso.custoEnvio)}
+                        </span>
+                      </div>
+
+                      <div className="mt-3 grid gap-2 text-xs text-muted-foreground sm:grid-cols-3">
+                        <span>
+                          <strong className="text-foreground">Envio:</strong>{" "}
+                          {uso.dataEnvio ? fmtDate(uso.dataEnvio) : "Não informado"}
+                        </span>
+                        <span>
+                          <strong className="text-foreground">Previsão:</strong>{" "}
+                          {uso.previsaoEntrega ? fmtDate(uso.previsaoEntrega) : "Não informada"}
+                        </span>
+                        <span>
+                          <strong className="text-foreground">Status:</strong>{" "}
+                          {rotuloDespacho(uso.situacaoDespacho)}
+                        </span>
+                      </div>
+
+                      {uso.codigoRastreamento && (
+                        <p className="mt-2 text-xs text-muted-foreground">
+                          <strong className="text-foreground">Rastreamento:</strong>{" "}
+                          {uso.codigoRastreamento}
+                        </p>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function rotuloDespacho(status: string | null) {
+  return (
+    {
+      NAO_APLICAVEL: "Não aplicável",
+      AGUARDANDO_DESPACHO: "Aguardando despacho",
+      DESPACHADO: "Despachada",
+      ENTREGUE: "Entregue",
+    }[status ?? ""] ?? status ?? "Não informado"
   );
 }
 

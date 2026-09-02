@@ -407,6 +407,8 @@ export function ClienteFormModal({
 
   if (!aberto) return null;
 
+  const cadastroAtual = form.tipo ?? "CLIENTE";
+
   const alterar = (
     campo: keyof ClienteFormData,
     valor: string | boolean,
@@ -695,6 +697,7 @@ export function ClienteFormModal({
     }
 
     if (
+      cadastroAtual !== "TRANSPORTADORA" &&
       tipo === "CPF" &&
       !validarCpf(form.documento)
     ) {
@@ -703,6 +706,7 @@ export function ClienteFormModal({
     }
 
     if (
+      cadastroAtual !== "TRANSPORTADORA" &&
       tipo === "CNPJ" &&
       !validarCnpj(form.documento)
     ) {
@@ -764,7 +768,6 @@ export function ClienteFormModal({
     await onSubmit(normalizado);
   }
 
-  const cadastroAtual = form.tipo ?? "CLIENTE";
   const nomeCadastro =
     cadastroAtual === "TRANSPORTADORA"
       ? "transportadora"
@@ -829,7 +832,11 @@ export function ClienteFormModal({
               <div className="grid gap-4 md:grid-cols-2">
                 <Campo
                   campo="nome"
-                  label="Nome completo ou razão social"
+                  label={
+                    cadastroAtual === "TRANSPORTADORA"
+                      ? "Nome da transportadora"
+                      : "Nome completo ou razão social"
+                  }
                   erro={erros.nome}
                   className="md:col-span-2"
                 >
@@ -844,59 +851,68 @@ export function ClienteFormModal({
                       )
                     }
                     className="ds-input min-h-10 text-sm"
-                    placeholder="Ex.: Maria da Silva ou Mercado da Maria"
+                    placeholder={
+                      cadastroAtual === "TRANSPORTADORA"
+                        ? "Ex.: Jadlog"
+                        : "Ex.: Maria da Silva ou Mercado da Maria"
+                    }
                   />
                 </Campo>
 
-                <Campo
-                  campo="telefone"
-                  label="Telefone"
-                  erro={erros.telefone}
-                >
-                  <input
-                    data-field="telefone"
-                    type="tel"
-                    inputMode="numeric"
-                    value={form.telefone}
-                    onChange={(e) =>
-                      alterar(
-                        "telefone",
-                        mascararTelefone(
-                          e.target.value,
-                        ),
-                      )
-                    }
-                    className="ds-input min-h-10 text-sm"
-                    placeholder="(00) 00000-0000"
-                  />
-                </Campo>
+                {cadastroAtual !== "TRANSPORTADORA" && (
+                  <>
+                    <Campo
+                      campo="telefone"
+                      label="Telefone"
+                      erro={erros.telefone}
+                    >
+                      <input
+                        data-field="telefone"
+                        type="tel"
+                        inputMode="numeric"
+                        value={form.telefone}
+                        onChange={(e) =>
+                          alterar(
+                            "telefone",
+                            mascararTelefone(
+                              e.target.value,
+                            ),
+                          )
+                        }
+                        className="ds-input min-h-10 text-sm"
+                        placeholder="(00) 00000-0000"
+                      />
+                    </Campo>
 
-                <Campo
-                  campo="email"
-                  label="E-mail (opcional)"
-                  erro={erros.email}
-                >
-                  <input
-                    data-field="email"
-                    type="email"
-                    value={form.email}
-                    onChange={(e) =>
-                      alterar(
-                        "email",
-                        e.target.value,
-                      )
-                    }
-                    className="ds-input min-h-10 text-sm"
-                    placeholder="cliente@email.com"
-                  />
-                </Campo>
+                    <Campo
+                      campo="email"
+                      label="E-mail (opcional)"
+                      erro={erros.email}
+                    >
+                      <input
+                        data-field="email"
+                        type="email"
+                        value={form.email}
+                        onChange={(e) =>
+                          alterar(
+                            "email",
+                            e.target.value,
+                          )
+                        }
+                        className="ds-input min-h-10 text-sm"
+                        placeholder="cliente@email.com"
+                      />
+                    </Campo>
+                  </>
+                )}
               </div>
             </Secao>
 
-            <Secao
-              icon={<FileText size={20} />}
-              titulo="Documento"
-            >
+            {cadastroAtual !== "TRANSPORTADORA" && (
+              <Secao
+                icon={<FileText size={20} />}
+                titulo="Documento"
+              >
               <fieldset>
                 <legend className="mb-3 text-sm font-semibold text-foreground">
                   Tipo de documento
@@ -992,12 +1008,14 @@ export function ClienteFormModal({
                   </Campo>
                 )}
               </div>
-            </Secao>
+              </Secao>
+            )}
 
-            <Secao
-              icon={<MapPin size={20} />}
-              titulo="Endereço"
-            >
+            {cadastroAtual !== "TRANSPORTADORA" && (
+              <Secao
+                icon={<MapPin size={20} />}
+                titulo="Endereço"
+              >
               <div className="grid gap-4 md:grid-cols-6">
                 <Campo
                   campo="cep"
@@ -1186,7 +1204,8 @@ export function ClienteFormModal({
                   </select>
                 </Campo>
               </div>
-            </Secao>
+              </Secao>
+            )}
 
             {cadastroAtual === "CLIENTE" && (
               <Secao
