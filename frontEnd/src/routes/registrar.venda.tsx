@@ -59,7 +59,6 @@ const clienteRapidoInicial = clienteFormVazio;
 
 const POTES_POR_CAIXA = 6;
 
-// Tabela de preços dinâmicos com base na variação e tamanho
 function obterPrecoPote(nomeProduto: string, tamanho: TamanhoPote): number | undefined {
   const nomeLower = nomeProduto.toLowerCase();
 
@@ -287,7 +286,6 @@ function RegistrarVenda() {
     };
   }, [formaEnvio, clienteSelecionado, enderecoFabrica]);
 
-  // Vendas já salvas que ficaram aguardando produção (cards amarelos persistentes)
   const { data: vendasAguardandoEstoque = [] } = useQuery({
     queryKey: ["vendas", "aguardando-estoque"],
     queryFn: () => listarVendasAguardandoEstoque(),
@@ -374,8 +372,6 @@ function RegistrarVenda() {
   });
 
   const total = itensCalculados.reduce((s, i) => s + i.subtotal, 0);
-
-  // Verifica se há algum produto com estoque insuficiente
   const temItemPendente = itensCalculados.some((i) => i.estoqueInsuficiente);
 
   const sugestoesCliente = useMemo(() => {
@@ -399,7 +395,6 @@ function RegistrarVenda() {
         if (i !== idx) return it;
         const itemAtualizado = { ...it, ...patch };
 
-        // Se mudou o tamanho do pote ou o produto, recalcular preço automaticamente
         if (patch.tamanho_pote !== undefined || patch.produto_final_id !== undefined) {
           const p = produtos.find(
             (prod: any) => prod.id === itemAtualizado.produto_final_id,
@@ -654,7 +649,6 @@ function RegistrarVenda() {
               </button>
             </div>
 
-            {/* Sugestões de Clientes */}
             {mostrarSugestoes && sugestoesCliente.length > 0 && (
               <div className="absolute left-0 right-0 top-full mt-1 bg-card border border-border rounded-xl shadow-warm-lg z-50 overflow-hidden max-h-56 overflow-y-auto">
                 {sugestoesCliente.map((c, idx) => (
@@ -748,7 +742,6 @@ function RegistrarVenda() {
                     </div>
 
                     <div className="grid grid-cols-2 gap-3 pt-1">
-                      {/* Quantidade */}
                       <div>
                         <label className="text-xs font-semibold text-muted-foreground mb-1 block">
                           Quantidade *
@@ -765,8 +758,6 @@ function RegistrarVenda() {
                           onChange={(e) => atualizarItem(idx, { quantidade: e.target.value })}
                         />
                       </div>
-
-                      {/* Preço */}
                       <div>
                         <label className="text-xs font-semibold text-muted-foreground mb-1 block">
                           Preço Unitário *
@@ -857,7 +848,6 @@ function RegistrarVenda() {
                         </div>
 
                         <div className="grid grid-cols-3 gap-3">
-                          {/* Quantidade de Potes (Obrigatório) */}
                           <div>
                             <label className="text-xs font-semibold text-muted-foreground mb-1 block">
                               {it.tipo === "caixa" ? "Quant. Caixas *" : "Quant. Potes *"}
@@ -875,7 +865,6 @@ function RegistrarVenda() {
                             />
                           </div>
 
-                          {/* Tamanho do Pote */}
                           <div>
                             <label className="text-xs font-semibold text-muted-foreground mb-1 block">
                               Tamanho Pote
@@ -892,7 +881,6 @@ function RegistrarVenda() {
                             </select>
                           </div>
 
-                          {/* Preço por pote */}
                           <div>
                             <label className="text-xs font-semibold text-muted-foreground mb-1 block">
                               Preço por pote
@@ -1049,8 +1037,7 @@ function RegistrarVenda() {
                       Cálculo da entrega própria
                     </h3>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      O endereço cadastrado do cliente é usado para estimar a distância. Se o
-                      cálculo automático não estiver disponível, informe a quilometragem.
+                      O endereço cadastrado do cliente é usado para estimar a distância.
                     </p>
                   </div>
 
@@ -1070,14 +1057,6 @@ function RegistrarVenda() {
                       </span>
                     </div>
                   ) : null}
-
-                  {!enderecoFabrica && (
-                    <div className="rounded-lg border border-warning/30 bg-warning-bg p-3 text-xs text-warning">
-                      O cálculo automático precisa da variável{" "}
-                      <strong>VITE_FABRICA_ENDERECO</strong>. Enquanto ela não estiver configurada,
-                      informe a quilometragem manualmente.
-                    </div>
-                  )}
 
                   <div className="grid gap-3 md:grid-cols-2">
                     <div>
@@ -1106,12 +1085,6 @@ function RegistrarVenda() {
                     </div>
                   </div>
 
-                  {erroDistancia && !quilometragemManual && (
-                    <p className="text-xs text-warning">
-                      {erroDistancia} Você pode informar a quilometragem manualmente.
-                    </p>
-                  )}
-
                   <div className="grid gap-3 md:grid-cols-2">
                     <div className="rounded-lg bg-card border border-border p-3">
                       <span className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
@@ -1120,9 +1093,6 @@ function RegistrarVenda() {
                       <strong className="mt-1 block text-lg text-primary">
                         {custoEstimadoEntrega != null ? fmtBRL(custoEstimadoEntrega) : "—"}
                       </strong>
-                      <span className="text-[11px] text-muted-foreground">
-                        Base: R$ {custoPorKm.toFixed(2).replace(".", ",")} por km
-                      </span>
                     </div>
                     <div
                       className={`rounded-lg border p-3 ${
@@ -1143,9 +1113,6 @@ function RegistrarVenda() {
                             ? "Entrega viável"
                             : "Custo acima do limite"}
                       </strong>
-                      <span className="text-[11px] text-muted-foreground">
-                        Limite configurado: {fmtBRL(limiteCustoEntrega)}
-                      </span>
                     </div>
                   </div>
 
@@ -1160,10 +1127,6 @@ function RegistrarVenda() {
                       placeholder="Nome do responsável"
                     />
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    A data de entrega não é obrigatória no cadastro da venda. A saída e a conclusão
-                    da entrega são registradas posteriormente na aba Transporte.
-                  </p>
                 </div>
               )}
 
@@ -1173,24 +1136,12 @@ function RegistrarVenda() {
                     Transportadora do cliente
                   </h3>
                   {transportadoraQuery.isLoading ? (
-                    <p className="text-sm text-muted-foreground">
-                      Buscando transportadora cadastrada...
-                    </p>
+                    <p className="text-sm text-muted-foreground">Buscando transportadora...</p>
                   ) : transportadoraQuery.data ? (
                     <div className="rounded-lg border border-border bg-card p-3 text-sm">
                       <strong className="block text-foreground">
                         {transportadoraQuery.data.nome}
                       </strong>
-                      <span className="text-xs text-muted-foreground">
-                        {[transportadoraQuery.data.cidade, transportadoraQuery.data.estado]
-                          .filter(Boolean)
-                          .join(" / ") || "Localização não informada"}
-                      </span>
-                      {transportadoraQuery.data.telefone && (
-                        <span className="mt-1 block text-xs text-muted-foreground">
-                          Telefone: {transportadoraQuery.data.telefone}
-                        </span>
-                      )}
                     </div>
                   ) : (
                     <div className="space-y-2">
@@ -1206,17 +1157,10 @@ function RegistrarVenda() {
                             nome: e.target.value,
                           }))
                         }
-                        placeholder="Ex.: Jadlog, Correios ou transportadora local"
+                        placeholder="Ex.: Jadlog, Correios..."
                       />
-                      <p className="text-xs text-muted-foreground">
-                        Esse nome será registrado nos dados do envio desta venda.
-                      </p>
                     </div>
                   )}
-                  <p className="text-xs text-muted-foreground">
-                    O código de rastreamento não é informado nesta etapa. Ele deve ser registrado
-                    quando a venda for marcada como <strong>Despachada</strong> na aba Transporte.
-                  </p>
                   <div>
                     <label className="text-xs font-semibold text-muted-foreground mb-1 block">
                       Código de rastreamento
@@ -1225,7 +1169,7 @@ function RegistrarVenda() {
                       className="ds-input"
                       value={codigoRastreamento}
                       onChange={(e) => setCodigoRastreamento(e.target.value)}
-                      placeholder="Código fornecido pela transportadora"
+                      placeholder="Código fornecido"
                     />
                   </div>
                 </div>
@@ -1279,7 +1223,7 @@ function RegistrarVenda() {
                 className="ds-input min-h-[60px]"
                 value={observacao}
                 onChange={(e) => setObservacao(e.target.value)}
-                placeholder="Anotações opcionais sobre a venda..."
+                placeholder="Anotações opcionais..."
               />
             </div>
           </div>
@@ -1308,13 +1252,12 @@ function RegistrarVenda() {
             <button
               type="submit"
               disabled={mutation.isPending}
-              className="ds-button-primary w-full py-3 text-sm font-bold uppercase tracking-wider"
+              className="w-full py-3 text-sm font-bold uppercase tracking-wider bg-primary text-primary-foreground rounded-xl shadow-warm-sm hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-50"
             >
               {mutation.isPending ? "Registrando..." : "Finalizar Venda"}
             </button>
           </div>
 
-          {/* CARD AMARELO DE VENDA PENDENTE (formulário sendo preenchido agora) */}
           {temItemPendente && (
             <div className="rounded-2xl border border-amber-300 bg-amber-50 dark:bg-amber-950/40 dark:border-amber-800 p-4 shadow-warm-sm space-y-1 text-amber-900 dark:text-amber-200">
               <div className="flex items-center gap-2 font-bold text-sm">
@@ -1327,7 +1270,6 @@ function RegistrarVenda() {
             </div>
           )}
 
-          {/* CARDS AMARELOS DE VENDAS JÁ SALVAS AGUARDANDO ESTOQUE */}
           {vendasAguardandoEstoque.map((v: any) => (
             <div
               key={v.id}
@@ -1350,7 +1292,6 @@ function RegistrarVenda() {
         </div>
       </form>
 
-      {/* MODAL NOVO CLIENTE */}
       {modalClienteAberto && (
         <ClienteFormModal
           aberto={modalClienteAberto}
@@ -1364,7 +1305,6 @@ function RegistrarVenda() {
         />
       )}
 
-      {/* MODAL CONFIRMAÇÃO */}
       {confirmar && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-card border border-border rounded-2xl p-6 max-w-md w-full shadow-warm-lg space-y-4">
@@ -1417,3 +1357,4 @@ function RegistrarVenda() {
     </div>
   );
 }
+
