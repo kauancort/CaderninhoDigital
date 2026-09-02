@@ -1,6 +1,6 @@
 const axios = require("axios");
 const FormData = require("form-data");
-require("dotenv").config();
+require("form-data");
 
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const GROQ_URL = "https://api.groq.com/openai/v1/audio/transcriptions";
