@@ -8,6 +8,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.InovaSkill.CaderninhoDigital.dto.request.ClienteRequestDTO;
 import com.InovaSkill.CaderninhoDigital.entity.Cliente;
 import com.InovaSkill.CaderninhoDigital.entity.Usuario;
+import com.InovaSkill.CaderninhoDigital.entity.TipoCliente;
 import com.InovaSkill.CaderninhoDigital.repository.ClienteRepository;
 import com.InovaSkill.CaderninhoDigital.exception.BusinessException;
 import java.util.Optional;
@@ -90,6 +91,28 @@ class ClienteServiceTest {
         assertThat(response.getInscricaoEstadual()).isNull();
         assertThat(response.getComplemento()).isNull();
         assertThat(response.getEmail()).isNull();
+    }
+
+    @Test
+    void criaTransportadoraSomenteComNome() {
+        Usuario gestor = Usuario.builder().id(1L).nome("Gestora").build();
+        ClienteRequestDTO dto = new ClienteRequestDTO();
+        dto.setNome("Jadlog");
+        dto.setTipo(TipoCliente.TRANSPORTADORA);
+        when(usuarioAcessoService.buscarGestor(1L)).thenReturn(gestor);
+        when(clienteRepository.save(org.mockito.ArgumentMatchers.any(Cliente.class)))
+                .thenAnswer(invocation -> {
+                    Cliente salvo = invocation.getArgument(0);
+                    salvo.setId(20L);
+                    return salvo;
+                });
+
+        var response = clienteService.criar(1L, dto);
+
+        assertThat(response.getNome()).isEqualTo("Jadlog");
+        assertThat(response.getTipo()).isEqualTo(TipoCliente.TRANSPORTADORA);
+        assertThat(response.getEstado()).isNull();
+        assertThat(response.getDocumento()).isNull();
     }
 
     @Test

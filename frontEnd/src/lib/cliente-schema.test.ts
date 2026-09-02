@@ -22,6 +22,10 @@ describe("validação do cliente", () => {
     expect(clienteSchema.safeParse({ ...valido, email: "maria@email.com" }).success).toBe(true);
   });
 
+  it("aceita transportadora somente com nome", () => {
+    expect(clienteSchema.safeParse({ nome: "Jadlog", tipo: "TRANSPORTADORA" }).success).toBe(true);
+  });
+
   it("rejeita e-mail inválido quando preenchido", () => {
     expect(clienteSchema.safeParse({ ...valido, email: "email-invalido" }).success).toBe(false);
   });

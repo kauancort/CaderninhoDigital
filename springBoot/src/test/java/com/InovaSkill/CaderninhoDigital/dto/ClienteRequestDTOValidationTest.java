@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.InovaSkill.CaderninhoDigital.dto.request.ClienteRequestDTO;
 import com.InovaSkill.CaderninhoDigital.dto.request.CriarUsuarioRequestDTO;
+import com.InovaSkill.CaderninhoDigital.entity.TipoCliente;
 import jakarta.validation.Validation;
 import jakarta.validation.Validator;
 import org.junit.jupiter.api.BeforeAll;
@@ -28,19 +29,21 @@ class ClienteRequestDTOValidationTest {
     }
 
     @Test
-    void exigeDadosPrincipaisEEnderecoCompleto() {
+    void exigeNomeDoCliente() {
         ClienteRequestDTO dto = clienteValido();
         dto.setNome("");
-        dto.setTelefone("");
-        dto.setDocumento("");
-        dto.setEndereco("");
-        dto.setNumero("");
-        dto.setBairro("");
-        dto.setCidade("");
-        dto.setEstado("");
 
         assertThat(validator.validate(dto)).extracting(v -> v.getPropertyPath().toString())
-                .contains("nome", "telefone", "documento", "endereco", "numero", "bairro", "cidade", "estado");
+                .contains("nome");
+    }
+
+    @Test
+    void transportadoraAceitaSomenteNome() {
+        ClienteRequestDTO dto = new ClienteRequestDTO();
+        dto.setNome("Jadlog");
+        dto.setTipo(TipoCliente.TRANSPORTADORA);
+
+        assertThat(validator.validate(dto)).isEmpty();
     }
 
     @Test

@@ -414,6 +414,15 @@ public class VendaService {
             StatusPagamento status
     ) {
 
+        if ("TRANSPORTADORA".equals(dto.getFormaEnvio())
+                && (dto.getTransportadora() == null
+                || dto.getTransportadora().getNome() == null
+                || dto.getTransportadora().getNome().isBlank())) {
+            throw new BusinessException(
+                    "Informe o nome da transportadora para a entrega"
+            );
+        }
+
         if (status == StatusPagamento.PENDENTE
                 && dto.getDataVencimento() == null) {
 

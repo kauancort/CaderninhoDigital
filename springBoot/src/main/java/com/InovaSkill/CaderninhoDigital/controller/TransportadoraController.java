@@ -2,6 +2,7 @@ package com.InovaSkill.CaderninhoDigital.controller;
 
 import com.InovaSkill.CaderninhoDigital.dto.request.TransportadoraRequestDTO;
 import com.InovaSkill.CaderninhoDigital.dto.response.TransportadoraResponseDTO;
+import com.InovaSkill.CaderninhoDigital.dto.response.TransportadoraDetalhesResponseDTO;
 import com.InovaSkill.CaderninhoDigital.service.TransportadoraService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -36,6 +37,14 @@ public class TransportadoraController {
         return transportadoraService.buscarPorCliente(usuarioId, clienteId)
                 .map(ResponseEntity::ok)
                 .orElseGet(() -> ResponseEntity.noContent().build());
+    }
+
+    @GetMapping("/detalhes")
+    public ResponseEntity<TransportadoraDetalhesResponseDTO> detalhes(
+            @UsuarioIdAutenticado Long usuarioId,
+            @PathVariable Long clienteId
+    ) {
+        return ResponseEntity.ok(transportadoraService.buscarDetalhes(usuarioId, clienteId));
     }
 
     @PutMapping
