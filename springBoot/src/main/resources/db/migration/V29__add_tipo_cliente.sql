@@ -1,0 +1,12 @@
+ALTER TABLE clientes
+    ADD COLUMN IF NOT EXISTS tipo VARCHAR(30);
+
+UPDATE clientes
+SET tipo = 'CLIENTE'
+WHERE tipo IS NULL;
+
+ALTER TABLE clientes
+    ALTER COLUMN tipo SET DEFAULT 'CLIENTE';
+
+ALTER TABLE clientes
+    ALTER COLUMN tipo SET NOT NULL;

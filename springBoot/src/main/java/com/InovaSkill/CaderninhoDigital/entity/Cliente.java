@@ -2,6 +2,8 @@ package com.InovaSkill.CaderninhoDigital.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -76,11 +78,18 @@ public class Cliente {
     @Column(nullable = false)
     private LocalDateTime criadoEm;
 
+    @Enumerated(EnumType.STRING)
+    @Column(length = 30)
+    private TipoCliente tipo;
+
     @PrePersist
     public void prePersist() {
         this.criadoEm = LocalDateTime.now();
         if (this.ativo == null) {
             this.ativo = true;
+        }
+        if (this.tipo == null) {
+            this.tipo = TipoCliente.CLIENTE;
         }
     }
 }

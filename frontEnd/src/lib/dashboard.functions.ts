@@ -1,10 +1,21 @@
 import { createApiFn } from "@/lib/api-function";
 import { API_URL as BASE_URL, apiFetch as fetch } from "@/lib/api-client";
 
+export function dataLocalParaIso(data: Date): string {
+  const ano = data.getFullYear();
+  const mes = String(data.getMonth() + 1).padStart(2, "0");
+  const dia = String(data.getDate()).padStart(2, "0");
+  return `${ano}-${mes}-${dia}`;
+}
+
+export function normalizarDataVenda(data: unknown): string {
+  return typeof data === "string" ? data.slice(0, 10) : "";
+}
+
 export const obterDashboard = createApiFn({ method: "GET" }).handler(async () => {
   const hoje = new Date();
-  const todayStr = hoje.toISOString().split("T")[0];
-  const firstDayStr = new Date(hoje.getFullYear(), hoje.getMonth(), 1).toISOString().split("T")[0];
+  const todayStr = dataLocalParaIso(hoje);
+  const firstDayStr = dataLocalParaIso(new Date(hoje.getFullYear(), hoje.getMonth(), 1));
 
   // 1. Fetch dashboard summaries
   const [resumoHojeRes, resumoMesRes] = await Promise.all([
@@ -13,6 +24,7 @@ export const obterDashboard = createApiFn({ method: "GET" }).handler(async () =>
   ]);
 
   let totalHoje = 0;
+  let totalMes = 0;
   let producaoHoje = 0;
   let custoMes = 0;
 
@@ -24,6 +36,7 @@ export const obterDashboard = createApiFn({ method: "GET" }).handler(async () =>
 
   if (resumoMesRes.ok) {
     const summaryMes = await resumoMesRes.json();
+    totalMes = Number(summaryMes.totalVendas || 0);
     custoMes = (summaryMes.totalGastosGerais || 0) + (summaryMes.totalComprasProduto || 0);
   }
 
@@ -57,15 +70,28 @@ export const obterDashboard = createApiFn({ method: "GET" }).handler(async () =>
 
   let ultimasVendas: any[] = [];
   let salesList: any[] = [];
+  let vendasAReceber = 0;
+  let valorAReceber = 0;
+  let vendasAguardandoEstoque = 0;
 
   if (salesRes.ok) {
-    salesList = await salesRes.json();
+    const salesBody = await salesRes.json();
+    salesList = Array.isArray(salesBody) ? salesBody : [];
+    vendasAReceber = salesList.filter(
+      (v: any) => v.statusPagamento === "PENDENTE" || v.statusPagamento === "ATRASADO",
+    ).length;
+    valorAReceber = salesList
+      .filter((v: any) => v.statusPagamento === "PENDENTE" || v.statusPagamento === "ATRASADO")
+      .reduce((sum: number, v: any) => sum + Number(v.valorTotal || 0), 0);
+    vendasAguardandoEstoque = salesList.filter((v: any) => Boolean(v.aguardandoEstoque)).length;
     // latest sales
     ultimasVendas = salesList.slice(0, 5).map((v: any) => ({
       id: String(v.id),
       comprador: v.clienteNome || "Cliente Avulso",
       data: v.dataVenda,
       valor: Number(v.valorTotal || 0),
+      status: v.statusPagamento || "NAO_SE_APLICA",
+      emAtraso: Boolean(v.emAtraso),
       resumo:
         (v.itens || [])
           .map((it: any) => `${Number(it.quantidade)}× ${it.produtoNome || "item"}`)
@@ -77,9 +103,9 @@ export const obterDashboard = createApiFn({ method: "GET" }).handler(async () =>
   const dias = Array.from({ length: 7 }).map((_, i) => {
     const d = new Date();
     d.setDate(d.getDate() - (6 - i));
-    const dateKey = d.toISOString().split("T")[0];
+    const dateKey = dataLocalParaIso(d);
     const total = salesList
-      .filter((v: any) => v.dataVenda === dateKey)
+      .filter((v: any) => normalizarDataVenda(v.dataVenda) === dateKey)
       .reduce((sum: number, v: any) => sum + Number(v.valorTotal || 0), 0);
 
     return {
@@ -91,10 +117,14 @@ export const obterDashboard = createApiFn({ method: "GET" }).handler(async () =>
 
   return {
     totalHoje,
+    totalMes,
     custoMes,
     producaoHoje,
     estoqueAlerta,
     qtdBaixos,
+    vendasAReceber,
+    valorAReceber,
+    vendasAguardandoEstoque,
     dias,
     ultimasVendas,
   };
