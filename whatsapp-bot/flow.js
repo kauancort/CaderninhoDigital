@@ -1,7 +1,5 @@
 const api = require("./apiClient");
-
-const catalogCache =
-  require("./catalogCache");
+const catalogCache = require("./catalogCache");
 
 const {
   resolverClienteId,
@@ -13,23 +11,37 @@ const {
 
 const POTES_POR_CAIXA = 6;
 
-const conversas =
-  new Map();
-
-const confirmacoesPendentes =
-  new Map();
-
-const estadosConversas =
-  new Map();
+const conversas = new Map();
+const confirmacoesPendentes = new Map();
+const filas = new Map();
 
 /*
- * Fila por conversa.
+ * Guarda o estado estruturado da conversa.
  *
- * Garante que duas mensagens da mesma Gestora
- * não sejam processadas ao mesmo tempo.
+ * Exemplo:
+ *
+ * {
+ *   tipo: "venda",
+ *   comprador: "Mariana Souza Lima",
+ *   novo_cliente: {
+ *      documento: "...",
+ *      estado: "RS",
+ *      cidade: "...",
+ *      bairro: "...",
+ *      endereco: "...",
+ *      numero: "...",
+ *      telefone: "51991234567"
+ *   },
+ *   forma_pagamento: "PIX",
+ *   itens: [...]
+ * }
  */
-const filas =
-  new Map();
+
+const estadosVenda = new Map();
+
+/* =========================================================
+   FILA
+========================================================= */
 
 function executarNaFila(
   chatId,
@@ -59,9 +71,11 @@ function executarNaFila(
   return atual;
 }
 
-function getConversa(
-  chatId,
-) {
+/* =========================================================
+   CONVERSA
+========================================================= */
+
+function getConversa(chatId) {
   return (
     conversas.get(chatId) ||
     ""
@@ -84,37 +98,39 @@ function acrescentarConversa(
   );
 }
 
-function getEstadoConversa(
-  chatId,
-) {
-  return (
-    estadosConversas.get(
-      chatId,
-    ) || null
-  );
-}
-
-function salvarEstadoConversa(
-  chatId,
-  estado,
-) {
-  estadosConversas.set(
-    chatId,
-    estado,
-  );
-}
-
 function limparConversa(
   chatId,
 ) {
-  conversas.delete(
-    chatId,
-  );
+  conversas.delete(chatId);
+}
 
-  estadosConversas.delete(
+function salvarEstadoVenda(
+  chatId,
+  venda,
+) {
+  estadosVenda.set(
+    chatId,
+    venda,
+  );
+}
+
+function getEstadoVenda(
+  chatId,
+) {
+  return estadosVenda.get(
     chatId,
   );
 }
+
+function limparEstadoVenda(
+  chatId,
+) {
+  estadosVenda.delete(chatId);
+}
+
+/* =========================================================
+   CONFIRMAÇÃO
+========================================================= */
 
 function salvarConfirmacao(
   chatId,
@@ -129,10 +145,8 @@ function salvarConfirmacao(
 function getConfirmacao(
   chatId,
 ) {
-  return (
-    confirmacoesPendentes.get(
-      chatId,
-    ) || null
+  return confirmacoesPendentes.get(
+    chatId,
   );
 }
 
@@ -143,6 +157,10 @@ function limparConfirmacao(
     chatId,
   );
 }
+
+/* =========================================================
+   TEXTO
+========================================================= */
 
 function textoNormalizado(
   texto,
@@ -157,17 +175,47 @@ function textoNormalizado(
     .toLowerCase();
 }
 
+function somenteDigitos(
+  texto,
+) {
+  return String(texto || "")
+    .replace(/\D/g, "");
+}
+
+/* =========================================================
+   CANCELAMENTO
+========================================================= */
+
+function ehCancelamento(
+  texto,
+) {
+  const t =
+    textoNormalizado(texto);
+
+  return [
+    "cancelar",
+    "cancela",
+    "cancelado",
+    "desistir",
+    "desisto",
+    "pare",
+    "parar",
+    "nao quero",
+  ].includes(t);
+}
+
+/* =========================================================
+   CONFIRMAÇÃO
+========================================================= */
+
 function ehConfirmacaoPositiva(
   texto,
 ) {
   const t =
-    textoNormalizado(
-      texto,
-    );
+    textoNormalizado(texto);
 
   return [
     "sim",
-    "sim.",
     "isso",
     "isso mesmo",
     "correto",
@@ -178,6 +226,7 @@ function ehConfirmacaoPositiva(
     "confirmo",
     "esta certo",
     "esta tudo certo",
+    "pode",
   ].includes(t);
 }
 
@@ -185,9 +234,7 @@ function ehConfirmacaoNegativa(
   texto,
 ) {
   const t =
-    textoNormalizado(
-      texto,
-    );
+    textoNormalizado(texto);
 
   return [
     "nao",
@@ -199,18 +246,669 @@ function ehConfirmacaoNegativa(
   ].includes(t);
 }
 
-function formatarMoeda(
+/* =========================================================
+   TELEFONE
+========================================================= */
+
+function extrairTelefone(
+  texto,
+) {
+  if (!texto) {
+    return null;
+  }
+
+  const original =
+    String(texto).trim();
+
+  /*
+   * Aceita:
+   *
+   * 51991234567
+   * 51 99123-4567
+   * (51) 99123-4567
+   * O telefone é 51991234567
+   * telefone da cliente: (51)...
+   */
+
+  const candidatos =
+    original.match(
+      /(?:\+?55\s?)?(?:\(?\d{2}\)?\s?)?(?:9\d{4}[-.\s]?\d{4}|\d{4,5}[-.\s]?\d{4})/g,
+    );
+
+  if (!candidatos) {
+    return null;
+  }
+
+  for (
+    const candidato of candidatos
+  ) {
+    const digitos =
+      somenteDigitos(
+        candidato,
+      );
+
+    let telefone =
+      digitos;
+
+    /*
+     * Remove o código 55 quando
+     * ele vier junto.
+     */
+
+    if (
+      telefone.length === 13 &&
+      telefone.startsWith("55")
+    ) {
+      telefone =
+        telefone.slice(2);
+    }
+
+    if (
+      telefone.length === 10 ||
+      telefone.length === 11
+    ) {
+      return telefone;
+    }
+  }
+
+  return null;
+}
+
+/* =========================================================
+   DOCUMENTO
+========================================================= */
+
+function extrairDocumento(
+  texto,
+) {
+  if (!texto) {
+    return null;
+  }
+
+  const cpf =
+    texto.match(
+      /\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b/,
+    );
+
+  if (cpf) {
+    return somenteDigitos(
+      cpf[0],
+    );
+  }
+
+  const cnpj =
+    texto.match(
+      /\b\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2}\b/,
+    );
+
+  if (cnpj) {
+    return somenteDigitos(
+      cnpj[0],
+    );
+  }
+
+  return null;
+}
+
+/* =========================================================
+   ESTADO
+========================================================= */
+
+/*
+ * Converte nomes completos dos estados
+ * para as siglas exigidas pelo backend.
+ *
+ * Exemplos:
+ *
+ * Rio de Janeiro -> RJ
+ * São Paulo      -> SP
+ * Minas Gerais   -> MG
+ * Paraná         -> PR
+ *
+ * Também aceita diretamente:
+ *
+ * RJ -> RJ
+ * SP -> SP
+ */
+
+function normalizarEstado(
   valor,
 ) {
-  return Number(
-    valor || 0,
-  )
-    .toFixed(2)
-    .replace(
-      ".",
-      ",",
+  if (!valor) {
+    return null;
+  }
+
+  const texto =
+    textoNormalizado(
+      valor,
     );
+
+  const estados = {
+    acre: "AC",
+    alagoas: "AL",
+    amapa: "AP",
+    amazonas: "AM",
+    bahia: "BA",
+    ceara: "CE",
+    "distrito federal": "DF",
+    "espirito santo": "ES",
+    goias: "GO",
+    maranhao: "MA",
+    "mato grosso": "MT",
+    "mato grosso do sul": "MS",
+    "minas gerais": "MG",
+    para: "PA",
+    paraiba: "PB",
+    parana: "PR",
+    pernambuco: "PE",
+    piaui: "PI",
+    "rio de janeiro": "RJ",
+    "rio grande do norte": "RN",
+    "rio grande do sul": "RS",
+    rondonia: "RO",
+    roraima: "RR",
+    "santa catarina": "SC",
+    "sao paulo": "SP",
+    sergipe: "SE",
+    tocantins: "TO",
+  };
+
+  /*
+   * Se já for uma sigla,
+   * mantém em maiúsculo.
+   */
+
+  const sigla =
+    String(
+      valor,
+    )
+      .trim()
+      .toUpperCase();
+
+  if (
+    /^[A-Z]{2}$/.test(
+      sigla,
+    )
+  ) {
+    return sigla;
+  }
+
+  /*
+   * Se for o nome completo,
+   * retorna a sigla.
+   */
+
+  return (
+    estados[texto] ||
+    null
+  );
 }
+
+/*
+ * Normaliza o estado dentro
+ * dos dados do novo cliente.
+ *
+ * Esta função é chamada antes
+ * de enviar o cliente para a API.
+ */
+
+function normalizarEstadoNovoCliente(
+  venda,
+) {
+  if (
+    !venda?.novo_cliente?.estado
+  ) {
+    return;
+  }
+
+  const estadoOriginal =
+    venda.novo_cliente.estado;
+
+  const estadoNormalizado =
+    normalizarEstado(
+      estadoOriginal,
+    );
+
+  if (
+    estadoNormalizado
+  ) {
+    venda.novo_cliente.estado =
+      estadoNormalizado;
+
+    console.log(
+      `[FLOW] Estado normalizado: "${estadoOriginal}" -> "${estadoNormalizado}"`,
+    );
+  }
+}
+
+/* =========================================================
+   EXTRAÇÃO DIRETA DE DADOS
+========================================================= */
+
+function extrairDadosCliente(
+  texto,
+) {
+  const dados = {};
+
+  const telefone =
+    extrairTelefone(texto);
+
+  if (telefone) {
+    dados.telefone =
+      telefone;
+  }
+
+  const documento =
+    extrairDocumento(texto);
+
+  if (documento) {
+    dados.documento =
+      documento;
+  }
+
+  /*
+   * Estado
+   */
+
+  const estadoMatch =
+    String(texto || "").match(
+      /(?:estado|uf)\s*:\s*([^\n,]+)/i,
+    );
+
+  if (estadoMatch) {
+    const estado =
+      normalizarEstado(
+        estadoMatch[1],
+      );
+
+    if (estado) {
+      dados.estado =
+        estado;
+    }
+  }
+
+  /*
+   * Cidade
+   */
+
+  const cidadeMatch =
+    String(texto || "").match(
+      /cidade\s*:\s*([^\n]+)/i,
+    );
+
+  if (cidadeMatch) {
+    dados.cidade =
+      cidadeMatch[1]
+        .trim()
+        .replace(/[.,]$/, "");
+  }
+
+  /*
+   * Bairro
+   */
+
+  const bairroMatch =
+    String(texto || "").match(
+      /bairro\s*:\s*([^\n]+)/i,
+    );
+
+  if (bairroMatch) {
+    dados.bairro =
+      bairroMatch[1]
+        .trim()
+        .replace(/[.,]$/, "");
+  }
+
+  /*
+   * Endereço
+   */
+
+  const enderecoMatch =
+    String(texto || "").match(
+      /(?:endereco|endereço|rua)\s*:\s*([^\n]+)/i,
+    );
+
+  if (enderecoMatch) {
+    dados.endereco =
+      enderecoMatch[1]
+        .trim()
+        .replace(/[.,]$/, "");
+  }
+
+  /*
+   * Número
+   */
+
+  const numeroMatch =
+    String(texto || "").match(
+      /(?:numero|número|n[ºo°]?)\s*:\s*([^\n,]+)/i,
+    );
+
+  if (numeroMatch) {
+    dados.numero =
+      numeroMatch[1]
+        .trim()
+        .replace(/[.,]$/, "");
+  }
+
+  /*
+   * Telefone com texto:
+   *
+   * "O telefone é..."
+   * "telefone da cliente..."
+   */
+
+  if (!dados.telefone) {
+    const telefoneTexto =
+      String(texto || "").match(
+        /telefone(?:\s+da\s+cliente|\s+dela)?\s*(?:é|eh|:)?\s*([+\d() .-]{10,25})/i,
+      );
+
+    if (
+      telefoneTexto
+    ) {
+      const telefoneExtraido =
+        extrairTelefone(
+          telefoneTexto[1],
+        );
+
+      if (
+        telefoneExtraido
+      ) {
+        dados.telefone =
+          telefoneExtraido;
+      }
+    }
+  }
+
+  return dados;
+}
+
+/* =========================================================
+   IDENTIFICAR CLIENTE DIRETAMENTE
+========================================================= */
+
+function extrairClienteDaMensagem(
+  texto,
+  clientes,
+) {
+  if (
+    !texto ||
+    !Array.isArray(clientes)
+  ) {
+    return null;
+  }
+
+  const original =
+    String(texto).trim();
+
+  /*
+   * Não considerar números como nome.
+   */
+
+  const apenasNumeros =
+    somenteDigitos(
+      original,
+    );
+
+  if (
+    apenasNumeros.length >= 10
+  ) {
+    return null;
+  }
+
+  /*
+   * Procurar "cliente: Nome"
+   */
+
+  const match =
+    original.match(
+      /cliente\s*:\s*([^\n]+)/i,
+    );
+
+  if (match) {
+    const nome =
+      match[1].trim();
+
+    const proibidos = [
+      "sem telefone",
+      "sem cliente",
+      "telefone",
+      "dados",
+      "novo",
+    ];
+
+    if (
+      proibidos.includes(
+        textoNormalizado(nome),
+      )
+    ) {
+      return null;
+    }
+
+    const encontrado =
+      clientes.find(
+        (c) =>
+          textoNormalizado(
+            c.nome,
+          ) ===
+          textoNormalizado(
+            nome,
+          ),
+      );
+
+    if (encontrado) {
+      return encontrado.nome;
+    }
+
+    return nome;
+  }
+
+  /*
+   * Procurar nomes conhecidos
+   * dentro da mensagem.
+   */
+
+  const ordenados =
+    [...clientes].sort(
+      (a, b) =>
+        String(b.nome || "")
+          .length -
+        String(a.nome || "")
+          .length,
+    );
+
+  for (
+    const cliente of ordenados
+  ) {
+    if (
+      !cliente.nome
+    ) {
+      continue;
+    }
+
+    if (
+      textoNormalizado(
+        original,
+      ).includes(
+        textoNormalizado(
+          cliente.nome,
+        ),
+      )
+    ) {
+      return cliente.nome;
+    }
+  }
+
+  /*
+   * "para cliente Mariana Souza"
+   */
+
+  const paraCliente =
+    original.match(
+      /(?:cliente|comprador)\s+([A-Za-zÀ-ÿ]+(?:\s+[A-Za-zÀ-ÿ]+){1,5})/i,
+    );
+
+  if (paraCliente) {
+    const nome =
+      paraCliente[1]
+        .trim();
+
+    if (
+      nome.length > 2
+    ) {
+      return nome;
+    }
+  }
+
+  return null;
+}
+
+/* =========================================================
+   DETECTAR VENDA
+========================================================= */
+
+function mensagemIndicaVenda(
+  texto,
+) {
+  const t =
+    textoNormalizado(texto);
+
+  return (
+    t.includes(
+      "registrar venda",
+    ) ||
+    t.includes(
+      "nova venda",
+    ) ||
+    t.includes(
+      "venda para",
+    ) ||
+    t.includes(
+      "vendi",
+    ) ||
+    t.includes(
+      "vendeu",
+    ) ||
+    t.includes(
+      "foi vendido",
+    ) ||
+    t.includes(
+      "registrar uma venda",
+    )
+  );
+}
+
+/* =========================================================
+   ATUALIZAR VENDA
+========================================================= */
+
+function mesclarObjetos(
+  anterior,
+  novo,
+) {
+  return {
+    ...(anterior || {}),
+    ...(novo || {}),
+  };
+}
+
+function mesclarVenda(
+  anterior,
+  nova,
+) {
+  if (!anterior) {
+    return nova;
+  }
+
+  if (!nova) {
+    return anterior;
+  }
+
+  const venda = {
+    ...anterior,
+    ...nova,
+  };
+
+  /*
+   * Não deixar uma resposta curta
+   * apagar informações anteriores.
+   */
+
+  if (
+    nova.comprador
+  ) {
+    venda.comprador =
+      nova.comprador;
+  } else {
+    venda.comprador =
+      anterior.comprador;
+  }
+
+  if (
+    nova.novo_cliente ||
+    anterior.novo_cliente
+  ) {
+    venda.novo_cliente =
+      mesclarObjetos(
+        anterior.novo_cliente,
+        nova.novo_cliente,
+      );
+  }
+
+  if (
+    nova.forma_pagamento
+  ) {
+    venda.forma_pagamento =
+      nova.forma_pagamento;
+  }
+
+  if (
+    nova.tipo_cartao
+  ) {
+    venda.tipo_cartao =
+      nova.tipo_cartao;
+  }
+
+  if (
+    nova.parcelas != null
+  ) {
+    venda.parcelas =
+      nova.parcelas;
+  }
+
+  if (
+    Array.isArray(
+      nova.itens,
+    ) &&
+    nova.itens.length > 0
+  ) {
+    venda.itens =
+      nova.itens;
+  } else if (
+    Array.isArray(
+      anterior.itens,
+    )
+  ) {
+    venda.itens =
+      anterior.itens;
+  }
+
+  /*
+   * Se o estado veio pelo nome completo
+   * durante a mesclagem, já normaliza.
+   */
+
+  normalizarEstadoNovoCliente(
+    venda,
+  );
+
+  return venda;
+}
+
+/* =========================================================
+   PREÇOS
+========================================================= */
 
 function normalizarNomeProduto(
   nome,
@@ -225,9 +923,6 @@ function normalizarNomeProduto(
     .trim();
 }
 
-/*
- * Preços oficiais.
- */
 const PRECOS = {
   fondant: {
     22: 20.70,
@@ -291,13 +986,13 @@ function aplicarPrecoOficial(
 
   if (
     produto &&
-    (tamanho === 22 ||
-      tamanho === 44)
+    (
+      tamanho === 22 ||
+      tamanho === 44
+    )
   ) {
     item.preco_unitario =
-      PRECOS[
-        produto
-      ][tamanho];
+      PRECOS[produto][tamanho];
   }
 
   return item;
@@ -324,545 +1019,40 @@ function prepararItensVenda(
     );
 }
 
-function normalizarVenda(
+/* =========================================================
+   VALIDAÇÃO
+========================================================= */
+
+function validarVendaParaConfirmacao(
   venda,
-  estadoAnterior,
 ) {
-  const vendaAtual =
-    venda || {};
-
-  const anterior =
-    estadoAnterior || {};
-
-  const itensNovos =
-    Array.isArray(
-      vendaAtual.itens,
-    ) &&
-    vendaAtual.itens.length >
-      0
-      ? vendaAtual.itens
-      : null;
-
-  const itensAnteriores =
-    Array.isArray(
-      anterior.itens,
-    )
-      ? anterior.itens
-      : [];
-
-  const vendaFinal = {
-    comprador:
-      vendaAtual.comprador ||
-      anterior.comprador ||
-      null,
-
-    novo_cliente:
-      vendaAtual.novo_cliente ||
-      anterior.novo_cliente ||
-      null,
-
-    forma_pagamento:
-      vendaAtual.forma_pagamento ||
-      anterior.forma_pagamento ||
-      null,
-
-    tipo_cartao:
-      vendaAtual.tipo_cartao ||
-      anterior.tipo_cartao ||
-      null,
-
-    parcelas:
-      vendaAtual.parcelas ??
-      anterior.parcelas ??
-      null,
-
-    itens:
-      itensNovos ||
-      itensAnteriores,
-  };
-
-  /*
-   * Se a IA retornou um item parcial,
-   * tenta preservar dados do item anterior.
-   */
-  if (
-    vendaFinal.itens.length >
-      0 &&
-    itensAnteriores.length >
-      0
-  ) {
-    vendaFinal.itens =
-      vendaFinal.itens.map(
-        (item, index) => {
-          const antigo =
-            itensAnteriores[
-              index
-            ] || {};
-
-          return {
-            ...antigo,
-            ...item,
-            produto_final_id:
-              item.produto_final_id ||
-              antigo.produto_final_id ||
-              null,
-
-            produto_nome:
-              item.produto_nome ||
-              antigo.produto_nome ||
-              null,
-
-            quantidade:
-              item.quantidade ??
-              antigo.quantidade ??
-              null,
-
-            tipo:
-              item.tipo ||
-              antigo.tipo ||
-              null,
-
-            tamanho_pote:
-              item.tamanho_pote ??
-              antigo.tamanho_pote ??
-              null,
-
-            preco_unitario:
-              item.preco_unitario ??
-              antigo.preco_unitario ??
-              null,
-          };
-        },
-      );
-  }
-
-  prepararItensVenda(
-    vendaFinal,
-  );
-
-  return vendaFinal;
-}
-
-function extrairClienteDaMensagem(
-  texto,
-  clientes,
-) {
-  const original =
-    String(texto || "")
-      .trim();
-
-  if (!original) {
-    return null;
-  }
-
-  const normalizado =
-    original
-      .normalize("NFD")
-      .replace(
-        /[\u0300-\u036f]/g,
-        "",
-      )
-      .toLowerCase();
-
-  /*
-   * Primeiro procura clientes já cadastrados
-   * dentro da própria mensagem.
-   */
-  if (
-    Array.isArray(clientes)
-  ) {
-    for (
-      const cliente of clientes
-    ) {
-      if (
-        !cliente ||
-        !cliente.nome
-      ) {
-        continue;
-      }
-
-      const nome =
-        String(
-          cliente.nome,
-        ).trim();
-
-      const nomeNormalizado =
-        nome
-          .normalize("NFD")
-          .replace(
-            /[\u0300-\u036f]/g,
-            "",
-          )
-          .toLowerCase();
-
-      if (
-        nomeNormalizado.length >
-          2 &&
-        normalizado.includes(
-          nomeNormalizado,
-        )
-      ) {
-        return nome;
-      }
-    }
-  }
-
-  /*
-   * Procura padrões comuns:
-   *
-   * "para cliente Mariana"
-   * "cliente Mariana"
-   * "para a cliente Mariana"
-   */
-  const padroes = [
-    /(?:para\s+(?:a\s+)?cliente)\s+(.+?)(?:\.|,|$)/i,
-
-    /(?:cliente)\s+(.+?)(?:\.|,|$)/i,
-
-    /(?:para\s+(?:a\s+)?cliente)\s+(.+)/i,
-  ];
-
-  for (
-    const regex of padroes
-  ) {
-    const match =
-      original.match(
-        regex,
-      );
-
-    if (
-      match &&
-      match[1]
-    ) {
-      let nome =
-        match[1].trim();
-
-      nome =
-        nome.replace(
-          /^(o|a)\s+/i,
-          "",
-        );
-
-      nome =
-        nome.replace(
-          /\s+(comprou|vai comprar|fez a compra).*$/i,
-          "",
-        );
-
-      if (
-        nome.length >= 2
-      ) {
-        return nome;
-      }
-    }
-  }
-
-  return null;
-}
-
-function mensagemIndicaVenda(
-  texto,
-) {
-  const t =
-    textoNormalizado(
-      texto,
-    );
-
-  return (
-    t.includes("venda") ||
-    t.includes("vender") ||
-    t.includes("vendi") ||
-    t.includes("registrar uma nova venda") ||
-    t.includes("registrar venda")
-  );
-}
-
-function identificarFaltantesVenda(
-  venda,
-  clientes,
-) {
-  const faltando = [];
-
   if (
     !venda ||
-    !venda.comprador
-  ) {
-    faltando.push(
-      "comprador",
-    );
-
-    return {
-      faltando,
-      perguntaProximo:
-        "Qual cliente comprou?",
-    };
-  }
-
-  if (
     !Array.isArray(
       venda.itens,
     ) ||
     venda.itens.length === 0
   ) {
-    faltando.push(
-      "produto",
-    );
-
-    return {
-      faltando,
-      perguntaProximo:
-        "Qual produto foi vendido?",
-    };
-  }
-
-  const item =
-    venda.itens[0];
-
-  if (
-    !item.produto_final_id ||
-    !item.produto_nome
-  ) {
-    faltando.push(
-      "produto",
-    );
-
-    return {
-      faltando,
-      perguntaProximo:
-        "Qual produto foi vendido?",
-    };
+    return "Venda sem itens identificados.";
   }
 
   if (
-    !item.quantidade ||
-    Number(
-      item.quantidade,
-    ) <= 0
+    !venda.comprador ||
+    !String(
+      venda.comprador,
+    ).trim()
   ) {
-    faltando.push(
-      "quantidade",
-    );
-
-    return {
-      faltando,
-      perguntaProximo:
-        "Quantos potes foram vendidos?",
-    };
+    return "O cliente da venda não foi informado.";
   }
 
   /*
-   * Para os produtos da tabela oficial,
-   * o tamanho é obrigatório.
+   * Normaliza o estado antes
+   * da validação do novo cliente.
    */
-  const produto =
-    descobrirProdutoPorNome(
-      item.produto_nome,
-    );
 
-  if (
-    produto &&
-    ![22, 44].includes(
-      Number(
-        item.tamanho_pote,
-      ),
-    )
-  ) {
-    faltando.push(
-      "tamanho",
-    );
-
-    return {
-      faltando,
-      perguntaProximo:
-        "Qual o tamanho do pote: 22 ou 44 unidades?",
-    };
-  }
-
-  if (
-    !venda.forma_pagamento
-  ) {
-    faltando.push(
-      "forma_pagamento",
-    );
-
-    return {
-      faltando,
-      perguntaProximo:
-        "Qual foi a forma de pagamento?",
-    };
-  }
-
-  const forma =
-    String(
-      venda.forma_pagamento,
-    ).toUpperCase();
-
-  if (
-    forma === "CARTAO"
-  ) {
-    const tipo =
-      String(
-        venda.tipo_cartao ||
-          "",
-      ).toUpperCase();
-
-    if (
-      tipo !== "CREDITO" &&
-      tipo !== "DEBITO"
-    ) {
-      faltando.push(
-        "tipo_cartao",
-      );
-
-      return {
-        faltando,
-        perguntaProximo:
-          "O cartão foi de crédito ou débito?",
-      };
-    }
-
-    if (
-      tipo === "CREDITO"
-    ) {
-      const parcelas =
-        Number(
-          venda.parcelas,
-        );
-
-      if (
-        !Number.isInteger(
-          parcelas,
-        ) ||
-        parcelas < 1
-      ) {
-        faltando.push(
-          "parcelas",
-        );
-
-        return {
-          faltando,
-          perguntaProximo:
-            "Em quantas parcelas foi o pagamento no cartão de crédito?",
-        };
-      }
-    }
-  }
-
-  /*
-   * Se o cliente não estiver cadastrado,
-   * os dados de cadastro são necessários.
-   */
-  const clienteExiste =
-    Array.isArray(
-      clientes,
-    ) &&
-    clientes.some(
-      (cliente) => {
-        if (
-          !cliente ||
-          !cliente.nome
-        ) {
-          return false;
-        }
-
-        const a =
-          normalizarNomeCliente(
-            cliente.nome,
-          );
-
-        const b =
-          normalizarNomeCliente(
-            venda.comprador,
-          );
-
-        return (
-          a === b ||
-          a.includes(b) ||
-          b.includes(a)
-        );
-      },
-    );
-
-  if (
-    !clienteExiste
-  ) {
-    const novo =
-      venda.novo_cliente;
-
-    const campos = [
-      "documento",
-      "estado",
-      "cidade",
-      "bairro",
-      "endereco",
-      "numero",
-    ];
-
-    for (
-      const campo of campos
-    ) {
-      if (
-        !novo ||
-        !String(
-          novo[campo] || "",
-        ).trim()
-      ) {
-        faltando.push(
-          `cliente_${campo}`,
-        );
-      }
-    }
-
-    if (
-      faltando.length >
-      0
-    ) {
-      return {
-        faltando,
-        perguntaProximo:
-          "Esse cliente ainda não está cadastrado. Preciso do CPF ou CNPJ, estado, cidade, bairro, endereço e número.",
-      };
-    }
-  }
-
-  return {
-    faltando: [],
-    perguntaProximo:
-      null,
-  };
-}
-
-function normalizarNomeCliente(
-  nome,
-) {
-  return String(
-    nome || "",
-  )
-    .normalize("NFD")
-    .replace(
-      /[\u0300-\u036f]/g,
-      "",
-    )
-    .toLowerCase()
-    .trim();
-}
-
-function validarVendaParaConfirmacao(
-  venda,
-) {
-  const resultado =
-    identificarFaltantesVenda(
-      venda,
-      [],
-    );
-
-  if (
-    resultado.faltando.length >
-    0
-  ) {
-    return resultado
-      .perguntaProximo;
-  }
+  normalizarEstadoNovoCliente(
+    venda,
+  );
 
   prepararItensVenda(
     venda,
@@ -893,8 +1083,402 @@ function validarVendaParaConfirmacao(
     }
   }
 
+  if (
+    !venda.forma_pagamento
+  ) {
+    return "Qual foi a forma de pagamento?";
+  }
+
+  const forma =
+    String(
+      venda.forma_pagamento,
+    ).toUpperCase();
+
+  if (
+    forma === "CARTAO"
+  ) {
+    const tipo =
+      String(
+        venda.tipo_cartao ||
+          "",
+      ).toUpperCase();
+
+    if (
+      tipo !== "CREDITO" &&
+      tipo !== "DEBITO"
+    ) {
+      return "Informe se o cartão é de crédito ou débito.";
+    }
+
+    if (
+      tipo === "CREDITO"
+    ) {
+      const parcelas =
+        Number(
+          venda.parcelas,
+        );
+
+      if (
+        !Number.isInteger(
+          parcelas,
+        ) ||
+        parcelas < 1
+      ) {
+        return "Informe a quantidade de parcelas do cartão de crédito.";
+      }
+    }
+  }
+
+  /*
+   * Se for cliente novo,
+   * telefone é obrigatório.
+   */
+
+  if (
+    venda.novo_cliente
+  ) {
+    if (
+      !venda.novo_cliente
+        .telefone
+    ) {
+      return "Informe o telefone do cliente.";
+    }
+
+    const telefone =
+      somenteDigitos(
+        venda.novo_cliente
+          .telefone,
+      );
+
+    if (
+      telefone.length !== 10 &&
+      telefone.length !== 11
+    ) {
+      return "Informe um telefone válido com DDD.";
+    }
+  }
+
   return null;
 }
+
+/* =========================================================
+   DADOS FALTANTES
+========================================================= */
+
+function identificarFaltantesVenda(
+  venda,
+) {
+  const faltando = [];
+
+  if (
+    !venda ||
+    !venda.comprador
+  ) {
+    faltando.push(
+      "comprador",
+    );
+  }
+
+  if (
+    !venda ||
+    !Array.isArray(
+      venda.itens,
+    ) ||
+    venda.itens.length === 0
+  ) {
+    faltando.push(
+      "produto",
+    );
+  }
+
+  if (
+    Array.isArray(
+      venda?.itens,
+    )
+  ) {
+    for (
+      const item of venda.itens
+    ) {
+      if (
+        !item.quantidade
+      ) {
+        if (
+          !faltando.includes(
+            "quantidade",
+          )
+        ) {
+          faltando.push(
+            "quantidade",
+          );
+        }
+      }
+
+      if (
+        !item.tamanho_pote
+      ) {
+        const produto =
+          descobrirProdutoPorNome(
+            item.produto_nome,
+          );
+
+        if (
+          produto &&
+          !faltando.includes(
+            "tamanho",
+          )
+        ) {
+          faltando.push(
+            "tamanho",
+          );
+        }
+      }
+    }
+  }
+
+  if (
+    !venda?.forma_pagamento
+  ) {
+    faltando.push(
+      "forma_pagamento",
+    );
+  }
+
+  if (
+    String(
+      venda?.forma_pagamento ||
+      "",
+    ).toUpperCase() ===
+    "CARTAO"
+  ) {
+    const tipo =
+      String(
+        venda.tipo_cartao ||
+          "",
+      ).toUpperCase();
+
+    if (
+      tipo !== "CREDITO" &&
+      tipo !== "DEBITO"
+    ) {
+      faltando.push(
+        "tipo_cartao",
+      );
+    }
+
+    if (
+      tipo === "CREDITO" &&
+      !venda.parcelas
+    ) {
+      faltando.push(
+        "parcelas",
+      );
+    }
+  }
+
+  if (
+    venda?.novo_cliente
+  ) {
+    /*
+     * Normaliza antes de verificar
+     * o estado.
+     */
+
+    normalizarEstadoNovoCliente(
+      venda,
+    );
+
+    const novo =
+      venda.novo_cliente;
+
+    if (
+      !novo.documento
+    ) {
+      faltando.push(
+        "documento",
+      );
+    }
+
+    if (
+      !novo.estado
+    ) {
+      faltando.push(
+        "estado",
+      );
+    }
+
+    if (
+      !novo.cidade
+    ) {
+      faltando.push(
+        "cidade",
+      );
+    }
+
+    if (
+      !novo.bairro
+    ) {
+      faltando.push(
+        "bairro",
+      );
+    }
+
+    if (
+      !novo.endereco
+    ) {
+      faltando.push(
+        "endereco",
+      );
+    }
+
+    if (
+      !novo.numero
+    ) {
+      faltando.push(
+        "numero",
+      );
+    }
+
+    if (
+      !novo.telefone
+    ) {
+      faltando.push(
+        "telefone",
+      );
+    }
+  }
+
+  return [
+    ...new Set(
+      faltando,
+    ),
+  ];
+}
+
+/* =========================================================
+   PERGUNTA DO PRÓXIMO CAMPO
+========================================================= */
+
+function perguntaParaFaltante(
+  faltando,
+) {
+  if (
+    faltando.includes(
+      "comprador",
+    )
+  ) {
+    return "Qual cliente comprou?";
+  }
+
+  if (
+    faltando.includes(
+      "produto",
+    )
+  ) {
+    return "Qual produto foi vendido?";
+  }
+
+  if (
+    faltando.includes(
+      "quantidade",
+    )
+  ) {
+    return "Quantos potes foram vendidos?";
+  }
+
+  if (
+    faltando.includes(
+      "tamanho",
+    )
+  ) {
+    return "Qual o tamanho do pote: 22 ou 44 unidades?";
+  }
+
+  if (
+    faltando.includes(
+      "forma_pagamento",
+    )
+  ) {
+    return "Qual foi a forma de pagamento?";
+  }
+
+  if (
+    faltando.includes(
+      "tipo_cartao",
+    )
+  ) {
+    return "O cartão foi de crédito ou débito?";
+  }
+
+  if (
+    faltando.includes(
+      "parcelas",
+    )
+  ) {
+    return "Em quantas parcelas foi o cartão de crédito?";
+  }
+
+  if (
+    faltando.includes(
+      "telefone",
+    )
+  ) {
+    return "Qual é o telefone do cliente?";
+  }
+
+  if (
+    faltando.includes(
+      "documento",
+    )
+  ) {
+    return "Qual é o CPF ou CNPJ do cliente?";
+  }
+
+  if (
+    faltando.includes(
+      "estado",
+    )
+  ) {
+    return "Qual é o estado do cliente?";
+  }
+
+  if (
+    faltando.includes(
+      "cidade",
+    )
+  ) {
+    return "Qual é a cidade do cliente?";
+  }
+
+  if (
+    faltando.includes(
+      "bairro",
+    )
+  ) {
+    return "Qual é o bairro do cliente?";
+  }
+
+  if (
+    faltando.includes(
+      "endereco",
+    )
+  ) {
+    return "Qual é o endereço do cliente?";
+  }
+
+  if (
+    faltando.includes(
+      "numero",
+    )
+  ) {
+    return "Qual é o número do endereço?";
+  }
+
+  return null;
+}
+
+/* =========================================================
+   TOTAL
+========================================================= */
 
 function calcularTotalVenda(
   venda,
@@ -925,6 +1509,27 @@ function calcularTotalVenda(
     0,
   );
 }
+
+/* =========================================================
+   MOEDA
+========================================================= */
+
+function formatarMoeda(
+  valor,
+) {
+  return Number(
+    valor || 0,
+  )
+    .toFixed(2)
+    .replace(
+      ".",
+      ",",
+    );
+}
+
+/* =========================================================
+   CONFIRMAÇÃO DE VENDA
+========================================================= */
 
 function montarConfirmacaoVenda(
   venda,
@@ -1013,16 +1618,12 @@ function montarConfirmacaoVenda(
     const nomes = {
       DINHEIRO:
         "Dinheiro",
-
       PIX:
         "Pix",
-
       BOLETO:
         "Boleto",
-
       CHEQUE:
         "Cheque",
-
       OUTRO:
         "Outro",
     };
@@ -1032,6 +1633,22 @@ function montarConfirmacaoVenda(
         nomes[forma] ||
         venda.forma_pagamento
       }`,
+    );
+  }
+
+  /*
+   * Mostrar telefone quando
+   * for cliente novo.
+   */
+
+  if (
+    venda.novo_cliente?.telefone
+  ) {
+    linhas.push(
+      `Telefone: ${formatarTelefone(
+        venda.novo_cliente
+          .telefone,
+      )}`,
     );
   }
 
@@ -1045,6 +1662,49 @@ function montarConfirmacaoVenda(
     "\n",
   );
 }
+
+function formatarTelefone(
+  telefone,
+) {
+  const d =
+    somenteDigitos(
+      telefone,
+    );
+
+  if (
+    d.length === 11
+  ) {
+    return `(${d.slice(
+      0,
+      2,
+    )}) ${d.slice(
+      2,
+      7,
+    )}-${d.slice(
+      7,
+    )}`;
+  }
+
+  if (
+    d.length === 10
+  ) {
+    return `(${d.slice(
+      0,
+      2,
+    )}) ${d.slice(
+      2,
+      6,
+    )}-${d.slice(
+      6,
+    )}`;
+  }
+
+  return telefone;
+}
+
+/* =========================================================
+   PROCESSAR MENSAGEM
+========================================================= */
 
 async function processarMensagem(
   chatId,
@@ -1068,6 +1728,10 @@ async function processarMensagem(
   );
 }
 
+/* =========================================================
+   PROCESSAMENTO INTERNO
+========================================================= */
+
 async function processarMensagemInternamente(
   chatId,
   {
@@ -1078,25 +1742,212 @@ async function processarMensagemInternamente(
 ) {
   try {
     if (audioBase64) {
-      return (
-        "O áudio precisa ser transcrito antes de ser processado."
-      );
+      return "O áudio precisa ser transcrito antes de ser processado.";
     }
 
     if (
       !texto ||
-      !texto.trim()
+      !String(
+        texto,
+      ).trim()
     ) {
       return "Não consegui identificar sua mensagem. Pode tentar novamente?";
     }
 
     const textoAtual =
-      texto.trim();
+      String(
+        texto,
+      ).trim();
 
     /*
-     * Primeiro verificamos se existe
-     * uma venda aguardando confirmação.
+     * =====================================================
+     * CANCELAR PRIMEIRO
+     * =====================================================
      */
+
+    if (
+      ehCancelamento(
+        textoAtual,
+      )
+    ) {
+      const tinhaVenda =
+        Boolean(
+          getEstadoVenda(
+            chatId,
+          ) ||
+          getConfirmacao(
+            chatId,
+          ),
+        );
+
+      limparConfirmacao(
+        chatId,
+      );
+
+      limparEstadoVenda(
+        chatId,
+      );
+
+      limparConversa(
+        chatId,
+      );
+
+      if (
+        tinhaVenda
+      ) {
+        return "Certo. A venda foi cancelada e os dados pendentes foram descartados.";
+      }
+
+      return "Certo. Não há nenhuma venda pendente.";
+    }
+
+    /*
+     * =====================================================
+     * CAPTURA DIRETA DE TELEFONE
+     *
+     * Isso acontece ANTES da IA.
+     * =====================================================
+     */
+
+    const estadoAtual =
+      getEstadoVenda(
+        chatId,
+      );
+
+    const confirmacaoAtual =
+      getConfirmacao(
+        chatId,
+      );
+
+    const telefone =
+      extrairTelefone(
+        textoAtual,
+      );
+
+    if (
+      telefone &&
+      (
+        estadoAtual ||
+        confirmacaoAtual
+      )
+    ) {
+      const venda =
+        estadoAtual ||
+        confirmacaoAtual.venda;
+
+      if (
+        venda
+      ) {
+        if (
+          !venda.novo_cliente
+        ) {
+          venda.novo_cliente =
+            {};
+        }
+
+        venda.novo_cliente
+          .telefone =
+          telefone;
+
+        normalizarEstadoNovoCliente(
+          venda,
+        );
+
+        /*
+         * Se a venda estava
+         * aguardando confirmação,
+         * precisamos substituir a
+         * confirmação antiga.
+         */
+
+        salvarEstadoVenda(
+          chatId,
+          venda,
+        );
+
+        const erro =
+          validarVendaParaConfirmacao(
+            venda,
+          );
+
+        if (!erro) {
+          const confirmacao =
+            montarConfirmacaoVenda(
+              venda,
+            );
+
+          const resultado =
+            {
+              tipo: "venda",
+              venda,
+              faltando: [],
+              perguntaProximo:
+                null,
+            };
+
+          salvarConfirmacao(
+            chatId,
+            resultado,
+          );
+
+          acrescentarConversa(
+            chatId,
+            `Gestora: ${textoAtual}`,
+          );
+
+          acrescentarConversa(
+            chatId,
+            `Vovó: ${confirmacao}`,
+          );
+
+          return confirmacao;
+        }
+
+        /*
+         * Ainda falta alguma coisa.
+         */
+
+        const faltantes =
+          identificarFaltantesVenda(
+            venda,
+          );
+
+        const pergunta =
+          perguntaParaFaltante(
+            faltantes,
+          );
+
+        acrescentarConversa(
+          chatId,
+          `Gestora: ${textoAtual}`,
+        );
+
+        if (
+          pergunta
+        ) {
+          acrescentarConversa(
+            chatId,
+            `Vovó: ${pergunta}`,
+          );
+
+          return pergunta;
+        }
+
+        return erro;
+      }
+    }
+
+    /*
+     * =====================================================
+     * CONFIRMAÇÃO POSITIVA
+     * =====================================================
+     *
+     * Só aceita "sim" sozinho como confirmação.
+     *
+     * "Sim, o telefone é..."
+     * NÃO entra aqui.
+     */
+
     const vendaPendente =
       getConfirmacao(
         chatId,
@@ -1122,6 +1973,10 @@ async function processarMensagemInternamente(
           chatId,
         );
 
+        limparEstadoVenda(
+          chatId,
+        );
+
         limparConversa(
           chatId,
         );
@@ -1144,10 +1999,16 @@ async function processarMensagemInternamente(
 
         return (
           `Deu um probleminha ao salvar: ${msg}\n\n` +
-          "Os dados da venda continuam aguardando confirmação. Pode tentar novamente."
+          "Os dados da venda continuam aguardando confirmação. Você pode corrigir os dados e confirmar novamente."
         );
       }
     }
+
+    /*
+     * =====================================================
+     * CONFIRMAÇÃO NEGATIVA
+     * =====================================================
+     */
 
     if (
       vendaPendente &&
@@ -1169,14 +2030,15 @@ async function processarMensagemInternamente(
         "Vovó: Certo. O que você deseja corrigir na venda?",
       );
 
-      return (
-        "Certo. O que você deseja corrigir na venda?"
-      );
+      return "Certo. O que você deseja corrigir na venda?";
     }
 
     /*
-     * Carrega catálogo.
+     * =====================================================
+     * BUSCAR CATÁLOGO
+     * =====================================================
      */
+
     const produtos =
       await catalogCache.getProdutos();
 
@@ -1191,99 +2053,97 @@ async function processarMensagemInternamente(
     );
 
     /*
-     * =========================================================
-     * MEMÓRIA ESTRUTURADA
-     * =========================================================
+     * =====================================================
+     * EXTRAÇÃO DIRETA DE CLIENTE
+     * =====================================================
      */
 
-    let estado =
-      getEstadoConversa(
-        chatId,
-      );
-
-    /*
-     * Se ainda não existe estado,
-     * mas a mensagem claramente inicia uma venda,
-     * criamos o estado.
-     */
-    if (
-      !estado &&
-      mensagemIndicaVenda(
-        textoAtual,
-      )
-    ) {
-      estado = {
-        tipo: "venda",
-        comprador: null,
-        novo_cliente: null,
-        forma_pagamento:
-          null,
-        tipo_cartao:
-          null,
-        parcelas: null,
-        itens: [],
-      };
-
-      salvarEstadoConversa(
-        chatId,
-        estado,
-      );
-    }
-
-    /*
-     * Detecta diretamente um cliente
-     * mencionado na mensagem.
-     *
-     * Isso funciona mesmo se a IA falhar.
-     */
-    const clienteExtraido =
+    const clienteDireto =
       extrairClienteDaMensagem(
         textoAtual,
         clientes,
       );
 
     if (
-      clienteExtraido &&
-      (
-        !estado ||
-        estado.tipo ===
-          "venda"
-      )
+      clienteDireto
     ) {
-      estado =
-        estado || {
-          tipo: "venda",
-          comprador: null,
-          novo_cliente: null,
-          forma_pagamento:
-            null,
-          tipo_cartao:
-            null,
-          parcelas: null,
-          itens: [],
-        };
-
-      estado.tipo =
-        "venda";
-
-      estado.comprador =
-        clienteExtraido;
-
-      salvarEstadoConversa(
-        chatId,
-        estado,
-      );
-
       console.log(
         "[FLOW] Cliente identificado diretamente:",
-        clienteExtraido,
+        clienteDireto,
       );
     }
 
     /*
-     * =========================================================
+     * =====================================================
+     * EXTRAÇÃO DIRETA DOS DADOS DO CLIENTE
+     * =====================================================
+     */
+
+    const dadosDiretos =
+      extrairDadosCliente(
+        textoAtual,
+      );
+
+    /*
+     * Se já existe venda em andamento,
+     * mesclar os dados diretamente.
+     */
+
+    let vendaEmAndamento =
+      getEstadoVenda(
+        chatId,
+      );
+
+    if (
+      vendaEmAndamento
+    ) {
+      if (
+        clienteDireto &&
+        clienteDireto !==
+          "sem telefone"
+      ) {
+        vendaEmAndamento.comprador =
+          clienteDireto;
+      }
+
+      if (
+        Object.keys(
+          dadosDiretos,
+        ).length > 0
+      ) {
+        if (
+          !vendaEmAndamento.novo_cliente
+        ) {
+          vendaEmAndamento.novo_cliente =
+            {};
+        }
+
+        vendaEmAndamento.novo_cliente =
+          mesclarObjetos(
+            vendaEmAndamento.novo_cliente,
+            dadosDiretos,
+          );
+
+        /*
+         * Normaliza o estado
+         * imediatamente após mesclar.
+         */
+
+        normalizarEstadoNovoCliente(
+          vendaEmAndamento,
+        );
+      }
+
+      salvarEstadoVenda(
+        chatId,
+        vendaEmAndamento,
+      );
+    }
+
+    /*
+     * =====================================================
      * IA
-     * =========================================================
+     * =====================================================
      */
 
     const resultado =
@@ -1293,13 +2153,8 @@ async function processarMensagemInternamente(
         materiasPrimas,
         clientes,
         conversaPrevia:
-          getConversa(
-            chatId,
-          ) || null,
-        estadoAtual:
-          getEstadoConversa(
-            chatId,
-          ) || null,
+          getConversa(chatId) ||
+          null,
       });
 
     console.log(
@@ -1326,209 +2181,48 @@ async function processarMensagemInternamente(
     }
 
     /*
-     * =========================================================
-     * VENDA
-     * =========================================================
-     */
-
-    if (
-      resultado.tipo ===
-      "venda"
-    ) {
-      const estadoAnterior =
-        getEstadoConversa(
-          chatId,
-        ) || {};
-
-      const venda =
-        normalizarVenda(
-          resultado.venda,
-          estadoAnterior,
-        );
-
-      /*
-       * Se a IA retornou comprador,
-       * atualiza a memória.
-       */
-      if (
-        resultado.venda
-          ?.comprador
-      ) {
-        venda.comprador =
-          resultado.venda.comprador;
-      }
-
-      /*
-       * Se o cliente foi detectado
-       * diretamente na mensagem,
-       * ele tem prioridade.
-       */
-      if (
-        clienteExtraido
-      ) {
-        venda.comprador =
-          clienteExtraido;
-      }
-
-      /*
-       * Salva o estado estruturado.
-       */
-      const novoEstado = {
-        tipo: "venda",
-
-        comprador:
-          venda.comprador ||
-          null,
-
-        novo_cliente:
-          venda.novo_cliente ||
-          null,
-
-        forma_pagamento:
-          venda.forma_pagamento ||
-          null,
-
-        tipo_cartao:
-          venda.tipo_cartao ||
-          null,
-
-        parcelas:
-          venda.parcelas ??
-          null,
-
-        itens:
-          Array.isArray(
-            venda.itens,
-          )
-            ? venda.itens
-            : [],
-      };
-
-      prepararItensVenda(
-        novoEstado,
-      );
-
-      salvarEstadoConversa(
-        chatId,
-        novoEstado,
-      );
-
-      /*
-       * Verifica os dados faltantes
-       * de forma determinística.
-       */
-      const verificacao =
-        identificarFaltantesVenda(
-          novoEstado,
-          clientes,
-        );
-
-      console.log(
-        "[FLOW] Dados atuais da venda:",
-        JSON.stringify(
-          novoEstado,
-          null,
-          2,
-        ),
-      );
-
-      console.log(
-        "[FLOW] Dados faltantes:",
-        verificacao.faltando,
-      );
-
-      /*
-       * Ainda faltam informações.
-       */
-      if (
-        verificacao.faltando
-          .length > 0
-      ) {
-        acrescentarConversa(
-          chatId,
-          `Vovó: ${verificacao.perguntaProximo}`,
-        );
-
-        return (
-          verificacao.perguntaProximo
-        );
-      }
-
-      /*
-       * =======================================================
-       * VENDA COMPLETA
-       * =======================================================
-       */
-
-      const erroValidacao =
-        validarVendaParaConfirmacao(
-          novoEstado,
-        );
-
-      if (
-        erroValidacao
-      ) {
-        acrescentarConversa(
-          chatId,
-          `Vovó: ${erroValidacao}`,
-        );
-
-        return erroValidacao;
-      }
-
-      const confirmacao =
-        montarConfirmacaoVenda(
-          novoEstado,
-        );
-
-      /*
-       * Guardamos a venda inteira.
-       *
-       * Só será salva no backend
-       * quando a Gestora responder "sim".
-       */
-      salvarConfirmacao(
-        chatId,
-        {
-          tipo: "venda",
-          venda: novoEstado,
-        },
-      );
-
-      acrescentarConversa(
-        chatId,
-        `Vovó: ${confirmacao}`,
-      );
-
-      return confirmacao;
-    }
-
-    /*
-     * =========================================================
+     * =====================================================
      * CONVERSA
-     * =========================================================
+     * =====================================================
      */
 
     if (
       resultado.tipo ===
       "conversa"
     ) {
-      const resposta =
-        resultado.resposta ||
-        "Como posso ajudar?";
+      /*
+       * Se existe uma venda em andamento
+       * e a mensagem indica venda,
+       * não deixar a IA transformar
+       * em conversa.
+       */
 
-      acrescentarConversa(
-        chatId,
-        `Vovó: ${resposta}`,
-      );
+      if (
+        vendaEmAndamento &&
+        mensagemIndicaVenda(
+          textoAtual,
+        )
+      ) {
+        resultado.tipo =
+          "venda";
+      } else {
+        const resposta =
+          resultado.resposta ||
+          "Como posso ajudar?";
 
-      return resposta;
+        acrescentarConversa(
+          chatId,
+          `Vovó: ${resposta}`,
+        );
+
+        return resposta;
+      }
     }
 
     /*
-     * =========================================================
+     * =====================================================
      * DESCONHECIDO
-     * =========================================================
+     * =====================================================
      */
 
     if (
@@ -1548,9 +2242,230 @@ async function processarMensagemInternamente(
     }
 
     /*
-     * =========================================================
+     * =====================================================
+     * VENDA
+     * =====================================================
+     */
+
+    if (
+      resultado.tipo ===
+      "venda"
+    ) {
+      /*
+       * Se a IA não devolveu venda,
+       * mas já existe uma venda estruturada,
+       * usar o estado anterior.
+       */
+
+      let novaVenda =
+        resultado.venda;
+
+      if (
+        !novaVenda &&
+        vendaEmAndamento
+      ) {
+        novaVenda =
+          vendaEmAndamento;
+      }
+
+      if (
+        !novaVenda
+      ) {
+        throw new Error(
+          "A IA informou que é uma venda, mas não retornou os dados da venda.",
+        );
+      }
+
+      /*
+       * Mesclar venda anterior.
+       */
+
+      novaVenda =
+        mesclarVenda(
+          vendaEmAndamento,
+          novaVenda,
+        );
+
+      /*
+       * Cliente identificado
+       * diretamente.
+       */
+
+      if (
+        clienteDireto &&
+        clienteDireto !==
+          "sem telefone"
+      ) {
+        novaVenda.comprador =
+          clienteDireto;
+      }
+
+      /*
+       * Dados diretos do cliente.
+       */
+
+      if (
+        Object.keys(
+          dadosDiretos,
+        ).length > 0
+      ) {
+        if (
+          !novaVenda.novo_cliente
+        ) {
+          novaVenda.novo_cliente =
+            {};
+        }
+
+        novaVenda.novo_cliente =
+          mesclarObjetos(
+            novaVenda.novo_cliente,
+            dadosDiretos,
+          );
+      }
+
+      /*
+       * IMPORTANTE:
+       *
+       * Se o texto contém telefone,
+       * nunca deixar a IA apagar
+       * o telefone capturado.
+       */
+
+      if (
+        telefone
+      ) {
+        if (
+          !novaVenda.novo_cliente
+        ) {
+          novaVenda.novo_cliente =
+            {};
+        }
+
+        novaVenda.novo_cliente
+          .telefone =
+          telefone;
+      }
+
+      /*
+       * NOVO:
+       *
+       * Normalizar o estado antes
+       * de salvar o estado da venda.
+       *
+       * Exemplo:
+       *
+       * Rio de Janeiro -> RJ
+       * São Paulo -> SP
+       * Minas Gerais -> MG
+       */
+
+      normalizarEstadoNovoCliente(
+        novaVenda,
+      );
+
+      prepararItensVenda(
+        novaVenda,
+      );
+
+      salvarEstadoVenda(
+        chatId,
+        novaVenda,
+      );
+
+      const faltantes =
+        identificarFaltantesVenda(
+          novaVenda,
+        );
+
+      console.log(
+        "[FLOW] Dados atuais da venda:",
+        JSON.stringify(
+          novaVenda,
+          null,
+          2,
+        ),
+      );
+
+      console.log(
+        "[FLOW] Dados faltantes:",
+        faltantes,
+      );
+
+      /*
+       * Ainda faltam dados.
+       */
+
+      if (
+        faltantes.length > 0
+      ) {
+        const pergunta =
+          perguntaParaFaltante(
+            faltantes,
+          );
+
+        if (
+          pergunta
+        ) {
+          acrescentarConversa(
+            chatId,
+            `Vovó: ${pergunta}`,
+          );
+
+          return pergunta;
+        }
+      }
+
+      /*
+       * Tudo preenchido.
+       */
+
+      const erroValidacao =
+        validarVendaParaConfirmacao(
+          novaVenda,
+        );
+
+      if (
+        erroValidacao
+      ) {
+        acrescentarConversa(
+          chatId,
+          `Vovó: ${erroValidacao}`,
+        );
+
+        return erroValidacao;
+      }
+
+      const confirmacao =
+        montarConfirmacaoVenda(
+          novaVenda,
+        );
+
+      const resultadoConfirmacao =
+        {
+          tipo: "venda",
+          venda: novaVenda,
+          faltando: [],
+          perguntaProximo:
+            null,
+        };
+
+      salvarConfirmacao(
+        chatId,
+        resultadoConfirmacao,
+      );
+
+      acrescentarConversa(
+        chatId,
+        `Vovó: ${confirmacao}`,
+      );
+
+      return confirmacao;
+    }
+
+    /*
+     * =====================================================
      * OUTROS LANÇAMENTOS
-     * =========================================================
+     * =====================================================
      */
 
     try {
@@ -1596,11 +2511,13 @@ async function processarMensagemInternamente(
       error,
     );
 
-    return (
-      "Tive um probleminha para entender sua mensagem. Pode tentar novamente?"
-    );
+    return "Tive um probleminha para entender sua mensagem. Pode tentar novamente?";
   }
 }
+
+/* =========================================================
+   CONCLUIR LANÇAMENTO
+========================================================= */
 
 async function concluirLancamento(
   resultado,
@@ -1633,6 +2550,10 @@ async function concluirLancamento(
   }
 }
 
+/* =========================================================
+   CRIAR VENDA
+========================================================= */
+
 async function criarVenda(
   venda,
 ) {
@@ -1641,8 +2562,7 @@ async function criarVenda(
     !Array.isArray(
       venda.itens,
     ) ||
-    venda.itens.length ===
-      0
+    venda.itens.length === 0
   ) {
     throw new Error(
       "Venda sem itens identificados.",
@@ -1679,8 +2599,7 @@ async function criarVenda(
     );
 
   if (
-    itensValidos.length ===
-    0
+    itensValidos.length === 0
   ) {
     throw new Error(
       "Não consegui identificar o produto, quantidade ou preço da venda.",
@@ -1767,6 +2686,36 @@ async function criarVenda(
       }
     }
   }
+
+  /*
+   * =====================================================
+   * NORMALIZAÇÃO DO ESTADO
+   * =====================================================
+   *
+   * ESTA É A PARTE MAIS IMPORTANTE DA CORREÇÃO.
+   *
+   * Antes de chamar resolverClienteId(),
+   * transformamos:
+   *
+   * Rio de Janeiro -> RJ
+   * São Paulo -> SP
+   * Minas Gerais -> MG
+   *
+   * Assim o clienteResolver recebe
+   * exatamente o formato esperado
+   * pelo backend.
+   */
+
+  normalizarEstadoNovoCliente(
+    venda,
+  );
+
+  /*
+   * Resolver cliente.
+   *
+   * Passamos os dados completos
+   * do novo cliente.
+   */
 
   const {
     clienteId,
@@ -1885,6 +2834,17 @@ async function criarVenda(
       resposta +=
         "\nPagamento: Cartão de débito";
     }
+  } else {
+    resposta +=
+      `\nPagamento: ${
+        formaPagamento ===
+        "PIX"
+          ? "Pix"
+          : formaPagamento ===
+            "DINHEIRO"
+            ? "Dinheiro"
+            : formaPagamento
+      }`;
   }
 
   if (
@@ -1897,13 +2857,16 @@ async function criarVenda(
   return resposta;
 }
 
+/* =========================================================
+   COMPRAS
+========================================================= */
+
 async function criarCompras(
   compras,
 ) {
   if (
     !compras ||
-    compras.length ===
-      0
+    compras.length === 0
   ) {
     throw new Error(
       "Compra sem itens identificados.",
@@ -1925,8 +2888,7 @@ async function criarCompras(
     );
 
   if (
-    validas.length ===
-    0
+    validas.length === 0
   ) {
     throw new Error(
       "Não consegui identificar o ingrediente, quantidade ou valor da compra.",
@@ -2000,6 +2962,10 @@ async function criarCompras(
   );
 }
 
+/* =========================================================
+   PRODUÇÃO
+========================================================= */
+
 async function criarProducao(
   producao,
 ) {
@@ -2045,6 +3011,10 @@ async function criarProducao(
     `${producao.potes} potes de ${producao.produto_nome}`
   );
 }
+
+/* =========================================================
+   GASTO
+========================================================= */
 
 async function criarGasto(
   gasto,
@@ -2096,11 +3066,19 @@ async function criarGasto(
   );
 }
 
+/* =========================================================
+   DATA
+========================================================= */
+
 function hojeISO() {
   return new Date()
     .toISOString()
     .slice(0, 10);
 }
+
+/* =========================================================
+   EXPORT
+========================================================= */
 
 module.exports = {
   processarMensagem,

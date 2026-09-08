@@ -1,86 +1,89 @@
 const api = require("./apiClient");
 const catalogCache = require("./catalogCache");
 
-function normalizarTexto(valor) {
-  return String(valor || "")
+function normalizarTexto(texto) {
+  return String(texto || "")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .trim()
     .toLowerCase();
 }
 
-function normalizarEstado(valor) {
-  if (!valor) return "";
+function somenteDigitos(valor) {
+  return String(valor || "").replace(/\D/g, "");
+}
 
-  const estado = normalizarTexto(valor);
+function normalizarTelefone(telefone) {
+  const digitos = somenteDigitos(telefone);
 
-  const estados = {
-    acre: "AC",
-    alagoas: "AL",
-    amapá: "AP",
-    amapa: "AP",
-    amazonas: "AM",
-    bahia: "BA",
-    ceara: "CE",
-    "ceará": "CE",
-    "distrito federal": "DF",
-    espirito: "ES",
-    "espirito santo": "ES",
-    "espírito santo": "ES",
-    goias: "GO",
-    "goiás": "GO",
-    maranhao: "MA",
-    "maranhão": "MA",
-    "mato grosso": "MT",
-    "mato grosso do sul": "MS",
-    "minas gerais": "MG",
-    para: "PA",
-    pará: "PA",
-    paraiba: "PB",
-    "paraíba": "PB",
-    parana: "PR",
-    "paraná": "PR",
-    pernambuco: "PE",
-    piaui: "PI",
-    "piauí": "PI",
-    "rio de janeiro": "RJ",
-    "rio grande do norte": "RN",
-    "rio grande do sul": "RS",
-    rondonia: "RO",
-    "rondônia": "RO",
-    roraima: "RR",
-    "santa catarina": "SC",
-    "sao paulo": "SP",
-    "são paulo": "SP",
-    sergipe: "SE",
-    tocantins: "TO",
-  };
-
-  const sigla = estado
-    .replace(/[()]/g, " ")
-    .split(/\s+/)
-    .find(
-      (parte) =>
-        /^[a-z]{2}$/.test(parte),
-    );
-
-  if (sigla) {
-    return sigla.toUpperCase();
+  if (digitos.length < 10 || digitos.length > 11) {
+    return null;
   }
 
-  return (
-    estados[estado] ||
-    ""
+  return digitos;
+}
+
+function normalizarDocumento(documento) {
+  const digitos = somenteDigitos(documento);
+
+  if (!digitos) {
+    return null;
+  }
+
+  return digitos;
+}
+
+function validarNovoCliente(novoCliente) {
+  if (!novoCliente) {
+    return "Os dados do novo cliente não foram informados.";
+  }
+
+  if (!novoCliente.documento) {
+    return "Informe o CPF ou CNPJ do cliente.";
+  }
+
+  if (!novoCliente.estado) {
+    return "Informe o estado do cliente.";
+  }
+
+  if (!novoCliente.cidade) {
+    return "Informe a cidade do cliente.";
+  }
+
+  if (!novoCliente.bairro) {
+    return "Informe o bairro do cliente.";
+  }
+
+  if (!novoCliente.endereco) {
+    return "Informe o endereço do cliente.";
+  }
+
+  if (!novoCliente.numero) {
+    return "Informe o número do endereço do cliente.";
+  }
+
+  if (!novoCliente.telefone) {
+    return "Informe o telefone do cliente.";
+  }
+
+  const telefone = normalizarTelefone(
+    novoCliente.telefone,
   );
+
+  if (!telefone) {
+    return "Informe um telefone válido com DDD.";
+  }
+
+  return null;
 }
 
 async function resolverClienteId(
   nomeFalado,
-  dadosCadastro,
+  novoCliente = null,
 ) {
   if (
     !nomeFalado ||
-    !nomeFalado.trim()
+    !String(nomeFalado).trim()
   ) {
     return {
       clienteId: null,
@@ -88,8 +91,7 @@ async function resolverClienteId(
     };
   }
 
-  const nome =
-    nomeFalado.trim();
+  const nome = String(nomeFalado).trim();
 
   const clientes =
     await catalogCache.getClientes();
@@ -98,11 +100,12 @@ async function resolverClienteId(
     normalizarTexto(nome);
 
   const encontrado =
-    clientes.find(
-      (c) =>
+    clientes.find((c) => {
+      return (
         normalizarTexto(c.nome) ===
-        nomeNormalizado,
-    );
+        nomeNormalizado
+      );
+    });
 
   if (encontrado) {
     return {
@@ -112,11 +115,19 @@ async function resolverClienteId(
   }
 
   const parcial =
-    clientes.find((c) =>
-      normalizarTexto(c.nome).includes(
-        nomeNormalizado,
-      ),
-    );
+    clientes.find((c) => {
+      const nomeCliente =
+        normalizarTexto(c.nome);
+
+      return (
+        nomeCliente.includes(
+          nomeNormalizado,
+        ) ||
+        nomeNormalizado.includes(
+          nomeCliente,
+        )
+      );
+    });
 
   if (parcial) {
     return {
@@ -125,94 +136,98 @@ async function resolverClienteId(
     };
   }
 
-  if (!dadosCadastro) {
-    throw new Error(
-      `Não encontrei "${nome}" no cadastro e ainda não tenho os dados necessários para criar o cliente.`,
-    );
-  }
-
-  const camposObrigatorios = [
-    "documento",
-    "estado",
-    "cidade",
-    "bairro",
-    "endereco",
-    "numero",
-  ];
-
-  const faltando =
-    camposObrigatorios.filter(
-      (campo) =>
-        !String(
-          dadosCadastro[campo] || "",
-        ).trim(),
-    );
-
-  if (faltando.length > 0) {
-    throw new Error(
-      `Não encontrei "${nome}" no cadastro e faltam dados para criar o cliente novo (${faltando.join(", ")}).`,
-    );
-  }
-
-  const estado =
-    normalizarEstado(
-      dadosCadastro.estado,
-    );
-
-  if (!estado) {
-    throw new Error(
-      "Não consegui identificar uma sigla de estado válida para o cliente.",
-    );
-  }
-
   /*
-   * IMPORTANTE:
-   * Não criamos mais e-mail falso.
-   * Não criamos mais telefone falso.
+   * Cliente novo.
    *
-   * O backend possui esses campos como opcionais.
+   * Não criamos telefone falso.
+   * Não criamos e-mail falso.
+   *
+   * O backend exige telefone, documento,
+   * endereço, número, bairro, cidade e estado.
    */
 
-  const novo =
-    await api.post(
-      "/clientes",
-      {
-        nome,
-
-        email: null,
-
-        telefone: null,
-
-        documento:
-          String(
-            dadosCadastro.documento,
-          ).trim(),
-
-        estado,
-
-        cidade:
-          String(
-            dadosCadastro.cidade,
-          ).trim(),
-
-        bairro:
-          String(
-            dadosCadastro.bairro,
-          ).trim(),
-
-        endereco:
-          String(
-            dadosCadastro.endereco,
-          ).trim(),
-
-        numero:
-          String(
-            dadosCadastro.numero,
-          ).trim(),
-
-        ativo: true,
-      },
+  const erro =
+    validarNovoCliente(
+      novoCliente,
     );
+
+  if (erro) {
+    throw new Error(erro);
+  }
+
+  const telefone =
+    normalizarTelefone(
+      novoCliente.telefone,
+    );
+
+  const documento =
+    normalizarDocumento(
+      novoCliente.documento,
+    );
+
+  if (!telefone) {
+    throw new Error(
+      "Informe um telefone válido com DDD.",
+    );
+  }
+
+  if (!documento) {
+    throw new Error(
+      "Informe um CPF ou CNPJ válido.",
+    );
+  }
+
+  const novo = await api.post(
+    "/clientes",
+    {
+      nome,
+
+      email:
+        novoCliente.email ||
+        null,
+
+      telefone,
+
+      documento,
+
+      endereco:
+        novoCliente.endereco,
+
+      numero:
+        String(
+          novoCliente.numero,
+        ),
+
+      complemento:
+        novoCliente.complemento ||
+        null,
+
+      cep:
+        novoCliente.cep ||
+        null,
+
+      bairro:
+        novoCliente.bairro,
+
+      cidade:
+        novoCliente.cidade,
+
+      estado:
+        String(
+          novoCliente.estado,
+        )
+          .trim()
+          .toUpperCase(),
+
+      inscricaoEstadual:
+        novoCliente.inscricaoEstadual ||
+        null,
+
+      ativo:
+        novoCliente.ativo !==
+        false,
+    },
+  );
 
   await catalogCache.forcarAtualizacao();
 
