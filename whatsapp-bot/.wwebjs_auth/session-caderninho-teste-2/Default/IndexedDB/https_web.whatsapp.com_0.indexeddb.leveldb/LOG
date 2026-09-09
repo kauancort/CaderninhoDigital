@@ -1,12 +1,11 @@
-2026/09/02-13:48:08.725 36e0 Reusing MANIFEST C:\Fernanda\docesvocida\Projeto\CaderninhoDigital\whatsapp-bot\.wwebjs_auth\session-caderninho-teste-2\Default\IndexedDB\https_web.whatsapp.com_0.indexeddb.leveldb/MANIFEST-000001
-2026/09/02-13:48:08.727 36e0 Recovering log #9
-2026/09/02-13:48:09.620 36e0 Reusing old log C:\Fernanda\docesvocida\Projeto\CaderninhoDigital\whatsapp-bot\.wwebjs_auth\session-caderninho-teste-2\Default\IndexedDB\https_web.whatsapp.com_0.indexeddb.leveldb/000009.log 
-2026/09/02-14:08:25.620 170c Level-0 table #14: started
-2026/09/02-14:08:26.327 170c Level-0 table #14: 1468392 bytes OK
-2026/09/02-14:08:26.341 170c Delete type=0 #9
-2026/09/02-14:09:44.881 170c Compacting 1@1 + 1@2 files
-2026/09/02-14:09:45.639 170c Generated table #15@1: 34645 keys, 1717903 bytes
-2026/09/02-14:09:45.655 170c Compacted 1@1 + 1@2 files => 1717903 bytes
-2026/09/02-14:09:45.694 170c compacted to: files[ 0 0 1 0 0 0 0 ]
-2026/09/02-14:09:45.718 170c Delete type=2 #11
-2026/09/02-14:09:45.722 170c Delete type=2 #14
+2026/09/08-15:55:15.643 f68 Reusing MANIFEST C:\Fernanda\docesvocida\Projeto\CaderninhoDigital\whatsapp-bot\.wwebjs_auth\session-caderninho-teste-2\Default\IndexedDB\https_web.whatsapp.com_0.indexeddb.leveldb/MANIFEST-000001
+2026/09/08-15:55:15.647 f68 Recovering log #32
+2026/09/08-15:55:15.953 f68 Reusing old log C:\Fernanda\docesvocida\Projeto\CaderninhoDigital\whatsapp-bot\.wwebjs_auth\session-caderninho-teste-2\Default\IndexedDB\https_web.whatsapp.com_0.indexeddb.leveldb/000032.log 
+2026/09/08-15:55:37.533 2b00 Level-0 table #37: started
+2026/09/08-15:55:37.913 2b00 Level-0 table #37: 1764738 bytes OK
+2026/09/08-15:55:37.946 2b00 Delete type=0 #32
+2026/09/08-15:55:42.704 2b00 Compacting 1@1 + 1@2 files
+2026/09/08-15:55:46.816 2b00 Generated table #38@1: 45156 keys, 2231561 bytes
+2026/09/08-15:55:46.951 2b00 Generated table #39@1: 1173 keys, 41781 bytes
+2026/09/08-15:55:46.951 2b00 Compacted 1@1 + 1@2 files => 2273342 bytes
+2026/09/08-15:55:46.962 2b00 compacted to: files[ 0 0 2 0 0 0 0 ]

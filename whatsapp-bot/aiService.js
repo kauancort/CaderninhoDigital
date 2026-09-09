@@ -1,5 +1,4 @@
 const axios = require("axios");
-
 require("dotenv").config();
 
 const OPENROUTER_URL =
@@ -10,52 +9,60 @@ const OPENROUTER_API_KEY =
 
 const OPENROUTER_MODEL =
   process.env.OPENROUTER_MODEL ||
-  "google/gemma-2-27b-it:free";
+  "meta-llama/llama-3.1-8b-instruct:free";
+
+/* =========================================================
+   CONFIGURAÇÃO
+========================================================= */
 
 function validarConfiguracao() {
   if (!OPENROUTER_API_KEY) {
     throw new Error(
-      "OPENROUTER_API_KEY não está configurada no arquivo .env",
+      "OPENROUTER_API_KEY não está configurada no .env",
     );
   }
 
   if (!OPENROUTER_API_KEY.trim()) {
     throw new Error(
-      "OPENROUTER_API_KEY está vazia no arquivo .env",
+      "OPENROUTER_API_KEY está vazia no .env",
     );
   }
 }
 
+/* =========================================================
+   CATÁLOGO
+========================================================= */
+
 function montarCatalogo(
   produtos,
   materiasPrimas,
-  clientes,
 ) {
   return {
     produtos: produtos || [],
     materiasPrimas: materiasPrimas || [],
-    clientes: clientes || [],
   };
 }
+
+/* =========================================================
+   PROMPT
+========================================================= */
 
 function montarSystemPrompt(catalogo) {
   return `
 Você é a assistente de WhatsApp da fábrica de doces "Doces Vó Cida".
 
-Você conversa exclusivamente com a Gestora.
+Você conversa somente com a Gestora.
 
-Sua função é interpretar a mensagem da Gestora e retornar SOMENTE um objeto JSON válido.
+Sua função é interpretar a mensagem e retornar SOMENTE JSON válido.
 
-NÃO escreva explicações.
-NÃO escreva raciocínio.
-NÃO escreva "Let me analyze".
-NÃO escreva texto em inglês.
-NÃO use Markdown.
-NÃO coloque texto antes do JSON.
-NÃO coloque texto depois do JSON.
+NUNCA escreva explicações.
+NUNCA escreva raciocínio.
+NUNCA use Markdown.
+NUNCA escreva texto antes do JSON.
+NUNCA escreva texto depois do JSON.
 
 ==================================================
-AÇÕES
+TIPOS
 ==================================================
 
 Os tipos possíveis são:
@@ -69,253 +76,162 @@ Os tipos possíveis são:
 
 Nunca invente informações.
 
-Nunca invente IDs.
-
-Nunca invente produtos.
-
-Nunca invente matérias-primas.
-
-Nunca invente clientes.
-
-Nunca invente preços.
-
-Nunca invente tamanhos.
-
-Nunca invente quantidade.
-
-Nunca invente forma de pagamento.
-
-Nunca invente parcelas.
-
 ==================================================
-CATÁLOGO
+PRODUTOS
 ==================================================
 
-PRODUTOS:
 ${JSON.stringify(catalogo.produtos)}
 
-MATÉRIAS-PRIMAS:
-${JSON.stringify(catalogo.materiasPrimas)}
+==================================================
+MATÉRIAS-PRIMAS
+==================================================
 
-CLIENTES:
-${JSON.stringify(catalogo.clientes)}
+${JSON.stringify(catalogo.materiasPrimas)}
 
 ==================================================
 ESTADO DA CONVERSA
 ==================================================
 
-O sistema pode fornecer dados estruturados já identificados.
+O estado enviado pelo sistema é a memória principal.
 
-Esses dados são a memória principal da conversa.
+Se um campo já estiver preenchido:
 
-Se um campo já estiver preenchido, PRESERVE esse campo.
+NÃO apague.
+NÃO transforme em null.
+NÃO peça novamente.
 
-Nunca transforme um campo preenchido em null.
+A nova mensagem pode ser somente uma resposta curta.
 
-A nova mensagem pode ser apenas uma resposta curta à última pergunta.
+Exemplo:
 
-Exemplos:
+Estado:
+comprador = "Maria"
 
-Se o estado já tiver:
-comprador = "Mariana Souza Lima"
-
-e a nova mensagem for:
+Mensagem:
 "Biriba"
 
-não pergunte novamente o cliente.
-
-Se a pergunta anterior foi:
-"Qual forma de pagamento?"
-
-e a Gestora responder:
-"Pix"
-
-interprete:
-forma_pagamento = "PIX".
-
-Se a pergunta anterior foi:
-"Qual tamanho?"
-
-e a Gestora responder:
-"22"
-
-interprete:
-tamanho_pote = 22.
+Resultado:
+comprador continua sendo "Maria"
+e o produto passa a ser "Biriba".
 
 ==================================================
 VENDA
 ==================================================
 
-Uma venda pode conter:
+Uma venda possui:
 
-- comprador
-- novo_cliente
-- itens
-- forma_pagamento
-- tipo_cartao
-- parcelas
+comprador
+novo_cliente
+itens
+forma_pagamento
+tipo_cartao
+parcelas
 
-Cada item pode conter:
+Cada item pode possuir:
 
-- produto_final_id
-- produto_nome
-- quantidade
-- tipo
-- tamanho_pote
-- preco_unitario
+produto_final_id
+produto_nome
+quantidade
+tipo
+tamanho_pote
+preco_unitario
 
 ==================================================
 CLIENTE
 ==================================================
 
-Se a mensagem informar algo como:
+Se a mensagem informar um cliente:
 
-"venda para Mariana Souza Lima"
+"venda para Maria"
+"Maria comprou"
+"cliente: Maria"
 
-"quero registrar uma venda para cliente Mariana Souza Lima"
+extraia:
 
-"Mariana Souza Lima comprou"
+comprador = "Maria"
 
-extraia o nome do cliente.
-
-Se o nome estiver no catálogo, use o nome do catálogo.
-
-Se não estiver no catálogo, mantenha o nome informado.
-
-NÃO pergunte novamente o cliente se ele já estiver identificado na mensagem ou no estado da conversa.
+Não invente cliente.
 
 ==================================================
 CLIENTE NOVO
 ==================================================
 
-Se o cliente não existir no catálogo, são necessários:
+Cliente novo precisa de:
 
 documento
+telefone
 estado
 cidade
 bairro
 endereco
 numero
 
-Não peça e-mail.
+Telefone é obrigatório.
 
-Não peça telefone.
+Não peça email.
 
-Nunca invente e-mail.
+Nunca invente nenhum desses dados.
 
-Nunca invente telefone.
+Estado deve ser sigla:
 
-O estado deve ser uma sigla.
-
-Exemplos:
-
-São Paulo -> SP
-Rio de Janeiro -> RJ
-Minas Gerais -> MG
-Paraná -> PR
-Santa Catarina -> SC
-
-Exemplo:
-
-"Rio de Janeiro (RJ)"
-
-deve resultar em:
-
-"RJ"
-
-Quando os dados estiverem completos:
-
-"novo_cliente": {
-  "documento": "...",
-  "estado": "RJ",
-  "cidade": "...",
-  "bairro": "...",
-  "endereco": "...",
-  "numero": "..."
-}
-
-Não inclua email.
-
-Não inclua telefone.
+São Paulo = SP
+Rio de Janeiro = RJ
+Minas Gerais = MG
+Paraná = PR
+Santa Catarina = SC
 
 ==================================================
-TIPO DA QUANTIDADE
+QUANTIDADE
 ==================================================
 
-"3 potes" -> tipo = "pote"
+"3 potes" = quantidade 3, tipo pote
 
-"3 caixas" -> tipo = "caixa"
+"3 caixas" = quantidade 3, tipo caixa
 
-"3 unidades" -> tipo = "unidade"
+Uma caixa possui 6 potes.
 
-Uma caixa contém 6 potes.
-
-Se estiver claro que a quantidade representa potes, use:
-
-"tipo": "pote"
+"3 unidades" = quantidade 3, tipo unidade
 
 ==================================================
 TAMANHO
 ==================================================
 
 22 unidades:
+
 tamanho_pote = 22
 
 44 unidades:
+
 tamanho_pote = 44
 
-Também aceite:
-
-"pote de 22"
-"pote 22"
-"22 uni"
-"22 unidades"
-
-e:
-
-"pote de 44"
-"pote 44"
-"44 uni"
-"44 unidades"
-
-Nunca invente o tamanho.
-
-Se o produto exigir tamanho e ele não tiver sido informado, coloque o tamanho entre os dados faltantes.
+Nunca invente tamanho.
 
 ==================================================
-PREÇOS OFICIAIS
+PREÇOS
 ==================================================
 
-Os preços são FIXOS.
+Fondant:
 
-FONDANT DE LEITE:
+22 = 20.70
+44 = 21.30
 
-22 uni = 20.70
-44 uni = 21.30
+Biriba:
 
-BIRIBA:
+22 = 19.70
+44 = 19.70
 
-22 uni = 19.70
-44 uni = 19.70
+Paçoca:
 
-PAÇOCA:
+22 = 18.70
+44 = 18.70
 
-22 uni = 18.70
-44 uni = 18.70
+Nunca pergunte o preço.
 
-Nunca pergunte o preço desses produtos.
-
-Nunca altere os preços.
-
-Quando produto e tamanho estiverem identificados, use o preço correspondente em:
-
-"preco_unitario"
+Nunca invente preço.
 
 ==================================================
 PAGAMENTO
 ==================================================
-
-Formas válidas:
 
 DINHEIRO
 PIX
@@ -324,130 +240,54 @@ BOLETO
 CHEQUE
 OUTRO
 
-Interpretação:
+"pix" = PIX
 
-"pix" -> PIX
-"dinheiro" -> DINHEIRO
-"boleto" -> BOLETO
-"cheque" -> CHEQUE
-"cartão" -> CARTAO
-"cartao" -> CARTAO
+"dinheiro" = DINHEIRO
+
+"cartão" = CARTAO
+
+"boleto" = BOLETO
+
+"cheque" = CHEQUE
 
 ==================================================
 CARTÃO
 ==================================================
 
-"cartão de crédito"
-"cartão crédito"
-"credito"
-
-resulta em:
+Crédito:
 
 forma_pagamento = CARTAO
 tipo_cartao = CREDITO
 
-"cartão de débito"
-"cartão débito"
-"debito"
-
-resulta em:
+Débito:
 
 forma_pagamento = CARTAO
 tipo_cartao = DEBITO
 
-Se a Gestora disser somente:
-
-"cartão"
-
-não escolha crédito ou débito.
-
-Pergunte:
-
-"O cartão foi de crédito ou débito?"
+Se disser somente "cartão", não escolha crédito ou débito.
 
 ==================================================
-CRÉDITO
+PARCELAS
 ==================================================
 
-Cartão de crédito exige parcelas.
+Crédito precisa de parcelas.
 
-"crédito em 3 vezes"
+"3 vezes" = parcelas 3
 
-resulta em:
-
-forma_pagamento = CARTAO
-tipo_cartao = CREDITO
-parcelas = 3
-
-"crédito 5x"
-
-resulta em:
-
-forma_pagamento = CARTAO
-tipo_cartao = CREDITO
-parcelas = 5
+"5x" = parcelas 5
 
 Nunca invente parcelas.
-
-Se crédito estiver informado e parcelas não estiverem:
-
-perguntaProximo =
-"Em quantas parcelas foi o pagamento no cartão de crédito?"
-
-==================================================
-DÉBITO
-==================================================
-
-Para débito:
-
-forma_pagamento = CARTAO
-tipo_cartao = DEBITO
-parcelas = null
-
-==================================================
-ORDEM DA VENDA
-==================================================
-
-Quando faltarem dados, considere:
-
-1. cliente
-2. produto
-3. quantidade
-4. tamanho
-5. forma de pagamento
-6. tipo do cartão
-7. parcelas
-
-Não pergunte preço quando houver preço oficial.
 
 ==================================================
 ÁUDIO
 ==================================================
 
-A mensagem pode ser uma transcrição de áudio.
-
 Interprete:
 
-"tres" = 3
-"três" = 3
-"vinte e duas" = 22
-"quarenta e quatro" = 44
-
-Exemplo:
-
-"Thiago comprou tres potes de biriba vinte e duas unidades no credito em tres vezes"
-
-deve resultar em:
-
-comprador = Thiago
-quantidade = 3
-produto = Biriba
-tipo = pote
-tamanho_pote = 22
-forma_pagamento = CARTAO
-tipo_cartao = CREDITO
-parcelas = 3
-preco_unitario = 19.70
+tres = 3
+três = 3
+vinte e duas = 22
+quarenta e quatro = 44
 
 ==================================================
 COMPRA
@@ -486,26 +326,39 @@ valor
 CONVERSA
 ==================================================
 
-Use "conversa" somente para mensagens que não representam uma operação.
+Use conversa somente para mensagens que não são operações.
 
 Exemplos:
 
-"Oi"
-"Bom dia"
-"Obrigada"
+Oi
+Bom dia
+Obrigada
 
 ==================================================
-FORMATO OBRIGATÓRIO
+REGRA MAIS IMPORTANTE
 ==================================================
 
-Sua resposta deve ser SOMENTE JSON válido.
+O sistema pode enviar um ESTADO ATUAL.
+
+Você deve PRESERVAR esse estado.
+
+Se a mensagem trouxer apenas uma informação nova,
+adicione essa informação ao estado existente.
+
+Nunca devolva somente a informação nova.
+
+Retorne a venda completa com os dados anteriores preservados.
+
+==================================================
+JSON
+==================================================
 
 Para venda:
 
 {
   "tipo": "venda",
   "venda": {
-    "comprador": "Nome",
+    "comprador": null,
     "novo_cliente": null,
     "forma_pagamento": null,
     "tipo_cartao": null,
@@ -516,12 +369,12 @@ Para venda:
   "perguntaProximo": null
 }
 
-Se ainda faltarem dados:
+Se faltar informação:
 
 {
   "tipo": "venda",
   "venda": {
-    "comprador": "Nome",
+    "comprador": null,
     "novo_cliente": null,
     "forma_pagamento": null,
     "tipo_cartao": null,
@@ -529,39 +382,24 @@ Se ainda faltarem dados:
     "itens": []
   },
   "faltando": ["produto"],
-  "perguntaProximo": "Qual produto foi vendido?"
-}
-
-Se não houver dados suficientes para montar venda:
-
-{
-  "tipo": "venda",
-  "venda": null,
-  "faltando": ["comprador"],
-  "perguntaProximo": "Qual cliente comprou?"
+  "perguntaProximo": null
 }
 
 IMPORTANTE:
 
-Se comprador já estiver na mensagem atual ou no estado da conversa, NÃO coloque "comprador" em faltando.
+O JavaScript controla as perguntas.
 
-Se produto já estiver informado, NÃO coloque "produto" em faltando.
+Você deve principalmente identificar os dados.
 
-Se quantidade já estiver informada, NÃO coloque "quantidade" em faltando.
+Não invente dados.
 
-Se tamanho já estiver informado, NÃO coloque "tamanho" em faltando.
-
-Se forma de pagamento já estiver informada, NÃO coloque "forma_pagamento" em faltando.
-
-Se for cartão e tipo já estiver informado, NÃO coloque "tipo_cartao" em faltando.
-
-Se for crédito e parcelas já estiverem informadas, NÃO coloque "parcelas" em faltando.
-
-PRESERVE SEMPRE OS DADOS DO ESTADO DA CONVERSA.
-
-RESPONDA SOMENTE JSON.
+RETORNE SOMENTE JSON.
 `;
 }
+
+/* =========================================================
+   JSON
+========================================================= */
 
 function extrairJson(texto) {
   if (!texto) {
@@ -570,43 +408,22 @@ function extrairJson(texto) {
     );
   }
 
-  let limpo =
-    String(texto).trim();
+  let limpo = String(texto).trim();
 
-  console.log(
-    "[IA] Conteúdo recebido:",
-  );
-
+  console.log("[IA] Conteúdo recebido:");
   console.log(limpo);
 
-  if (
-    limpo.startsWith("```")
-  ) {
-    limpo =
-      limpo.replace(
-        /^```(?:json)?/i,
-        "",
-      );
-
-    limpo =
-      limpo.replace(
-        /```$/i,
-        "",
-      );
-
-    limpo =
-      limpo.trim();
-  }
+  limpo = limpo
+    .replace(/^```json\s*/i, "")
+    .replace(/^```\s*/i, "")
+    .replace(/\s*```$/i, "")
+    .trim();
 
   try {
     return JSON.parse(limpo);
-  } catch (_) {
-    // Continua para localizar o primeiro
-    // objeto JSON completo.
-  }
+  } catch (_) {}
 
-  const inicio =
-    limpo.indexOf("{");
+  const inicio = limpo.indexOf("{");
 
   if (inicio === -1) {
     throw new Error(
@@ -623,71 +440,122 @@ function extrairJson(texto) {
     i < limpo.length;
     i++
   ) {
-    const caractere =
-      limpo[i];
+    const caractere = limpo[i];
 
     if (escape) {
       escape = false;
       continue;
     }
 
-    if (
-      caractere === "\\"
-    ) {
+    if (caractere === "\\") {
       escape = true;
       continue;
     }
 
-    if (
-      caractere === '"'
-    ) {
-      dentroString =
-        !dentroString;
-
+    if (caractere === '"') {
+      dentroString = !dentroString;
       continue;
     }
 
-    if (dentroString) {
-      continue;
-    }
+    if (dentroString) continue;
 
-    if (
-      caractere === "{"
-    ) {
+    if (caractere === "{") {
       profundidade++;
     }
 
-    if (
-      caractere === "}"
-    ) {
+    if (caractere === "}") {
       profundidade--;
 
-      if (
-        profundidade === 0
-      ) {
+      if (profundidade === 0) {
         const candidato =
-          limpo.slice(
-            inicio,
-            i + 1,
-          );
+          limpo.slice(inicio, i + 1);
 
-        try {
-          return JSON.parse(
-            candidato,
-          );
-        } catch (error) {
-          throw new Error(
-            `Não consegui interpretar o JSON retornado pela IA: ${error.message}`,
-          );
-        }
+        return JSON.parse(candidato);
       }
     }
   }
 
   throw new Error(
-    "A IA começou um JSON, mas não o terminou corretamente.",
+    "A IA começou um JSON, mas não terminou.",
   );
 }
+
+/* =========================================================
+   OPENROUTER
+========================================================= */
+
+async function chamarOpenRouter(mensagens) {
+  const resposta = await axios.post(
+    OPENROUTER_URL,
+    {
+      model: OPENROUTER_MODEL,
+      messages: mensagens,
+      temperature: 0,
+      max_tokens: 1200,
+      response_format: {
+        type: "json_object",
+      },
+    },
+    {
+      headers: {
+        Authorization:
+          `Bearer ${OPENROUTER_API_KEY}`,
+        "Content-Type":
+          "application/json",
+        "HTTP-Referer":
+          "http://localhost",
+        "X-Title":
+          "Caderninho Digital - WhatsApp Bot",
+      },
+      timeout: 60000,
+    },
+  );
+
+  const choice =
+    resposta.data?.choices?.[0];
+
+  if (!choice) {
+    throw new Error(
+      "OpenRouter não retornou choices.",
+    );
+  }
+
+  const mensagem = choice.message;
+
+  if (!mensagem) {
+    throw new Error(
+      "OpenRouter não retornou message.",
+    );
+  }
+
+  let conteudo = mensagem.content;
+
+  if (Array.isArray(conteudo)) {
+    conteudo = conteudo
+      .map((item) =>
+        typeof item === "string"
+          ? item
+          : item?.text || "",
+      )
+      .join("")
+      .trim();
+  }
+
+  console.log(
+    "[IA] finish_reason:",
+    choice.finish_reason,
+  );
+
+  return {
+    conteudo,
+    finishReason:
+      choice.finish_reason,
+  };
+}
+
+/* =========================================================
+   INTERPRETAR
+========================================================= */
 
 async function interpretarMensagem({
   texto,
@@ -699,12 +567,9 @@ async function interpretarMensagem({
 }) {
   validarConfiguracao();
 
-  if (
-    !texto ||
-    !texto.trim()
-  ) {
+  if (!texto || !texto.trim()) {
     throw new Error(
-      "A mensagem para a IA está vazia.",
+      "Mensagem vazia enviada para IA.",
     );
   }
 
@@ -712,64 +577,52 @@ async function interpretarMensagem({
     montarCatalogo(
       produtos,
       materiasPrimas,
-      clientes,
     );
 
   const systemPrompt =
-    montarSystemPrompt(
-      catalogo,
-    );
+    montarSystemPrompt(catalogo);
+
+  const estadoTexto = estadoAtual
+    ? JSON.stringify(
+        estadoAtual,
+        null,
+        2,
+      )
+    : "Nenhum estado.";
 
   const mensagens = [
     {
       role: "system",
-      content:
-        systemPrompt,
+      content: systemPrompt,
     },
-  ];
-
-  const estadoTexto =
-    estadoAtual
-      ? JSON.stringify(
-          estadoAtual,
-          null,
-          2,
-        )
-      : "Nenhum dado estruturado foi identificado ainda.";
-
-  mensagens.push({
-    role: "user",
-    content: `
-DADOS ESTRUTURADOS JÁ IDENTIFICADOS:
+    {
+      role: "user",
+      content: `
+ESTADO ATUAL:
 
 ${estadoTexto}
 
-HISTÓRICO DA CONVERSA:
+HISTÓRICO:
 
 ${conversaPrevia || "Nenhum histórico."}
 
-NOVA MENSAGEM DA GESTORA:
+NOVA MENSAGEM:
 
 ${texto.trim()}
 
-INTERPRETAÇÃO:
+Use o estado atual como memória.
 
-Use primeiro os DADOS ESTRUTURADOS.
+Preserve os dados existentes.
 
-Depois use a nova mensagem para acrescentar ou corrigir informações.
+Adicione somente os dados identificados na nova mensagem.
 
-Preserve tudo que já estiver preenchido.
-
-Se a nova mensagem responder uma pergunta anterior, interprete-a como resposta àquela pergunta.
-
-NÃO repita uma pergunta cujo dado já esteja preenchido.
-
-RETORNE SOMENTE JSON VÁLIDO.
+RETORNE SOMENTE JSON.
 `,
-  });
+    },
+  ];
 
   console.log(
-    "[IA] Enviando mensagem para OpenRouter...",
+    "[IA] Enviando para OpenRouter...",
   );
 
   console.log(
@@ -777,196 +630,75 @@ RETORNE SOMENTE JSON VÁLIDO.
     OPENROUTER_MODEL,
   );
 
+  let primeira;
+
   try {
-    const resposta =
-      await axios.post(
-        OPENROUTER_URL,
-        {
-          model:
-            OPENROUTER_MODEL,
+    primeira =
+      await chamarOpenRouter(
+        mensagens,
+      );
+  } catch (error) {
+    console.error(
+      "[IA] ERRO OPENROUTER:",
+      error.response?.data ||
+        error.message,
+    );
 
-          messages:
-            mensagens,
+    throw error;
+  }
 
-          temperature: 0,
+  let conteudo =
+    primeira.conteudo;
 
-          max_tokens: 1200,
+  /*
+   * Retry somente quando vier vazio.
+   */
+  if (!conteudo) {
+    console.warn(
+      "[IA] Resposta vazia. Tentando novamente...",
+    );
 
-          response_format: {
-            type: "json_object",
-          },
-        },
-        {
-          headers: {
-            Authorization:
-              `Bearer ${OPENROUTER_API_KEY}`,
-
-            "Content-Type":
-              "application/json",
-
-            "HTTP-Referer":
-              "http://localhost",
-
-            "X-Title":
-              "Caderninho Digital - WhatsApp Bot",
-          },
-
-          timeout:
-            60000,
-        },
+    const segunda =
+      await chamarOpenRouter(
+        mensagens,
       );
 
-    const choice =
-      resposta.data
-        ?.choices?.[0];
-
-    if (!choice) {
-      throw new Error(
-        "O OpenRouter não retornou nenhuma escolha.",
-      );
-    }
-
-    const mensagem =
-      choice.message;
-
-    if (!mensagem) {
-      throw new Error(
-        "O OpenRouter não retornou o objeto message.",
-      );
-    }
-
-    let conteudo =
-      mensagem.content;
-
-    if (
-      Array.isArray(
-        mensagem.content,
-      )
-    ) {
-      conteudo =
-        mensagem.content
-          .map(
-            (item) =>
-              typeof item ===
-              "string"
-                ? item
-                : item?.text ||
-                  "",
-          )
-          .join("")
-          .trim();
-    }
+    conteudo =
+      segunda.conteudo;
 
     if (!conteudo) {
       throw new Error(
-        `A IA retornou uma resposta vazia. finish_reason: ${
-          choice.finish_reason ||
-          "não informado"
+        `IA retornou vazio duas vezes. finish_reason: ${
+          segunda.finishReason ||
+          primeira.finishReason ||
+          "desconhecido"
         }`,
       );
     }
+  }
 
+  try {
     const resultado =
-      extrairJson(
-        conteudo,
-      );
+      extrairJson(conteudo);
 
     console.log(
-      "[IA] JSON interpretado com sucesso:",
+      "[IA] JSON interpretado:",
     );
 
     console.dir(
       resultado,
-      {
-        depth: null,
-      },
+      { depth: null },
     );
 
     return resultado;
   } catch (error) {
-    const status =
-      error.response
-        ?.status;
-
-    const data =
-      error.response
-        ?.data;
-
     console.error(
-      "[IA] Erro ao consultar OpenRouter:",
-      status || "",
-      data ||
-        error.message,
+      "[IA] JSON inválido:",
+      conteudo,
     );
 
-    if (
-      status === 400 &&
-      data?.error?.message
-        ?.toLowerCase()
-        ?.includes(
-          "response_format",
-        )
-    ) {
-      throw new Error(
-        "O modelo da IA não aceita resposta JSON estruturada. Altere o OPENROUTER_MODEL no .env para um modelo compatível com JSON.",
-      );
-    }
-
-    if (
-      status === 401
-    ) {
-      throw new Error(
-        "A chave OPENROUTER_API_KEY é inválida ou não foi aceita.",
-      );
-    }
-
-    if (
-      status === 402
-    ) {
-      throw new Error(
-        "A conta/chave do OpenRouter não possui crédito ou o modelo escolhido exige pagamento.",
-      );
-    }
-
-    if (
-      status === 403
-    ) {
-      throw new Error(
-        "O OpenRouter recusou a requisição. Verifique a chave e as permissões.",
-      );
-    }
-
-    if (
-      status === 404
-    ) {
-      throw new Error(
-        `O modelo "${OPENROUTER_MODEL}" não foi encontrado ou não está disponível.`,
-      );
-    }
-
-    if (
-      status === 429
-    ) {
-      throw new Error(
-        "O limite de requisições da IA foi atingido. Tente novamente em alguns instantes.",
-      );
-    }
-
-    if (
-      status >= 500
-    ) {
-      throw new Error(
-        "O OpenRouter apresentou um erro interno. Tente novamente em alguns instantes.",
-      );
-    }
-
-    const mensagemApi =
-      data?.error?.message ||
-      data?.message ||
-      error.message;
-
     throw new Error(
-      `Erro ao consultar a IA: ${mensagemApi}`,
+      `A IA retornou JSON inválido: ${error.message}`,
     );
   }
 }
