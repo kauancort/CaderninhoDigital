@@ -1,707 +1,990 @@
 const axios = require("axios");
-require("dotenv").config();
-
-const OPENROUTER_URL =
-  "https://openrouter.ai/api/v1/chat/completions";
-
-const OPENROUTER_API_KEY =
-  process.env.OPENROUTER_API_KEY;
-
-const OPENROUTER_MODEL =
-  process.env.OPENROUTER_MODEL ||
-  "meta-llama/llama-3.1-8b-instruct:free";
 
 /* =========================================================
    CONFIGURAÇÃO
 ========================================================= */
 
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
+
+const OPENROUTER_MODEL =
+  process.env.OPENROUTER_MODEL || "openai/gpt-4.1-mini";
+
+const OPENROUTER_URL =
+  "https://openrouter.ai/api/v1/chat/completions";
+
+const MAX_TOKENS = 1800;
+const MAX_RETRY_TOKENS = 3000;
+
+
+/* =========================================================
+   VALIDAÇÃO
+========================================================= */
+
 function validarConfiguracao() {
   if (!OPENROUTER_API_KEY) {
     throw new Error(
-      "OPENROUTER_API_KEY não está configurada no .env",
-    );
-  }
-
-  if (!OPENROUTER_API_KEY.trim()) {
-    throw new Error(
-      "OPENROUTER_API_KEY está vazia no .env",
+      "OPENROUTER_API_KEY não está configurada no arquivo .env"
     );
   }
 }
 
+
 /* =========================================================
-   CATÁLOGO
+   NORMALIZAÇÃO
 ========================================================= */
 
-function montarCatalogo(
-  produtos,
-  materiasPrimas,
-) {
+function textoSeguro(valor) {
+  if (valor === null || valor === undefined) {
+    return "";
+  }
+
+  return String(valor).trim();
+}
+
+
+function numeroSeguro(valor) {
+  if (
+    valor === null ||
+    valor === undefined ||
+    valor === ""
+  ) {
+    return null;
+  }
+
+  const numero = Number(valor);
+
+  return Number.isFinite(numero)
+    ? numero
+    : null;
+}
+
+
+/* =========================================================
+   CONVERTER CATÁLOGOS PARA FORMATO PEQUENO
+========================================================= */
+
+function prepararProdutos(produtos = []) {
+  return produtos.map((produto) => ({
+    id: produto.id,
+    nome: produto.nome,
+  }));
+}
+
+
+function prepararMateriasPrimas(materiasPrimas = []) {
+  return materiasPrimas.map((materia) => ({
+    id: materia.id,
+    nome: materia.nome,
+  }));
+}
+
+
+/*
+ * IMPORTANTE:
+ *
+ * NÃO enviamos os 264 clientes para a IA.
+ *
+ * O flow.js já tenta encontrar o cliente diretamente
+ * usando o catálogo.
+ *
+ * Para a IA, enviamos somente os nomes que parecem
+ * relacionados à mensagem atual.
+ */
+
+function prepararClientesRelevantes(clientes = [], texto = "") {
+  if (!Array.isArray(clientes)) {
+    return [];
+  }
+
+  const textoNormalizado = texto
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
+  const palavras = textoNormalizado
+    .split(/\s+/)
+    .filter((palavra) => palavra.length >= 3);
+
+  if (palavras.length === 0) {
+    return [];
+  }
+
+  const relevantes = clientes.filter((cliente) => {
+    if (!cliente || !cliente.nome) {
+      return false;
+    }
+
+    const nome = String(cliente.nome)
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
+
+    return palavras.some((palavra) =>
+      nome.includes(palavra)
+    );
+  });
+
+  return relevantes
+    .slice(0, 10)
+    .map((cliente) => ({
+      id: cliente.id,
+      nome: cliente.nome,
+    }));
+}
+
+
+/* =========================================================
+   ESTADO DA VENDA
+========================================================= */
+
+function prepararEstadoAtual(estadoAtual) {
+  if (!estadoAtual) {
+    return null;
+  }
+
   return {
-    produtos: produtos || [],
-    materiasPrimas: materiasPrimas || [],
+    tipo: "venda",
+
+    comprador:
+      estadoAtual.comprador || null,
+
+    novo_cliente:
+      estadoAtual.novo_cliente || null,
+
+    forma_pagamento:
+      estadoAtual.forma_pagamento || null,
+
+    tipo_cartao:
+      estadoAtual.tipo_cartao || null,
+
+    parcelas:
+      numeroSeguro(estadoAtual.parcelas),
+
+    itens: Array.isArray(estadoAtual.itens)
+      ? estadoAtual.itens.map((item) => ({
+          produtoId:
+            item.produtoId ?? item.produto_id ?? null,
+
+          produto:
+            item.produto ?? item.nome ?? null,
+
+          quantidade:
+            numeroSeguro(item.quantidade),
+
+          unidade:
+            item.unidade || null,
+
+          tamanho:
+            numeroSeguro(item.tamanho),
+
+          precoUnitario:
+            numeroSeguro(
+              item.precoUnitario ??
+              item.preco_unitario
+            ),
+
+          valorTotal:
+            numeroSeguro(
+              item.valorTotal ??
+              item.valor_total
+            ),
+        }))
+      : [],
   };
 }
 
+
 /* =========================================================
-   PROMPT
+   CONVERSA ANTERIOR
 ========================================================= */
 
-function montarSystemPrompt(catalogo) {
+function prepararConversa(conversaPrevia) {
+  if (!conversaPrevia) {
+    return "";
+  }
+
+  let conversa = "";
+
+  if (Array.isArray(conversaPrevia)) {
+    conversa = conversaPrevia
+      .slice(-6)
+      .map((item) => String(item))
+      .join("\n");
+  } else {
+    conversa = String(conversaPrevia);
+  }
+
+  /*
+   * Evita mandar uma conversa gigantesca para o modelo.
+   */
+  if (conversa.length > 4000) {
+    conversa = conversa.slice(-4000);
+  }
+
+  return conversa;
+}
+
+
+/* =========================================================
+   PROMPT DO SISTEMA
+========================================================= */
+
+function criarSystemPrompt({ produtos, materiasPrimas, clientesRelevantes, estadoAtual }) {
   return `
-Você é a assistente de WhatsApp da fábrica de doces "Doces Vó Cida".
+Você é o interpretador do WhatsApp do Caderninho Inteligente - Doces Vó Cida.
 
-Você conversa somente com a Gestora.
+SUA FUNÇÃO
+- Interpretar a linguagem natural da Gestora.
+- Transformar a mensagem em JSON estruturado.
+- A aplicação Node.js (flow.js) executa as ações e consulta a API.
 
-Sua função é interpretar a mensagem e retornar SOMENTE JSON válido.
+REGRA ABSOLUTA DE VERDADE
+- Nunca invente cliente, produto, matéria-prima, ID, estoque, preço, documento, telefone ou qualquer dado do sistema.
+- Nunca responda uma consulta factual sobre o sistema como se soubesse algo que não está no contexto/API.
+- Para perguntas sobre cadastro, estoque, histórico ou outros dados reais, deixe o flow.js fazer a consulta determinística.
 
-NUNCA escreva explicações.
-NUNCA escreva raciocínio.
-NUNCA use Markdown.
-NUNCA escreva texto antes do JSON.
-NUNCA escreva texto depois do JSON.
+RESPOSTA
+- Retorne SOMENTE um JSON válido.
+- Nunca use markdown, comentários ou texto fora do JSON.
+- Se um campo não foi informado, use null.
+- Preserve o estado atual e altere somente o que a nova mensagem realmente informa.
 
-==================================================
 TIPOS
-==================================================
+"venda", "compra", "producao", "gasto", "conversa", "desconhecido"
 
-Os tipos possíveis são:
-
-"venda"
-"compra"
-"producao"
-"gasto"
-"conversa"
-"desconhecido"
-
-Nunca invente informações.
-
-==================================================
-PRODUTOS
-==================================================
-
-${JSON.stringify(catalogo.produtos)}
-
-==================================================
-MATÉRIAS-PRIMAS
-==================================================
-
-${JSON.stringify(catalogo.materiasPrimas)}
-
-==================================================
-ESTADO DA CONVERSA
-==================================================
-
-O estado enviado pelo sistema é a memória principal.
-
-Se um campo já estiver preenchido:
-
-NÃO apague.
-NÃO transforme em null.
-NÃO peça novamente.
-
-A nova mensagem pode ser somente uma resposta curta.
-
-Exemplo:
-
-Estado:
-comprador = "Maria"
-
-Mensagem:
-"Biriba"
-
-Resultado:
-comprador continua sendo "Maria"
-e o produto passa a ser "Biriba".
-
-==================================================
 VENDA
-==================================================
+Formato:
+{
+  "tipo":"venda",
+  "venda":{
+    "comprador":null,
+    "novo_cliente":null,
+    "forma_pagamento":null,
+    "tipo_cartao":null,
+    "parcelas":null,
+    "itens":[]
+  },
+  "faltando":[],
+  "perguntaProximo":null
+}
 
-Uma venda possui:
+ITEM DE VENDA
+{
+  "produtoId":null,
+  "produto":null,
+  "quantidade":null,
+  "unidade":null,
+  "tamanho":null,
+  "precoUnitario":null,
+  "valorTotal":null
+}
 
-comprador
-novo_cliente
-itens
-forma_pagamento
-tipo_cartao
-parcelas
-
-Cada item pode possuir:
-
-produto_final_id
-produto_nome
-quantidade
-tipo
-tamanho_pote
-preco_unitario
-
-==================================================
 CLIENTE
-==================================================
+- O nome pode aparecer sem rótulo: "vende para Maria", "Maria comprou", "é para o João".
+- Aceite maiúsculas/minúsculas, acentos, pequenas falhas de digitação e fala transcrita.
+- Se a mensagem trouxer dados de cadastro sem rótulos, extraia o que estiver claramente presente.
+- Os campos obrigatórios de um NOVO cliente são EXATAMENTE:
+  nome, documento (CPF/CNPJ), telefone, endereco, numero, bairro, cidade, estado.
+- Campos adicionais permitidos: cep, email, complemento, inscricaoEstadual.
+- Não exija que a Gestora use etiquetas. Ela pode dizer uma frase natural.
+- Não invente nenhum campo ausente.
 
-Se a mensagem informar um cliente:
+EXEMPLOS DE LINGUAGEM NATURAL DE CLIENTE
+"O telefone dela é 14999998888, CPF 12345678900, ela mora na Rua Brasil 100, Centro, Tupã, SP"
+=> telefone, documento, endereco, numero, bairro, cidade e estado.
 
-"venda para Maria"
-"Maria comprou"
-"cliente: Maria"
+"Rua Brasil, 100, Centro, Tupã - SP"
+=> endereco, numero, bairro, cidade e estado.
 
-extraia:
+CORREÇÕES
+Se já existir uma venda em andamento e a Gestora disser:
+"troca para Ana, são 4 potes, tamanho 44 e foi no Pix"
+retorne somente os campos que mudaram dentro da venda.
 
-comprador = "Maria"
+Pode corrigir vários campos na mesma mensagem:
+- cliente/comprador
+- produto
+- quantidade
+- unidade
+- tamanho
+- pagamento
+- tipo do cartão
+- parcelas
+- dados do novo cliente
 
-Não invente cliente.
+Não reinicie a venda por causa de uma correção.
+Não apague campos que não foram corrigidos.
 
-==================================================
-CLIENTE NOVO
-==================================================
-
-Cliente novo precisa de:
-
-documento
-telefone
-estado
-cidade
-bairro
-endereco
-numero
-
-Telefone é obrigatório.
-
-Não peça email.
-
-Nunca invente nenhum desses dados.
-
-Estado deve ser sigla:
-
-São Paulo = SP
-Rio de Janeiro = RJ
-Minas Gerais = MG
-Paraná = PR
-Santa Catarina = SC
-
-==================================================
 QUANTIDADE
-==================================================
+- "3 potes" => quantidade 3, unidade "POTE"
+- "2 caixas" => quantidade 2, unidade "CAIXA"
+- "três potes" => quantidade 3, unidade "POTE"
+- "quatro caixas" => quantidade 4, unidade "CAIXA"
+- 1 caixa = 6 potes, mas NÃO converta a unidade no JSON.
 
-"3 potes" = quantidade 3, tipo pote
-
-"3 caixas" = quantidade 3, tipo caixa
-
-Uma caixa possui 6 potes.
-
-"3 unidades" = quantidade 3, tipo unidade
-
-==================================================
 TAMANHO
-==================================================
+- "22", "22 uni", "pote de 22", "22 unidades por pote" => 22
+- "44", "44 uni", "pote de 44", "44 unidades por pote" => 44
+- Nunca invente tamanho.
 
-22 unidades:
+PREÇOS DO SISTEMA
+Fondant: 22 = 20.70; 44 = 21.30
+Biriba: 22 = 19.70; 44 = 19.70
+Paçoca: 22 = 18.70; 44 = 18.70
+Use esses preços somente quando o produto e tamanho estiverem claros. O flow.js pode recalcular o preço.
 
-tamanho_pote = 22
-
-44 unidades:
-
-tamanho_pote = 44
-
-Nunca invente tamanho.
-
-==================================================
-PREÇOS
-==================================================
-
-Fondant:
-
-22 = 20.70
-44 = 21.30
-
-Biriba:
-
-22 = 19.70
-44 = 19.70
-
-Paçoca:
-
-22 = 18.70
-44 = 18.70
-
-Nunca pergunte o preço.
-
-Nunca invente preço.
-
-==================================================
 PAGAMENTO
-==================================================
+pix => PIX
+dinheiro => DINHEIRO
+cartão/cartao => CARTAO
+boleto => BOLETO
+cheque => CHEQUE
+cartão crédito => tipo_cartao CREDITO
+cartão débito => tipo_cartao DEBITO
 
-DINHEIRO
-PIX
-CARTAO
-BOLETO
-CHEQUE
-OUTRO
-
-"pix" = PIX
-
-"dinheiro" = DINHEIRO
-
-"cartão" = CARTAO
-
-"boleto" = BOLETO
-
-"cheque" = CHEQUE
-
-==================================================
-CARTÃO
-==================================================
-
-Crédito:
-
-forma_pagamento = CARTAO
-tipo_cartao = CREDITO
-
-Débito:
-
-forma_pagamento = CARTAO
-tipo_cartao = DEBITO
-
-Se disser somente "cartão", não escolha crédito ou débito.
-
-==================================================
-PARCELAS
-==================================================
-
-Crédito precisa de parcelas.
-
-"3 vezes" = parcelas 3
-
-"5x" = parcelas 5
-
-Nunca invente parcelas.
-
-==================================================
-ÁUDIO
-==================================================
-
-Interprete:
-
-tres = 3
-três = 3
-vinte e duas = 22
-quarenta e quatro = 44
-
-==================================================
 COMPRA
-==================================================
+Retorne:
+{"tipo":"compra","compras":[],"faltando":[],"perguntaProximo":null}
 
-Para compra:
-
-materia_prima_id
-produto_nome
-quantidade
-unidade
-valor_total
-
-==================================================
 PRODUÇÃO
-==================================================
+Retorne:
+{"tipo":"producao","producao":{"produto_final_id":null,"produto_nome":null,"potes":null,"observacoes":null},"faltando":[],"perguntaProximo":null}
 
-Para produção:
-
-produto_final_id
-produto_nome
-potes
-observacoes
-
-==================================================
 GASTO
-==================================================
+Retorne:
+{"tipo":"gasto","gasto":{"descricao":null,"categoria":null,"valor":null},"faltando":[],"perguntaProximo":null}
 
-Para gasto:
-
-descricao
-categoria
-valor
-
-==================================================
 CONVERSA
-==================================================
+Use somente para conversa real, por exemplo "oi", "bom dia", "obrigada".
+Se houver operação pendente, uma resposta curta como "Pix", "Maria", "três" ou "44" é continuação da operação, não conversa.
 
-Use conversa somente para mensagens que não são operações.
+HISTÓRICO E ESTADO
+A mensagem pode ser continuação de uma operação.
+Estado atual:
+${JSON.stringify(estadoAtual || null)}
 
-Exemplos:
+CATÁLOGO DE PRODUTOS:
+${JSON.stringify(produtos || [])}
 
-Oi
-Bom dia
-Obrigada
+CATÁLOGO DE MATÉRIAS-PRIMAS:
+${JSON.stringify(materiasPrimas || [])}
 
-==================================================
-REGRA MAIS IMPORTANTE
-==================================================
+CLIENTES RELEVANTES:
+${JSON.stringify(clientesRelevantes || [])}
 
-O sistema pode enviar um ESTADO ATUAL.
+IMPORTANTE SOBRE CLIENTES DUPLICADOS
+Se houver mais de um cliente que possa corresponder ao nome, NÃO escolha um.
+Retorne o nome informado e deixe a decisão para o flow.js pedir a escolha da Gestora.
+Essa regra vale para QUALQUER nome, não apenas um nome específico.
 
-Você deve PRESERVAR esse estado.
-
-Se a mensagem trouxer apenas uma informação nova,
-adicione essa informação ao estado existente.
-
-Nunca devolva somente a informação nova.
-
-Retorne a venda completa com os dados anteriores preservados.
-
-==================================================
-JSON
-==================================================
-
-Para venda:
-
-{
-  "tipo": "venda",
-  "venda": {
-    "comprador": null,
-    "novo_cliente": null,
-    "forma_pagamento": null,
-    "tipo_cartao": null,
-    "parcelas": null,
-    "itens": []
-  },
-  "faltando": [],
-  "perguntaProximo": null
-}
-
-Se faltar informação:
-
-{
-  "tipo": "venda",
-  "venda": {
-    "comprador": null,
-    "novo_cliente": null,
-    "forma_pagamento": null,
-    "tipo_cartao": null,
-    "parcelas": null,
-    "itens": []
-  },
-  "faltando": ["produto"],
-  "perguntaProximo": null
-}
-
-IMPORTANTE:
-
-O JavaScript controla as perguntas.
-
-Você deve principalmente identificar os dados.
-
-Não invente dados.
-
-RETORNE SOMENTE JSON.
+NÃO FAÇA
+- Não diga que alguém está cadastrado só porque parece provável.
+- Não invente telefone/CPF/endereço.
+- Não invente estoque.
+- Não invente IDs.
+- Não registre nada diretamente.
 `;
 }
 
 /* =========================================================
-   JSON
+   EXTRAIR JSON DA RESPOSTA
 ========================================================= */
 
-function extrairJson(texto) {
-  if (!texto) {
-    throw new Error(
-      "A IA retornou uma resposta vazia.",
-    );
+function limparRespostaIA(conteudo) {
+  if (!conteudo) {
+    return "";
   }
 
-  let limpo = String(texto).trim();
+  let texto = String(conteudo).trim();
 
-  console.log("[IA] Conteúdo recebido:");
-  console.log(limpo);
-
-  limpo = limpo
+  /*
+   * Remove markdown caso algum modelo coloque.
+   */
+  texto = texto
     .replace(/^```json\s*/i, "")
     .replace(/^```\s*/i, "")
     .replace(/\s*```$/i, "")
     .trim();
 
+  /*
+   * Localiza o primeiro { e o último }.
+   */
+  const primeiro = texto.indexOf("{");
+  const ultimo = texto.lastIndexOf("}");
+
+  if (primeiro >= 0 && ultimo > primeiro) {
+    texto = texto.slice(primeiro, ultimo + 1);
+  }
+
+  return texto.trim();
+}
+
+
+/* =========================================================
+   PARSE JSON
+========================================================= */
+
+function interpretarJSON(conteudo) {
+  const texto = limparRespostaIA(conteudo);
+
+  if (!texto) {
+    throw new Error(
+      "A IA retornou uma resposta vazia."
+    );
+  }
+
   try {
-    return JSON.parse(limpo);
-  } catch (_) {}
+    return JSON.parse(texto);
+  } catch (erro) {
+    console.error("[IA] JSON inválido:");
+    console.error(texto);
 
-  const inicio = limpo.indexOf("{");
-
-  if (inicio === -1) {
     throw new Error(
-      "A IA não retornou um objeto JSON.",
+      "A IA retornou JSON inválido."
     );
   }
-
-  let profundidade = 0;
-  let dentroString = false;
-  let escape = false;
-
-  for (
-    let i = inicio;
-    i < limpo.length;
-    i++
-  ) {
-    const caractere = limpo[i];
-
-    if (escape) {
-      escape = false;
-      continue;
-    }
-
-    if (caractere === "\\") {
-      escape = true;
-      continue;
-    }
-
-    if (caractere === '"') {
-      dentroString = !dentroString;
-      continue;
-    }
-
-    if (dentroString) continue;
-
-    if (caractere === "{") {
-      profundidade++;
-    }
-
-    if (caractere === "}") {
-      profundidade--;
-
-      if (profundidade === 0) {
-        const candidato =
-          limpo.slice(inicio, i + 1);
-
-        return JSON.parse(candidato);
-      }
-    }
-  }
-
-  throw new Error(
-    "A IA começou um JSON, mas não terminou.",
-  );
 }
 
+
 /* =========================================================
-   OPENROUTER
+   NORMALIZAR RESULTADO
 ========================================================= */
 
-async function chamarOpenRouter(mensagens) {
-  const resposta = await axios.post(
-    OPENROUTER_URL,
-    {
-      model: OPENROUTER_MODEL,
-      messages: mensagens,
-      temperature: 0,
-      max_tokens: 1200,
-      response_format: {
-        type: "json_object",
-      },
-    },
-    {
-      headers: {
-        Authorization:
-          `Bearer ${OPENROUTER_API_KEY}`,
-        "Content-Type":
-          "application/json",
-        "HTTP-Referer":
-          "http://localhost",
-        "X-Title":
-          "Caderninho Digital - WhatsApp Bot",
-      },
-      timeout: 60000,
-    },
-  );
-
-  const choice =
-    resposta.data?.choices?.[0];
-
-  if (!choice) {
+function normalizarResultado(resultado) {
+  if (!resultado || typeof resultado !== "object") {
     throw new Error(
-      "OpenRouter não retornou choices.",
+      "A IA retornou um resultado inválido."
     );
   }
 
-  const mensagem = choice.message;
-
-  if (!mensagem) {
-    throw new Error(
-      "OpenRouter não retornou message.",
-    );
+  if (!resultado.tipo) {
+    resultado.tipo = "desconhecido";
   }
 
-  let conteudo = mensagem.content;
+  /*
+   * ========================================================
+   * VENDA
+   * ========================================================
+   */
 
-  if (Array.isArray(conteudo)) {
-    conteudo = conteudo
-      .map((item) =>
-        typeof item === "string"
-          ? item
-          : item?.text || "",
-      )
-      .join("")
-      .trim();
+  if (resultado.tipo === "venda") {
+    /*
+     * Aceita também uma resposta antiga da IA que venha assim:
+     *
+     * {
+     *   tipo: "venda",
+     *   comprador: "...",
+     *   itens: [...]
+     * }
+     *
+     * e converte para o formato esperado pelo flow.js.
+     */
+
+    if (!resultado.venda) {
+      resultado.venda = {
+        comprador:
+          resultado.comprador || null,
+
+        novo_cliente:
+          resultado.novo_cliente || null,
+
+        forma_pagamento:
+          resultado.forma_pagamento || null,
+
+        tipo_cartao:
+          resultado.tipo_cartao || null,
+
+        parcelas:
+          resultado.parcelas ?? null,
+
+        itens:
+          Array.isArray(resultado.itens)
+            ? resultado.itens
+            : [],
+      };
+    }
+
+    const venda = resultado.venda;
+
+    venda.comprador =
+      venda.comprador || null;
+
+    venda.novo_cliente =
+      venda.novo_cliente || null;
+
+    venda.forma_pagamento =
+      venda.forma_pagamento || null;
+
+    venda.tipo_cartao =
+      venda.tipo_cartao || null;
+
+    venda.parcelas =
+      numeroSeguro(venda.parcelas);
+
+    if (!Array.isArray(venda.itens)) {
+      venda.itens = [];
+    }
+
+    venda.itens = venda.itens.map((item) => ({
+      produtoId:
+        item.produtoId ??
+        item.produto_id ??
+        null,
+
+      produto:
+        item.produto ??
+        item.nome ??
+        null,
+
+      quantidade:
+        numeroSeguro(item.quantidade),
+
+      unidade:
+        item.unidade || null,
+
+      tamanho:
+        numeroSeguro(
+          item.tamanho ??
+          item.tamanhoPote
+        ),
+
+      precoUnitario:
+        numeroSeguro(
+          item.precoUnitario ??
+          item.preco_unitario
+        ),
+
+      valorTotal:
+        numeroSeguro(
+          item.valorTotal ??
+          item.valor_total
+        ),
+    }));
+
+    /*
+     * Remove campos antigos da raiz.
+     */
+    delete resultado.comprador;
+    delete resultado.novo_cliente;
+    delete resultado.forma_pagamento;
+    delete resultado.tipo_cartao;
+    delete resultado.parcelas;
+    delete resultado.itens;
   }
 
-  console.log(
-    "[IA] finish_reason:",
-    choice.finish_reason,
-  );
-
-  return {
-    conteudo,
-    finishReason:
-      choice.finish_reason,
-  };
+  return resultado;
 }
 
+
 /* =========================================================
-   INTERPRETAR
+   CHAMAR OPENROUTER
 ========================================================= */
 
-async function interpretarMensagem({
+async function chamarOpenRouter({
   texto,
   produtos,
   materiasPrimas,
   clientes,
   conversaPrevia,
   estadoAtual,
+  maxTokens,
 }) {
   validarConfiguracao();
 
-  if (!texto || !texto.trim()) {
-    throw new Error(
-      "Mensagem vazia enviada para IA.",
-    );
-  }
+  const produtosPreparados =
+    prepararProdutos(produtos);
 
-  const catalogo =
-    montarCatalogo(
-      produtos,
-      materiasPrimas,
+  const materiasPrimasPreparadas =
+    prepararMateriasPrimas(materiasPrimas);
+
+  const clientesRelevantes =
+    prepararClientesRelevantes(
+      clientes,
+      texto
     );
+
+  const estadoPreparado =
+    prepararEstadoAtual(estadoAtual);
+
+  const conversa =
+    prepararConversa(conversaPrevia);
 
   const systemPrompt =
-    montarSystemPrompt(catalogo);
+    criarSystemPrompt({
+      produtos: produtosPreparados,
+      materiasPrimas: materiasPrimasPreparadas,
+      clientesRelevantes,
+      estadoAtual: estadoPreparado,
+    });
 
-  const estadoTexto = estadoAtual
-    ? JSON.stringify(
-        estadoAtual,
-        null,
-        2,
-      )
-    : "Nenhum estado.";
+  const userPrompt = `
+Mensagem atual da Gestora:
 
-  const mensagens = [
-    {
-      role: "system",
-      content: systemPrompt,
-    },
-    {
-      role: "user",
-      content: `
-ESTADO ATUAL:
+${texto}
 
-${estadoTexto}
+${conversa
+  ? `
+Conversa recente:
+${conversa}
+`
+  : ""
+}
 
-HISTÓRICO:
+Analise a mensagem considerando o estado atual da venda.
 
-${conversaPrevia || "Nenhum histórico."}
+Retorne SOMENTE o JSON final.
+`;
 
-NOVA MENSAGEM:
+  console.log("[IA] Enviando para OpenRouter...");
+  console.log("[IA] Modelo:", OPENROUTER_MODEL);
 
-${texto.trim()}
+  const resposta =
+    await axios.post(
+      OPENROUTER_URL,
+      {
+        model: OPENROUTER_MODEL,
 
-Use o estado atual como memória.
+        messages: [
+          {
+            role: "system",
+            content: systemPrompt,
+          },
+          {
+            role: "user",
+            content: userPrompt,
+          },
+        ],
 
-Preserve os dados existentes.
+        temperature: 0.1,
 
-Adicione somente os dados identificados na nova mensagem.
+        max_tokens: maxTokens,
+      },
+      {
+        headers: {
+          Authorization:
+            `Bearer ${OPENROUTER_API_KEY}`,
 
-RETORNE SOMENTE JSON.
-`,
-    },
-  ];
+          "Content-Type":
+            "application/json",
 
-  console.log(
-    "[IA] Enviando para OpenRouter...",
-  );
+          "HTTP-Referer":
+            "https://caderninho-inteligente.local",
 
-  console.log(
-    "[IA] Modelo:",
-    OPENROUTER_MODEL,
-  );
+          "X-Title":
+            "Caderninho Inteligente",
+        },
 
-  let primeira;
-
-  try {
-    primeira =
-      await chamarOpenRouter(
-        mensagens,
-      );
-  } catch (error) {
-    console.error(
-      "[IA] ERRO OPENROUTER:",
-      error.response?.data ||
-        error.message,
+        timeout: 60000,
+      }
     );
 
-    throw error;
+  const escolha =
+    resposta.data?.choices?.[0];
+
+  const finishReason =
+    escolha?.finish_reason || null;
+
+  const conteudo =
+    escolha?.message?.content || "";
+
+  console.log(
+    "[IA] finish_reason:",
+    finishReason
+  );
+
+  if (conteudo) {
+    console.log(
+      "[IA] Conteúdo recebido:"
+    );
+
+    console.log(conteudo);
   }
 
-  let conteudo =
-    primeira.conteudo;
+  return {
+    conteudo,
+    finishReason,
+  };
+}
+
+
+/* =========================================================
+   INTERPRETAR MENSAGEM
+========================================================= */
+
+async function interpretarMensagem({
+  texto,
+  produtos = [],
+  materiasPrimas = [],
+  clientes = [],
+  conversaPrevia = null,
+  estadoAtual = null,
+}) {
+  validarConfiguracao();
+
+  const textoAtual =
+    textoSeguro(texto);
+
+  if (!textoAtual) {
+    throw new Error(
+      "Não foi possível interpretar uma mensagem vazia."
+    );
+  }
 
   /*
-   * Retry somente quando vier vazio.
+   * ========================================================
+   * PRIMEIRA TENTATIVA
+   * ========================================================
    */
-  if (!conteudo) {
-    console.warn(
-      "[IA] Resposta vazia. Tentando novamente...",
+
+  let resposta;
+
+  try {
+    resposta =
+      await chamarOpenRouter({
+        texto: textoAtual,
+        produtos,
+        materiasPrimas,
+        clientes,
+        conversaPrevia,
+        estadoAtual,
+        maxTokens: MAX_TOKENS,
+      });
+  } catch (erro) {
+    console.error(
+      "[IA] Erro ao chamar OpenRouter:"
     );
 
-    const segunda =
-      await chamarOpenRouter(
-        mensagens,
+    console.error(
+      erro.response?.data ||
+      erro.message ||
+      erro
+    );
+
+    throw new Error(
+      "Não foi possível consultar a IA."
+    );
+  }
+
+  /*
+   * ========================================================
+   * SE A RESPOSTA ESTIVER VAZIA
+   * ========================================================
+   */
+
+  if (!resposta.conteudo) {
+    console.log(
+      "[IA] Resposta vazia. Tentando novamente..."
+    );
+
+    try {
+      resposta =
+        await chamarOpenRouter({
+          texto: textoAtual,
+          produtos,
+          materiasPrimas,
+          clientes,
+          conversaPrevia,
+          estadoAtual,
+          maxTokens: MAX_RETRY_TOKENS,
+        });
+    } catch (erro) {
+      console.error(
+        "[IA] Segunda tentativa falhou:"
       );
 
-    conteudo =
-      segunda.conteudo;
+      console.error(
+        erro.response?.data ||
+        erro.message ||
+        erro
+      );
 
-    if (!conteudo) {
       throw new Error(
-        `IA retornou vazio duas vezes. finish_reason: ${
-          segunda.finishReason ||
-          primeira.finishReason ||
-          "desconhecido"
-        }`,
+        "A IA não conseguiu retornar uma resposta."
       );
     }
   }
 
-  try {
-    const resultado =
-      extrairJson(conteudo);
+  /*
+   * ========================================================
+   * SE TERMINOU POR LIMITE
+   * ========================================================
+   */
 
+  if (
+    resposta.finishReason === "length" &&
+    resposta.conteudo
+  ) {
     console.log(
-      "[IA] JSON interpretado:",
+      "[IA] Resposta atingiu o limite de tokens."
     );
 
-    console.dir(
-      resultado,
-      { depth: null },
-    );
+    /*
+     * Tenta novamente com mais espaço.
+     */
+    try {
+      const segundaResposta =
+        await chamarOpenRouter({
+          texto: textoAtual,
+          produtos,
+          materiasPrimas,
+          clientes,
+          conversaPrevia,
+          estadoAtual,
+          maxTokens: MAX_RETRY_TOKENS,
+        });
 
-    return resultado;
-  } catch (error) {
-    console.error(
-      "[IA] JSON inválido:",
-      conteudo,
-    );
+      /*
+       * Usa a segunda resposta se ela tiver vindo
+       * completa.
+       */
+      if (
+        segundaResposta.conteudo &&
+        segundaResposta.finishReason !== "length"
+      ) {
+        resposta = segundaResposta;
+      } else if (
+        segundaResposta.conteudo
+      ) {
+        /*
+         * Mesmo que o modelo diga length,
+         * pode ter fechado o JSON.
+         */
+        try {
+          const teste =
+            interpretarJSON(
+              segundaResposta.conteudo
+            );
 
+          return normalizarResultado(teste);
+        } catch (_) {
+          throw new Error(
+            "A IA atingiu o limite de resposta antes de concluir o JSON."
+          );
+        }
+      }
+    } catch (erro) {
+      if (
+        erro.message ===
+        "A IA atingiu o limite de resposta antes de concluir o JSON."
+      ) {
+        throw erro;
+      }
+
+      console.error(
+        "[IA] Erro na tentativa de recuperação:"
+      );
+
+      console.error(
+        erro.message || erro
+      );
+    }
+  }
+
+  /*
+   * ========================================================
+   * RESPOSTA VAZIA APÓS TENTATIVAS
+   * ========================================================
+   */
+
+  if (!resposta.conteudo) {
     throw new Error(
-      `A IA retornou JSON inválido: ${error.message}`,
+      `IA retornou vazio. finish_reason: ${resposta.finishReason}`
     );
   }
+
+  /*
+   * ========================================================
+   * INTERPRETAR JSON
+   * ========================================================
+   */
+
+  let resultado;
+
+  try {
+    resultado =
+      interpretarJSON(
+        resposta.conteudo
+      );
+  } catch (erro) {
+    /*
+     * Se o JSON veio truncado, faz UMA última
+     * tentativa pedindo resposta ainda menor.
+     */
+
+    console.log(
+      "[IA] JSON inválido. Tentando novamente com resposta compacta..."
+    );
+
+    try {
+      const respostaCompacta =
+        await chamarOpenRouter({
+          texto:
+            `${textoAtual}
+
+IMPORTANTE:
+Retorne somente um JSON extremamente curto.
+Não inclua explicações.
+Não inclua campos desnecessários.`,
+          produtos,
+          materiasPrimas,
+          clientes,
+          conversaPrevia: null,
+          estadoAtual,
+          maxTokens: MAX_RETRY_TOKENS,
+        });
+
+      if (!respostaCompacta.conteudo) {
+        throw erro;
+      }
+
+      resultado =
+        interpretarJSON(
+          respostaCompacta.conteudo
+        );
+    } catch (segundaErro) {
+      console.error(
+        "[IA] Falha definitiva ao interpretar JSON."
+      );
+
+      console.error(
+        segundaErro.message ||
+        segundaErro
+      );
+
+      throw new Error(
+        "A IA retornou JSON inválido ou incompleto."
+      );
+    }
+  }
+
+  /*
+   * ========================================================
+   * NORMALIZAR
+   * ========================================================
+   */
+
+  resultado =
+    normalizarResultado(resultado);
+
+  console.log(
+    "[IA] Resultado normalizado:"
+  );
+
+  console.log(
+    JSON.stringify(
+      resultado,
+      null,
+      2
+    )
+  );
+
+  return resultado;
 }
+
+
+/* =========================================================
+   EXPORTAÇÃO
+========================================================= */
 
 module.exports = {
   interpretarMensagem,

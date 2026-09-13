@@ -13,230 +13,113 @@ function somenteDigitos(valor) {
   return String(valor || "").replace(/\D/g, "");
 }
 
-function normalizarTelefone(telefone) {
-  const digitos = somenteDigitos(telefone);
-
-  if (digitos.length < 10 || digitos.length > 11) {
-    return null;
-  }
-
-  return digitos;
+function normalizarTelefone(valor) {
+  let d = somenteDigitos(valor);
+  if (d.startsWith("55") && d.length >= 12) d = d.slice(2);
+  return d.length >= 10 && d.length <= 11 ? d : null;
 }
 
-function normalizarDocumento(documento) {
-  const digitos = somenteDigitos(documento);
-
-  if (!digitos) {
-    return null;
-  }
-
-  return digitos;
+function normalizarDocumento(valor) {
+  const d = somenteDigitos(valor);
+  return d.length === 11 || d.length === 14 ? d : null;
 }
 
-function validarNovoCliente(novoCliente) {
-  if (!novoCliente) {
-    return "Os dados do novo cliente não foram informados.";
-  }
+function encontrarClientesPorNome(nome, clientes) {
+  if (!nome || !Array.isArray(clientes)) return [];
+  const alvo = normalizarTexto(nome);
 
-  if (!novoCliente.documento) {
-    return "Informe o CPF ou CNPJ do cliente.";
-  }
-
-  if (!novoCliente.estado) {
-    return "Informe o estado do cliente.";
-  }
-
-  if (!novoCliente.cidade) {
-    return "Informe a cidade do cliente.";
-  }
-
-  if (!novoCliente.bairro) {
-    return "Informe o bairro do cliente.";
-  }
-
-  if (!novoCliente.endereco) {
-    return "Informe o endereço do cliente.";
-  }
-
-  if (!novoCliente.numero) {
-    return "Informe o número do endereço do cliente.";
-  }
-
-  if (!novoCliente.telefone) {
-    return "Informe o telefone do cliente.";
-  }
-
-  const telefone = normalizarTelefone(
-    novoCliente.telefone,
+  const exatos = clientes.filter(
+    (c) => c?.nome && normalizarTexto(c.nome) === alvo,
   );
+  if (exatos.length) return exatos;
 
-  if (!telefone) {
-    return "Informe um telefone válido com DDD.";
+  return clientes.filter((c) => {
+    if (!c?.nome) return false;
+    const n = normalizarTexto(c.nome);
+    return n.length >= 4 && (n.includes(alvo) || alvo.includes(n));
+  });
+}
+
+function validarNovoCliente(nome, dados) {
+  if (!nome || !String(nome).trim()) return "Informe o nome completo ou razão social do cliente.";
+  const obrigatorios = [
+    ["documento", "CPF ou CNPJ"],
+    ["telefone", "telefone"],
+    ["endereco", "rua ou logradouro"],
+    ["numero", "número"],
+    ["bairro", "bairro"],
+    ["cidade", "cidade"],
+    ["estado", "estado"],
+  ];
+
+  for (const [campo, rotulo] of obrigatorios) {
+    if (!dados?.[campo] || !String(dados[campo]).trim()) {
+      return `Informe o ${rotulo} do novo cliente.`;
+    }
   }
 
+  if (!normalizarTelefone(dados.telefone)) return "Informe um telefone válido com DDD.";
+  if (!normalizarDocumento(dados.documento)) return "Informe um CPF ou CNPJ válido.";
   return null;
 }
 
-async function resolverClienteId(
-  nomeFalado,
-  novoCliente = null,
-) {
-  if (
-    !nomeFalado ||
-    !String(nomeFalado).trim()
-  ) {
-    return {
-      clienteId: null,
-      criadoAgora: false,
-    };
+async function resolverClienteId(nomeFalado, novoCliente = null) {
+  const nome = String(nomeFalado || "").trim();
+  if (!nome) return { clienteId: null, criadoAgora: false };
+
+  const clientes = await catalogCache.getClientesCompletos();
+  const candidatos = encontrarClientesPorNome(nome, clientes);
+
+  if (candidatos.length === 1) {
+    return { clienteId: candidatos[0].id, criadoAgora: false };
   }
 
-  const nome = String(nomeFalado).trim();
-
-  const clientes =
-    await catalogCache.getClientes();
-
-  const nomeNormalizado =
-    normalizarTexto(nome);
-
-  const encontrado =
-    clientes.find((c) => {
-      return (
-        normalizarTexto(c.nome) ===
-        nomeNormalizado
-      );
-    });
-
-  if (encontrado) {
-    return {
-      clienteId: encontrado.id,
-      criadoAgora: false,
-    };
+  if (candidatos.length > 1) {
+    const erro = new Error("CLIENTE_AMBIGUO");
+    erro.codigo = "CLIENTE_AMBIGUO";
+    erro.candidatos = candidatos;
+    throw erro;
   }
 
-  const parcial =
-    clientes.find((c) => {
-      const nomeCliente =
-        normalizarTexto(c.nome);
+  const erroValidacao = validarNovoCliente(nome, novoCliente);
+  if (erroValidacao) throw new Error(erroValidacao);
 
-      return (
-        nomeCliente.includes(
-          nomeNormalizado,
-        ) ||
-        nomeNormalizado.includes(
-          nomeCliente,
-        )
-      );
-    });
+  const telefone = normalizarTelefone(novoCliente.telefone);
+  const documento = normalizarDocumento(novoCliente.documento);
 
-  if (parcial) {
-    return {
-      clienteId: parcial.id,
-      criadoAgora: false,
-    };
-  }
-
-  /*
-   * Cliente novo.
-   *
-   * Não criamos telefone falso.
-   * Não criamos e-mail falso.
-   *
-   * O backend exige telefone, documento,
-   * endereço, número, bairro, cidade e estado.
-   */
-
-  const erro =
-    validarNovoCliente(
-      novoCliente,
-    );
-
-  if (erro) {
-    throw new Error(erro);
-  }
-
-  const telefone =
-    normalizarTelefone(
-      novoCliente.telefone,
-    );
-
-  const documento =
-    normalizarDocumento(
-      novoCliente.documento,
-    );
-
-  if (!telefone) {
-    throw new Error(
-      "Informe um telefone válido com DDD.",
-    );
-  }
-
-  if (!documento) {
-    throw new Error(
-      "Informe um CPF ou CNPJ válido.",
-    );
-  }
-
-  const novo = await api.post(
-    "/clientes",
-    {
-      nome,
-
-      email:
-        novoCliente.email ||
-        null,
-
-      telefone,
-
-      documento,
-
-      endereco:
-        novoCliente.endereco,
-
-      numero:
-        String(
-          novoCliente.numero,
-        ),
-
-      complemento:
-        novoCliente.complemento ||
-        null,
-
-      cep:
-        novoCliente.cep ||
-        null,
-
-      bairro:
-        novoCliente.bairro,
-
-      cidade:
-        novoCliente.cidade,
-
-      estado:
-        String(
-          novoCliente.estado,
-        )
-          .trim()
-          .toUpperCase(),
-
-      inscricaoEstadual:
-        novoCliente.inscricaoEstadual ||
-        null,
-
-      ativo:
-        novoCliente.ativo !==
-        false,
-    },
+  const existentePorDocumento = clientes.find(
+    (c) => somenteDigitos(c.documento) === documento,
   );
+  if (existentePorDocumento) {
+    const erro = new Error("Já existe um cliente cadastrado com esse CPF/CNPJ.");
+    erro.codigo = "DOCUMENTO_DUPLICADO";
+    erro.cliente = existentePorDocumento;
+    throw erro;
+  }
+
+  const novo = await api.post("/clientes", {
+    nome,
+    email: novoCliente.email || null,
+    telefone,
+    documento,
+    endereco: novoCliente.endereco,
+    numero: String(novoCliente.numero),
+    complemento: novoCliente.complemento || null,
+    cep: novoCliente.cep || null,
+    bairro: novoCliente.bairro,
+    cidade: novoCliente.cidade,
+    estado: String(novoCliente.estado).trim().toUpperCase(),
+    inscricaoEstadual: novoCliente.inscricaoEstadual || null,
+    ativo: novoCliente.ativo !== false,
+  });
 
   await catalogCache.forcarAtualizacao();
-
-  return {
-    clienteId: novo.id,
-    criadoAgora: true,
-  };
+  return { clienteId: novo.id, criadoAgora: true };
 }
 
 module.exports = {
   resolverClienteId,
+  encontrarClientesPorNome,
+  normalizarTelefone,
+  normalizarDocumento,
 };
