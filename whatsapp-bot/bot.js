@@ -1,123 +1,99 @@
 require("dotenv").config();
 
 const { transcreverAudio } = require("./transcricaoService");
-
-console.log("BOT.JS COMEÇOU A EXECUTAR");
-
-const {
-  Client,
-  LocalAuth,
-} = require("whatsapp-web.js");
-
+const { Client, LocalAuth } = require("whatsapp-web.js");
 const qrcode = require("qrcode-terminal");
+const { processarMensagem } = require("./flow");
 
-const {
-  processarMensagem,
-} = require("./flow");
+console.log("BOT.JS COMECOU A EXECUTAR");
 
 process.on("unhandledRejection", (reason) => {
-  console.error(
-    "Unhandled Rejection (bot continua rodando):",
-    reason,
-  );
+  console.error("[BOT] Unhandled Rejection:", reason);
 });
 
 process.on("uncaughtException", (err) => {
-  console.error(
-    "Uncaught Exception (bot continua rodando):",
-    err,
-  );
+  console.error("[BOT] Uncaught Exception:", err);
 });
 
 const client = new Client({
-  authStrategy: new LocalAuth({
-    clientId: "caderninho-teste-2",
-  }),
-
-  webVersionCache: {
-    type: "none",
-  },
-
+  authStrategy: new LocalAuth({ clientId: "caderninho-teste-2" }),
+  webVersionCache: { type: "none" },
   puppeteer: {
     headless: true,
     protocolTimeout: 180000,
-
     args: [
       "--no-sandbox",
       "--disable-setuid-sandbox",
       "--disable-dev-shm-usage",
+      "--disable-gpu",
     ],
   },
 });
 
-function normalizarNumero(numero) {
-  if (!numero) return "";
+const mensagensProcessadas = new Set();
+const filas = new Map();
 
-  return String(numero)
-    .replace(/\D/g, "")
-    .trim();
+function normalizarNumero(numero) {
+  return String(numero || "").replace(/\D/g, "").trim();
 }
 
 function numeroDaGestoraAutorizado(message) {
-  const numeroConfigurado = normalizarNumero(
-    process.env.WHATSAPP_GESTORA,
-  );
+  const numero = normalizarNumero(process.env.WHATSAPP_GESTORA);
+  const lid = normalizarNumero(process.env.WHATSAPP_GESTORA_LID);
 
-  const lidConfigurado = normalizarNumero(
-    process.env.WHATSAPP_GESTORA_LID,
-  );
+  const [id, sufixo] = String(message.from || "").split("@");
+  const idNormalizado = normalizarNumero(id);
 
-  if (!numeroConfigurado && !lidConfigurado) {
-    console.warn(
-      "Nem WHATSAPP_GESTORA nem WHATSAPP_GESTORA_LID estão configurados no .env",
-    );
-
-    return false;
-  }
-
-  const [idPart, suffix] = (
-    message.from || ""
-  ).split("@");
-
-  const idDigits = normalizarNumero(idPart);
-
-  if (suffix === "lid") {
-    const autorizado =
-      !!lidConfigurado &&
-      idDigits === lidConfigurado;
-
-    console.log(
-      `Remetente via @lid: ${idDigits} | Autorizado: ${autorizado}`,
-    );
-
-    return autorizado;
-  }
-
-  if (suffix === "c.us") {
-    const autorizado =
-      !!numeroConfigurado &&
-      idDigits === numeroConfigurado;
-
-    console.log(
-      `Remetente via @c.us: ${idDigits} | Autorizado: ${autorizado}`,
-    );
-
-    return autorizado;
-  }
-
-  console.log(
-    `Sufixo desconhecido no remetente: ${message.from}`,
-  );
-
+  if (sufixo === "lid") return Boolean(lid && idNormalizado === lid);
+  if (sufixo === "c.us") return Boolean(numero && idNormalizado === numero);
   return false;
 }
 
-client.on("qr", (qr) => {
-  console.log("Escaneie o QR Code:");
+async function enviarResposta(message, resposta) {
+  const texto = String(resposta || "").trim();
+  if (!texto) return;
 
-  qrcode.generate(qr, {
-    small: true,
-  });
+  let ultimoErro = null;
+
+  for (let tentativa = 1; tentativa <= 3; tentativa++) {
+    try {
+      await message.reply(texto);
+      console.log("[BOT] Resposta enviada com sucesso.");
+      return;
+    } catch (erro) {
+      ultimoErro = erro;
+      console.error(`[BOT] Falha ao enviar resposta (tentativa ${tentativa}/3):`, erro?.message || erro);
+      await new Promise((resolve) => setTimeout(resolve, 1200 * tentativa));
+    }
+  }
+
+  // Fallback sem usar Client.sendMessage diretamente com um ID @lid.
+  try {
+    const chat = await message.getChat();
+    await chat.sendMessage(texto);
+    console.log("[BOT] Resposta enviada pelo chat.sendMessage().");
+    return;
+  } catch (erroFallback) {
+    console.error("[BOT] Falha definitiva ao enviar resposta:", ultimoErro || erroFallback);
+    throw erroFallback;
+  }
+}
+
+function enfileirar(chatId, tarefa) {
+  const anterior = filas.get(chatId) || Promise.resolve();
+  const proxima = anterior
+    .catch(() => {})
+    .then(tarefa)
+    .finally(() => {
+      if (filas.get(chatId) === proxima) filas.delete(chatId);
+    });
+  filas.set(chatId, proxima);
+  return proxima;
+}
+
+client.on("qr", (qr) => {
+  console.log("[BOT] Escaneie o QR Code:");
+  qrcode.generate(qr, { small: true });
 });
 
 client.on("authenticated", () => {
@@ -126,265 +102,83 @@ client.on("authenticated", () => {
 
 client.on("ready", async () => {
   console.log("WhatsApp conectado e pronto!");
-
   try {
-    const versao =
-      await client.getWWebVersion();
-
-    console.log(
-      "Versão do WhatsApp Web detectada:",
-      versao,
-    );
+    console.log("Versao do WhatsApp Web:", await client.getWWebVersion());
   } catch (err) {
-    console.error(
-      "Não foi possível detectar a versão do WhatsApp Web:",
-      err.message,
-    );
+    console.log("Nao foi possivel obter a versao do WhatsApp Web:", err.message);
   }
-
-  if (
-    process.env.WHATSAPP_GESTORA ||
-    process.env.WHATSAPP_GESTORA_LID
-  ) {
-    console.log(
-      "Bot configurado para aceitar mensagens somente da Gestora.",
-    );
-  } else {
-    console.warn(
-      "Configure WHATSAPP_GESTORA e/ou WHATSAPP_GESTORA_LID no arquivo .env.",
-    );
-  }
+  console.log("Bot configurado para aceitar mensagens somente da Gestora.");
 });
 
-client.on("auth_failure", (msg) => {
-  console.error(
-    "Falha na autenticação:",
-    msg,
-  );
-});
-
-client.on("disconnected", (reason) => {
-  console.log(
-    "WhatsApp desconectado:",
-    reason,
-  );
-});
+client.on("auth_failure", (msg) => console.error("Falha na autenticacao:", msg));
+client.on("disconnected", (reason) => console.log("WhatsApp desconectado:", reason));
 
 client.on("message", async (message) => {
-  console.log(
-    "EVENTO 'message' DISPAROU. From:",
-    message.from,
-    "| Body:",
-    message.body || "(sem texto)",
-  );
+  const messageId = message.id?._serialized || message.id?.$1 || null;
+  if (messageId && mensagensProcessadas.has(messageId)) return;
+  if (messageId) {
+    mensagensProcessadas.add(messageId);
+    if (mensagensProcessadas.size > 500) mensagensProcessadas.delete(mensagensProcessadas.values().next().value);
+  }
+
+  console.log("[BOT] Mensagem recebida:", message.from, "|", message.body || "(sem texto)");
 
   if (!numeroDaGestoraAutorizado(message)) {
-    console.log(
-      "Mensagem ignorada: número não autorizado.",
-      message.from,
-    );
-
+    console.log("[BOT] Mensagem ignorada: remetente nao autorizado.");
     return;
   }
 
-  console.log(
-    "Mensagem autorizada da Gestora.",
-  );
+  const chatId = message.from;
+  const ehAudio = Boolean(message.hasMedia && (message.type === "ptt" || message.type === "audio"));
 
-  try {
-    const chatId = message.from;
+  return enfileirar(chatId, async () => {
+    try {
+      if (ehAudio) {
+        console.log("[BOT] Audio recebido. Baixando...");
+        let media = null;
 
-    const ehAudio =
-      message.hasMedia &&
-      (
-        message.type === "ptt" ||
-        message.type === "audio"
-      );
-
-    // =========================================================
-    // ÁUDIO
-    // =========================================================
-
-    if (ehAudio) {
-      console.log("Áudio recebido, baixando...");
-
-      if (
-        message.id &&
-        !message.id._serialized
-      ) {
-        const idSerializado =
-          message.id.$1 ||
-          `${message.id.fromMe}_${message.id.remote}_${message.id.id}`;
-
-        if (idSerializado) {
-          message.id._serialized =
-            idSerializado;
-
-          console.log(
-            "ID da mensagem corrigido para downloadMedia():",
-            message.id._serialized,
-          );
+        if (message.id && !message.id._serialized) {
+          message.id._serialized = message.id.$1 || `${message.id.fromMe}_${message.id.remote}_${message.id.id}`;
         }
-      }
 
-      let media = null;
-
-      const tentativasMaximas = 3;
-
-      for (
-        let tentativa = 1;
-        tentativa <= tentativasMaximas;
-        tentativa++
-      ) {
-        try {
-          // Primeira tentativa mais rápida.
-          // As outras só aguardam se realmente houver falha.
-          if (tentativa > 1) {
-            await new Promise((resolve) =>
-              setTimeout(resolve, 1500),
-            );
-          }
-
-          media =
-            await message.downloadMedia();
-
-          if (
-            media &&
-            media.data
-          ) {
-            console.log(
-              "Áudio baixado com sucesso!",
-            );
-
-            break;
-          }
-
-          console.warn(
-            `Tentativa ${tentativa}: downloadMedia() não retornou dados.`,
-          );
-        } catch (erroDownload) {
-          console.error(
-            `Tentativa ${tentativa} de baixar áudio falhou:`,
-            JSON.stringify(
-              erroDownload,
-              Object.getOwnPropertyNames(
-                erroDownload,
-              ),
-              2,
-            ),
-          );
-
-          if (
-            tentativa === tentativasMaximas
-          ) {
-            await message.reply(
-              "Não consegui baixar o áudio depois de várias tentativas. Pode tentar mandar de novo ou me escrever por texto?",
-            );
-
-            return;
+        for (let tentativa = 1; tentativa <= 3; tentativa++) {
+          try {
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+            media = await message.downloadMedia();
+            if (media?.data) break;
+          } catch (erro) {
+            console.error(`[BOT] Falha no download do audio ${tentativa}/3:`, erro.message);
+            if (tentativa < 3) await new Promise((resolve) => setTimeout(resolve, 1500));
           }
         }
-      }
 
-      if (
-        !media ||
-        !media.data
-      ) {
-        await message.reply(
-          "Não consegui baixar o áudio. Pode tentar mandar de novo ou me escrever por texto?",
-        );
+        if (!media?.data) {
+          await enviarResposta(message, "Nao consegui baixar o audio. Pode tentar novamente ou mandar por texto?");
+          return;
+        }
 
+        console.log("[BOT] Transcrevendo audio...");
+        const texto = await transcreverAudio(media.data, media.mimetype);
+        console.log("[BOT] Audio transcrito:", texto);
+
+        const resposta = await processarMensagem(chatId, { texto });
+        await enviarResposta(message, resposta);
         return;
       }
 
+      const texto = String(message.body || "").trim();
+      if (!texto) return;
+
+      console.log("[BOT] Enviando para processarMensagem()...");
+      const resposta = await processarMensagem(chatId, { texto });
+      await enviarResposta(message, resposta);
+    } catch (error) {
+      console.error("[BOT] Erro ao processar mensagem:", error);
       try {
-        console.log(
-          "Transcrevendo áudio...",
-        );
-
-        const textoTranscrito =
-          await transcreverAudio(
-            media.data,
-            media.mimetype,
-          );
-
-        console.log(
-          "Áudio transcrito:",
-          textoTranscrito,
-        );
-
-        const resposta =
-          await processarMensagem(
-            chatId,
-            {
-              texto: textoTranscrito,
-            },
-          );
-
-        await message.reply(
-          resposta,
-        );
-
-        console.log(
-          "Resposta enviada via áudio!",
-        );
-      } catch (error) {
-        console.error(
-          "Erro ao processar áudio:",
-          error,
-        );
-
-        await message.reply(
-          "Desculpa, não consegui entender o áudio. Pode tentar de novo ou me mandar por texto?",
-        );
-      }
-
-      return;
+        await enviarResposta(message, "Tive um probleminha aqui. Os dados pendentes foram mantidos. Pode tentar novamente?");
+      } catch (_) {}
     }
-
-    // =========================================================
-    // TEXTO
-    // =========================================================
-
-    if (
-      message.body &&
-      message.body.trim()
-    ) {
-      console.log(
-        "Enviando para processarMensagem()...",
-      );
-
-      const resposta =
-        await processarMensagem(
-          chatId,
-          {
-            texto:
-              message.body.trim(),
-          },
-        );
-
-      await message.reply(
-        resposta,
-      );
-
-      console.log(
-        "Resposta enviada!",
-      );
-
-      return;
-    }
-  } catch (error) {
-    console.error(
-      "Erro ao processar mensagem:",
-      error,
-    );
-
-    try {
-      await message.reply(
-        "Desculpa, tive um probleminha aqui. Pode tentar de novo?",
-      );
-    } catch (_) {}
-  }
+  });
 });
 
 client.initialize();
