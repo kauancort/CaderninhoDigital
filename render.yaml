@@ -29,6 +29,10 @@ services:
         value: google/gemma-4-26b-a4b-it
       - key: OPENROUTER_FALLBACK_MODEL
         value: ""
+      - key: OPENROUTER_TRANSCRIPTION_URL
+        value: https://openrouter.ai/api/v1/audio/transcriptions
+      - key: OPENROUTER_TRANSCRIPTION_MODEL
+        value: openai/whisper-1
       - key: TAVILY_API_KEY
         sync: false
       - key: TAVILY_API_URL

@@ -3,6 +3,7 @@ package com.InovaSkill.CaderninhoDigital.controller;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -24,6 +25,7 @@ import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithUserDetails;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.mock.web.MockMultipartFile;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -88,6 +90,18 @@ class AssistenteControllerTest {
                 .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.resposta").value("Olá querido!"));
+    }
+
+    @Test
+    @WithUserDetails("adm@gmail.com")
+    void transcreveAudioComSucesso() throws Exception {
+        when(openRouterService.transcreverAudio(any(), any())).thenReturn("Paguei energia de cem reais");
+        MockMultipartFile audio = new MockMultipartFile(
+                "audio", "lancamento.webm", "audio/webm", new byte[] { 1, 2, 3 });
+
+        mockMvc.perform(multipart("/api/v1/assistente/transcrever-audio").file(audio))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.texto").value("Paguei energia de cem reais"));
     }
 
     @Test

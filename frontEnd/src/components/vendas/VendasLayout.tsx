@@ -47,7 +47,7 @@ export function VendasLayout({
           role="tab"
           aria-selected={!emReceber && !emTransporte}
           className={[
-            "inline-flex min-h-12 items-center justify-center gap-2 rounded-xl px-3 text-sm font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+            "inline-flex min-w-0 min-h-16 flex-col sm:min-h-12 sm:flex-row items-center justify-center gap-1 sm:gap-2 rounded-xl px-1 sm:px-3 text-xs sm:text-sm font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
             !emReceber && !emTransporte
               ? "bg-primary text-primary-foreground shadow-warm-sm"
               : "text-muted-foreground hover:bg-secondary hover:text-foreground",
@@ -63,7 +63,7 @@ export function VendasLayout({
           role="tab"
           aria-selected={emTransporte}
           className={[
-            "inline-flex min-h-12 items-center justify-center gap-2 rounded-xl px-3 text-sm font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+            "inline-flex min-w-0 min-h-16 flex-col sm:min-h-12 sm:flex-row items-center justify-center gap-1 sm:gap-2 rounded-xl px-1 sm:px-3 text-xs sm:text-sm font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
             emTransporte
               ? "bg-primary text-primary-foreground shadow-warm-sm"
               : "text-muted-foreground hover:bg-secondary hover:text-foreground",
@@ -79,7 +79,7 @@ export function VendasLayout({
           role="tab"
           aria-selected={emReceber}
           className={[
-            "inline-flex min-h-12 flex-wrap items-center justify-center gap-1.5 rounded-xl px-2 text-sm font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+            "inline-flex min-w-0 min-h-16 flex-col sm:min-h-12 sm:flex-row flex-wrap items-center justify-center gap-1 sm:gap-1.5 rounded-xl px-1 sm:px-2 text-xs sm:text-sm font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
             emReceber
               ? "bg-primary text-primary-foreground shadow-warm-sm"
               : "text-muted-foreground hover:bg-secondary hover:text-foreground",

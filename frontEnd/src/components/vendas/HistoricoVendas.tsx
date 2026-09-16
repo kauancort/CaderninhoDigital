@@ -307,7 +307,7 @@ export function HistoricoVendas() {
       ) : (
         <>
           {/* Tabela para desktop */}
-          <div className="hidden overflow-hidden rounded-2xl border border-border bg-card shadow-warm-sm md:block">
+          <div className="hidden overflow-x-auto rounded-2xl border border-border bg-card shadow-warm-sm md:block">
             <table className="w-full border-collapse text-sm">
               <thead className="bg-secondary/60 text-left text-[10px] uppercase tracking-wider text-muted-foreground">
                 <tr>
@@ -557,7 +557,7 @@ function ResumoHistorico({
           {carregando ? (
             <Skeleton className="mt-2 h-7 w-2/3" />
           ) : (
-            <p className="mt-1 font-display text-lg font-bold text-primary tabular-nums md:text-2xl">
+            <p className="metric-value mt-1 font-display text-lg font-bold text-primary tabular-nums md:text-2xl">
               {card.value}
             </p>
           )}
@@ -664,12 +664,12 @@ export function StatusBadge({
       : atraso || status === "ATRASADO"
         ? "bg-error-bg text-error"
         : status === "PENDENTE"
-          ? "bg-warning-bg text-warning"
+          ? "bg-warning-bg text-gold-dark"
           : "bg-secondary text-muted-foreground";
 
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-wider ${classe}`}
+      className={`inline-flex shrink-0 whitespace-nowrap items-center gap-1 rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-wider ${classe}`}
     >
       {(atraso ||
         status === "ATRASADO") && (

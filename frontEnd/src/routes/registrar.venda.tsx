@@ -629,9 +629,9 @@ function RegistrarVenda() {
 
       <form
         onSubmit={abrirConfirmacao}
-        className="space-y-6 pb-28 md:grid md:grid-cols-[minmax(0,1fr)_18rem] md:items-start md:gap-6 md:space-y-0 md:pb-0"
+        className="space-y-6 xl:grid xl:grid-cols-[minmax(0,1fr)_18rem] xl:items-start xl:gap-6 xl:space-y-0"
       >
-        <div className="flex flex-col gap-5 rounded-2xl border border-border bg-card p-6 shadow-warm-sm md:col-start-1 md:row-start-1">
+        <div className="min-w-0 flex flex-col gap-5 rounded-2xl border border-border bg-card p-4 sm:p-6 shadow-warm-sm xl:col-start-1 xl:row-start-1">
           {/* CLIENTE */}
           <div className="space-y-2 relative">
             <label className="text-sm font-semibold text-foreground">Cliente / Comprador *</label>
@@ -723,7 +723,7 @@ function RegistrarVenda() {
 
                 {it.is_avulso ? (
                   <div className="space-y-3">
-                    <div className="grid grid-cols-[1fr_auto] gap-2 items-end">
+                    <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 items-end">
                       <div className="flex-1">
                         <label className="text-xs font-semibold text-muted-foreground mb-1 block">
                           Descrição / Nome do Item *
@@ -747,7 +747,7 @@ function RegistrarVenda() {
                       </button>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3 pt-1">
+                    <div className="grid grid-cols-1 min-[400px]:grid-cols-2 gap-3 pt-1">
                       {/* Quantidade */}
                       <div>
                         <label className="text-xs font-semibold text-muted-foreground mb-1 block">
@@ -790,7 +790,7 @@ function RegistrarVenda() {
                   </div>
                 ) : (
                   <>
-                    <div className="grid grid-cols-[1fr_auto] gap-2 items-end">
+                    <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 items-end">
                       <select
                         ref={(element) => {
                           produtoRefs.current[idx] = element;
@@ -856,7 +856,7 @@ function RegistrarVenda() {
                           </div>
                         </div>
 
-                        <div className="grid grid-cols-3 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                           {/* Quantidade de Potes (Obrigatório) */}
                           <div>
                             <label className="text-xs font-semibold text-muted-foreground mb-1 block">
@@ -932,7 +932,7 @@ function RegistrarVenda() {
 
           {/* DADOS DE PAGAMENTO */}
           <div className="space-y-4 pt-2 border-t border-border">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="text-xs font-semibold text-muted-foreground mb-1 block">
                   Data da venda
@@ -995,7 +995,7 @@ function RegistrarVenda() {
             </div>
 
             {forma === "cartao" && (
-              <div className="grid grid-cols-2 gap-3 bg-secondary/50 p-3 rounded-xl border border-border">
+              <div className="grid grid-cols-1 min-[400px]:grid-cols-2 gap-3 bg-secondary/50 p-3 rounded-xl border border-border">
                 <div>
                   <label className="text-xs font-semibold text-muted-foreground mb-1 block">
                     Tipo Cartão
@@ -1286,7 +1286,7 @@ function RegistrarVenda() {
         </div>
 
         {/* RESUMO LATERAL E CARDS */}
-        <div className="space-y-4 md:col-start-2 md:row-start-1 md:sticky md:top-6">
+        <div className="min-w-0 space-y-4 xl:col-start-2 xl:row-start-1 xl:sticky xl:top-6">
           <div className="rounded-2xl border border-border bg-card p-6 shadow-warm-sm space-y-4">
             <h2 className="font-display text-lg font-bold text-foreground border-b border-border pb-2">
               Resumo da Venda
@@ -1367,7 +1367,7 @@ function RegistrarVenda() {
       {/* MODAL CONFIRMAÇÃO */}
       {confirmar && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-card border border-border rounded-2xl p-6 max-w-md w-full shadow-warm-lg space-y-4">
+          <div className="bg-card border border-border rounded-2xl p-6 max-w-md w-full max-h-[calc(100dvh-2rem)] overflow-y-auto shadow-warm-lg space-y-4">
             <h3 className="font-display text-xl font-bold text-foreground">Confirmar Venda</h3>
             <p className="text-sm text-muted-foreground">
               Confira os dados da venda antes de confirmar o registro:

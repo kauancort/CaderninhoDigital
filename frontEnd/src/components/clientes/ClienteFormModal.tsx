@@ -788,7 +788,7 @@ export function ClienteFormModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="cliente-modal-title"
-        className="flex max-h-[90vh] w-full flex-col overflow-hidden rounded-t-3xl bg-card shadow-warm-lg md:max-h-[88vh] md:max-w-3xl md:rounded-3xl"
+        className="flex max-h-[95dvh] w-full flex-col overflow-hidden rounded-t-3xl bg-card shadow-warm-lg md:max-h-[88dvh] md:max-w-3xl md:rounded-3xl"
       >
         <header className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-card px-4 py-3 md:px-6">
           <div>
@@ -1746,7 +1746,7 @@ export function ClienteFormModal({
             )}
           </div>
 
-          <footer className="sticky bottom-0 flex gap-2 border-t border-border bg-card px-4 py-3 md:justify-end md:px-6">
+          <footer className="sticky bottom-0 flex gap-2 border-t border-border bg-card px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))] md:justify-end md:px-6">
             <button
               type="button"
               disabled={salvando}

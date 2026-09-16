@@ -7,7 +7,7 @@ spring:
 
   servlet:
     multipart:
-      max-file-size: ${LEGACY_DATA_MAX_FILE_SIZE:10MB}
+      max-file-size: ${LEGACY_DATA_MAX_FILE_SIZE:25MB}
       max-request-size: ${LEGACY_DATA_MAX_REQUEST_SIZE:60MB}
 
   datasource:
@@ -58,6 +58,8 @@ app:
       url: ${OPENROUTER_API_URL:https://openrouter.ai/api/v1/chat/completions}
       model: ${OPENROUTER_MODEL:google/gemma-4-26b-a4b-it}
       fallback-model: ${OPENROUTER_FALLBACK_MODEL:}
+      transcription-url: ${OPENROUTER_TRANSCRIPTION_URL:https://openrouter.ai/api/v1/audio/transcriptions}
+      transcription-model: ${OPENROUTER_TRANSCRIPTION_MODEL:openai/whisper-1}
     search:
       key: ${TAVILY_API_KEY:}
       url: ${TAVILY_API_URL:https://api.tavily.com/search}
