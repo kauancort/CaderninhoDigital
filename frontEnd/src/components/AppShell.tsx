@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { listarMateriaPrima } from "@/lib/catalogo.functions";
@@ -134,9 +135,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen flex bg-background">
+    <div className="min-h-dvh flex bg-background">
       {/* Sidebar */}
-      <aside className="fixed inset-y-0 left-0 z-30 hidden md:flex w-60 flex-col bg-sidebar border-r border-sidebar-border">
+      <aside className="fixed inset-y-0 left-0 z-30 hidden lg:flex w-60 flex-col bg-sidebar border-r border-sidebar-border">
         <div className="px-6 py-6 border-b border-sidebar-border flex items-center gap-3">
           <div className="w-12 h-12 rounded-full bg-card overflow-hidden shrink-0 flex items-center justify-center">
             <img src={voCidaImg} alt="Doces da Vó Cida" className="w-full h-full object-contain" />
@@ -231,53 +232,54 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </aside>
 
       {/* Bottom nav mobile */}
-      <nav className="mobile-safe-bottom md:hidden fixed bottom-0 inset-x-0 z-40 bg-sidebar border-t border-sidebar-border flex">
-        {mobileItems.map((it) => {
-          const active = itemAtivo(it.to);
-          const Icon = it.icon;
-          return (
-            <Link
-              key={it.to}
-              to={it.to}
-              className={[
-                "flex-1 border-t-2 py-2 text-[10px] font-medium flex flex-col items-center gap-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary",
-                active
-                  ? "border-primary bg-card font-bold text-primary"
-                  : "border-transparent text-muted-foreground",
-              ].join(" ")}
-              aria-current={active ? "page" : undefined}
-            >
-              <div className="relative">
-                <Icon size={18} />
-                {it.badge ? (
-                  <span className="absolute -top-1.5 -right-2 bg-primary text-primary-foreground text-[9px] font-bold px-1 rounded-full">
-                    {it.badge}
-                  </span>
-                ) : null}
-              </div>
-              {it.label}
-            </Link>
-          );
-        })}
-        <button
-          type="button"
-          onClick={() => setMaisAberto(true)}
-          className={[
-            "flex-1 flex flex-col items-center gap-1 py-2 text-[11px] font-medium",
-            moreActive ? "text-primary" : "text-muted-foreground",
-          ].join(" ")}
-          aria-label="Abrir mais opções"
-          aria-expanded={maisAberto}
-        >
-          <MoreHorizontal size={19} />
-          Mais
-        </button>
-      </nav>
+      {createPortal(
+        <nav className="app-mobile-nav lg:hidden" aria-label="Navegação principal">
+          {mobileItems.map((it) => {
+            const active = itemAtivo(it.to);
+            const Icon = it.icon;
+            return (
+              <Link
+                key={it.to}
+                to={it.to}
+                className={[
+                  "flex min-w-0 flex-col items-center justify-center gap-1 rounded-xl text-[11px] font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary",
+                  active ? "bg-primary-bg font-bold text-primary" : "text-muted-foreground",
+                ].join(" ")}
+                aria-current={active ? "page" : undefined}
+              >
+                <div className="relative">
+                  <Icon size={18} />
+                  {it.badge ? (
+                    <span className="absolute -top-1.5 -right-2 bg-primary text-primary-foreground text-[9px] font-bold px-1 rounded-full">
+                      {it.badge}
+                    </span>
+                  ) : null}
+                </div>
+                {it.label}
+              </Link>
+            );
+          })}
+          <button
+            type="button"
+            onClick={() => setMaisAberto(true)}
+            className={[
+              "flex min-w-0 flex-col items-center justify-center gap-1 rounded-xl text-[11px] font-medium",
+              moreActive ? "text-primary" : "text-muted-foreground",
+            ].join(" ")}
+            aria-label="Abrir mais opções"
+            aria-expanded={maisAberto}
+          >
+            <MoreHorizontal size={19} />
+            Mais
+          </button>
+        </nav>,
+        document.body,
+      )}
 
       {/* Main */}
-      <main className="flex-1 min-w-0 pb-24 md:pb-0 md:ml-60">
-        <header className="md:hidden flex items-center gap-3 px-5 py-4 border-b border-border bg-sidebar">
-          <div className="w-10 h-10 rounded-full bg-card overflow-hidden flex items-center justify-center">
+      <main className="app-main flex-1 min-w-0 lg:ml-60">
+        <header className="lg:hidden flex items-center gap-3 px-4 py-3 border-b border-border bg-sidebar">
+          <div className="w-10 h-10 shrink-0 rounded-full bg-card overflow-hidden flex items-center justify-center">
             <img src={voCidaImg} alt="Doces da Vó Cida" className="w-full h-full object-contain" />
           </div>
           <div className="leading-tight flex-1 min-w-0">
@@ -286,16 +288,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={sair}
-              className="flex h-9 w-9 items-center justify-center rounded-full border border-border bg-card text-muted-foreground hover:text-foreground"
-              aria-label="Sair"
-            >
-              <LogOut size={15} />
-            </button>
-            <button
               type="button"
               onClick={() => setConfiguracoesAbertas(true)}
-              className="flex h-9 w-9 items-center justify-center rounded-full border border-border bg-card text-muted-foreground hover:text-foreground"
+              className="flex h-11 w-11 items-center justify-center rounded-full border border-border bg-card text-muted-foreground hover:text-foreground"
               aria-label="Abrir configurações"
             >
               <Settings size={15} />
@@ -303,7 +298,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </header>
 
-        <div className="max-w-6xl mx-auto px-4 sm:px-5 md:px-10 py-5 md:py-10">{children}</div>
+        <div className="app-content min-w-0 max-w-6xl mx-auto px-4 sm:px-5 lg:px-8 py-5 lg:py-8">
+          {children}
+        </div>
       </main>
 
       <AssistenteChat
@@ -324,7 +321,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <Sheet open={maisAberto} onOpenChange={setMaisAberto}>
         <SheetContent
           side="bottom"
-          className="rounded-t-3xl border-sidebar-border bg-sidebar px-5 pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))] pt-6 md:hidden"
+          className="max-h-[90dvh] overflow-y-auto rounded-t-3xl border-sidebar-border bg-sidebar px-5 pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))] pt-6 lg:hidden"
         >
           <SheetHeader className="pr-8 text-left">
             <SheetTitle className="font-display text-2xl text-primary">Mais opções</SheetTitle>

@@ -363,7 +363,7 @@ function Dashboard() {
 
       <Link
         to="/registrar/venda"
-        className="fixed bottom-20 right-5 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-warm-lg md:hidden"
+        className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom,0px))] right-5 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-warm-lg lg:hidden"
         aria-label="Registrar venda"
       >
         <PlusCircle size={26} />
@@ -400,10 +400,10 @@ function MetricCard({
       <div className="truncate text-[11px] font-semibold text-muted-foreground md:text-xs">
         {label}
       </div>
-      <div className="mt-1 truncate font-display text-xl font-bold text-foreground md:text-2xl">
+      <div className="metric-value mt-1 font-display text-xl font-bold text-foreground md:text-2xl">
         {value}
       </div>
-      <div className="mt-1 truncate text-[10px] text-muted-foreground md:text-xs">{hint}</div>
+      <div className="mt-1 text-[10px] text-muted-foreground md:text-xs">{hint}</div>
     </div>
   );
 }

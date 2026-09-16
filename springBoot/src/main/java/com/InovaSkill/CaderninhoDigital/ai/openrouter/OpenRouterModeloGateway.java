@@ -20,6 +20,7 @@ import java.net.http.HttpTimeoutException;
 import java.time.Duration;
 import java.math.BigDecimal;
 import java.text.Normalizer;
+import java.util.Base64;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.Locale;
@@ -60,6 +61,67 @@ public class OpenRouterModeloGateway implements ModeloGateway {
         this.transport = transport;
         this.validator = validator;
         this.politicaDados = politicaDados;
+    }
+
+    @Override
+    public String transcreverAudio(byte[] audio, String formato) {
+        if (audio == null || audio.length == 0) {
+            throw erro(CodigoErroOrquestrador.ARGUMENTOS_INVALIDOS, HttpStatus.BAD_REQUEST,
+                    "O áudio enviado está vazio");
+        }
+        validarConfiguracao();
+        String model = properties.getProvider().getTranscriptionModel();
+        if (model == null || model.isBlank()) {
+            throw erro(CodigoErroOrquestrador.PROVEDOR_INDISPONIVEL, HttpStatus.SERVICE_UNAVAILABLE,
+                    "A transcrição de áudio não está configurada");
+        }
+        ObjectNode body = objectMapper.createObjectNode();
+        body.put("model", model.trim());
+        body.putObject("input_audio")
+                .put("data", Base64.getEncoder().encodeToString(audio))
+                .put("format", normalizarFormato(formato));
+        body.put("language", "pt");
+        body.put("temperature", 0);
+        Duration timeout = Duration.ofMillis(properties.getLimits().getReadTimeoutMs());
+        OpenRouterHttpRequest request = new OpenRouterHttpRequest(
+                URI.create(properties.getProvider().getTranscriptionUrl()),
+                Map.of("Authorization", "Bearer " + properties.getProvider().getKey(),
+                        "Content-Type", "application/json"),
+                serializar(body), timeout);
+        OpenRouterHttpResponse response = enviarUmaVez(request);
+        classificarStatus(response);
+        try {
+            String texto = objectMapper.readTree(response.body()).path("text").asText("").trim();
+            if (texto.isBlank()) {
+                throw erro(CodigoErroOrquestrador.PROVEDOR_INDISPONIVEL, HttpStatus.BAD_GATEWAY,
+                        "O provedor não retornou uma transcrição");
+            }
+            return texto;
+        } catch (OrquestradorException exception) {
+            throw exception;
+        } catch (Exception exception) {
+            log.warn("Resposta de transcrição inválida no OpenRouter: tipo={}",
+                    exception.getClass().getSimpleName());
+            throw erro(CodigoErroOrquestrador.PROVEDOR_INDISPONIVEL, HttpStatus.BAD_GATEWAY,
+                    "O provedor retornou uma transcrição inválida");
+        }
+    }
+
+    private String normalizarFormato(String formato) {
+        if (formato == null || formato.isBlank()) return "webm";
+        String valor = formato.toLowerCase(Locale.ROOT).trim();
+        if (valor.contains("/")) valor = valor.substring(valor.indexOf('/') + 1);
+        int separador = valor.indexOf(';');
+        if (separador >= 0) valor = valor.substring(0, separador);
+        return switch (valor) {
+            case "mpeg", "mp3" -> "mp3";
+            case "mp4", "m4a", "x-m4a" -> "m4a";
+            case "ogg", "oga" -> "ogg";
+            case "aac" -> "aac";
+            case "wav", "x-wav" -> "wav";
+            case "flac" -> "flac";
+            default -> "webm";
+        };
     }
 
     @Override

@@ -346,9 +346,9 @@ export function AssistenteChat({ open, onClose, onOpenVoice }: Props) {
       }}
     >
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-50 bg-background/95 backdrop-blur-sm md:left-60" />
+        <Dialog.Overlay className="fixed inset-0 z-50 bg-background/95 backdrop-blur-sm lg:left-60" />
         <Dialog.Content
-          className="fixed inset-3 sm:inset-5 md:left-[calc(15rem+2rem)] md:inset-y-8 md:right-8 z-50 max-w-6xl md:mx-auto bg-card border border-border rounded-2xl shadow-warm-lg overflow-hidden flex flex-col focus:outline-none"
+          className="fixed inset-3 sm:inset-5 lg:left-[calc(15rem+2rem)] lg:inset-y-8 lg:right-8 z-50 max-w-6xl md:mx-auto bg-card border border-border rounded-2xl shadow-warm-lg overflow-hidden flex flex-col focus:outline-none"
           aria-describedby="assistente-descricao"
         >
           <header className="px-4 sm:px-7 py-4 border-b border-border bg-secondary/40 flex items-center gap-3">
@@ -395,7 +395,7 @@ export function AssistenteChat({ open, onClose, onOpenVoice }: Props) {
                   </span>
                 )}
                 <article
-                  className={`max-w-[92%] sm:max-w-[75%] rounded-2xl px-4 sm:px-5 py-3 text-base leading-relaxed shadow-warm-sm whitespace-pre-wrap ${mensagem.autor === "usuario" ? "bg-brown-mid text-white rounded-br-md" : mensagem.erro ? "bg-error-bg border border-error text-foreground rounded-bl-md" : "bg-primary-bg text-foreground rounded-bl-md"}`}
+                  className={`max-w-[92%] sm:max-w-[75%] rounded-2xl px-4 sm:px-5 py-3 text-base leading-relaxed shadow-warm-sm whitespace-pre-wrap [overflow-wrap:anywhere] ${mensagem.autor === "usuario" ? "bg-brown-mid text-white rounded-br-md" : mensagem.erro ? "bg-error-bg border border-error text-foreground rounded-bl-md" : "bg-primary-bg text-foreground rounded-bl-md"}`}
                 >
                   <p>{mensagem.texto}</p>
                   {mensagem.resultado && <DetalhesResposta resultado={mensagem.resultado} />}
