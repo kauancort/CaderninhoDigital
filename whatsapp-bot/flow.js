@@ -1,6 +1,6 @@
 const api = require("./apiClient");
 const catalogCache = require("./catalogCache");
-const { resolverClienteId, encontrarClientesPorNome } = require("./clienteResolver");
+const { resolverClienteId } = require("./clienteResolver");
 const { interpretarMensagem } = require("./aiService");
 
 const POTES_POR_CAIXA = 6;
@@ -12,8 +12,6 @@ const POTES_POR_CAIXA = 6;
 const conversas = new Map();
 const estadosVenda = new Map();
 const confirmacoes = new Map();
-const ambiguidadesCliente = new Map();
-const ultimoClientePorChat = new Map();
 
 function getConversa(chatId) {
   return conversas.get(chatId) || [];
@@ -175,7 +173,7 @@ function ehConfirmacaoNegativa(texto) {
   ];
 
   if (negativos.includes(normalizado)) return true;
-  return /^(nao|não)\b/.test(normalizado) && normalizado.length <= 120;
+  return /^(nao|não)\b/.test(normalizado);
 }
 
 // ============================================================
@@ -237,7 +235,7 @@ function extrairDadosCliente(texto) {
 
   // Nome completo ou razão social
   const nome = original.match(
-    /(?:nome(?:\s+completo)?|razao\s+social|razão\s+social)\s*[:=-]\s*([^,\n;]+)/i,
+    /(?:nome(?:\s+completo)?|razao\s+social|razão\s+social)\s*[:=-]\s*(.+?)(?=\s*(?:telefone|cpf|cnpj|rua|endereço|endereco|numero|número|bairro|cidade|estado)\s*[:=-]|[,;\n]|$)/i,
   );
 
   if (nome) {
@@ -357,7 +355,7 @@ function extrairDadosCliente(texto) {
 
   // Campos escritos explicitamente
   const cidade = original.match(
-    /(?:cidade)\s*[:=-]\s*([^,\n;]+)/i,
+    /(?:cidade)\s*[:=-]\s*(.+?)(?=\s*(?:estado|uf|bairro|telefone|cpf|cnpj|rua|endereço|endereco|numero|número)\s*[:=-]|[,;\n]|$)/i,
   );
 
   if (cidade) {
@@ -365,7 +363,7 @@ function extrairDadosCliente(texto) {
   }
 
   const bairro = original.match(
-    /(?:bairro)\s*[:=-]\s*([^,\n;]+)/i,
+    /(?:bairro)\s*[:=-]\s*(.+?)(?=\s*(?:cidade|estado|uf|telefone|cpf|cnpj|rua|endereço|endereco|numero|número)\s*[:=-]|[,;\n]|$)/i,
   );
 
   if (bairro) {
@@ -373,7 +371,7 @@ function extrairDadosCliente(texto) {
   }
 
   const endereco = original.match(
-    /(?:endereço|endereco|rua|avenida|av\.)\s*[:=-]?\s*([^,\n;]+?)(?=\s+(?:n[ºo°]?|numero|número|n)\s*[:.]?\s*\d+|,|;|$)/i,
+    /(?:endereço|endereco|rua|avenida|av\.)\s*[:=-]?\s*(.+?)(?=\s*(?:n[ºo°]?|numero|número|n|bairro|cidade|estado|uf|telefone|cpf|cnpj)\s*[:=-]|[,;\n]|$)/i,
   );
 
   if (endereco) {
@@ -388,18 +386,6 @@ function extrairDadosCliente(texto) {
     resultado.email = email[0];
   }
 
-  // Também aceita cadastro em linguagem natural, sem exigir rótulos.
-  const enderecoNatural = original.match(
-    /\b(?:na|no|em)?\s*(rua|avenida|av\.?|travessa|trav\.?|alameda|praca|praça|rodovia|estrada)\s+([^,;\n]+?)\s*(?:,|\s+)n?[ºo°]?\s*(\d+[A-Za-z]?)\s*,\s*([^,;\n]+)\s*,\s*([^,;\n]+)(?:\s*[-/]\s*([A-Za-z]{2}))?/i
-  );
-  if (enderecoNatural) {
-    if (!resultado.endereco) resultado.endereco = `${enderecoNatural[1]} ${enderecoNatural[2]}`.trim();
-    if (!resultado.numero) resultado.numero = enderecoNatural[3];
-    if (!resultado.bairro) resultado.bairro = enderecoNatural[4].trim();
-    if (!resultado.cidade) resultado.cidade = enderecoNatural[5].trim();
-    if (!resultado.estado && enderecoNatural[6]) resultado.estado = enderecoNatural[6].toUpperCase();
-  }
-
   return resultado;
 }
 
@@ -409,22 +395,157 @@ function extrairDadosCliente(texto) {
 
 function extrairClienteDaMensagem(texto, clientes) {
   const normalizado = normalizarTexto(texto);
-  if (!Array.isArray(clientes) || !clientes.length) return null;
 
-  const candidatos = clientes.filter((cliente) => {
-    if (!cliente?.nome) return false;
-    const nome = normalizarTexto(cliente.nome);
-    return (
-      normalizado === nome ||
-      normalizado.includes(`cliente ${nome}`) ||
-      normalizado.includes(`para ${nome}`) ||
-      normalizado.includes(`de ${nome}`) ||
-      (nome.length >= 4 && normalizado.includes(nome))
-    );
-  });
+  if (!Array.isArray(clientes) || clientes.length === 0) {
+    return null;
+  }
 
-  const unicos = [...new Map(candidatos.map((c) => [String(c.id), c])).values()];
-  return unicos.length === 1 ? unicos[0].nome : null;
+  // Primeiro tenta nome completo
+  for (const cliente of clientes) {
+    if (!cliente || !cliente.nome) {
+      continue;
+    }
+
+    const nomeCliente = normalizarTexto(cliente.nome);
+
+    if (
+      normalizado === nomeCliente ||
+      normalizado.includes(`cliente ${nomeCliente}`) ||
+      normalizado.includes(`para ${nomeCliente}`) ||
+      normalizado.includes(`de ${nomeCliente}`)
+    ) {
+      return cliente.nome;
+    }
+  }
+
+  // Depois tenta correspondência parcial
+  for (const cliente of clientes) {
+    if (!cliente || !cliente.nome) {
+      continue;
+    }
+
+    const nomeCliente = normalizarTexto(cliente.nome);
+
+    if (
+      nomeCliente.length >= 4 &&
+      normalizado.includes(nomeCliente)
+    ) {
+      return cliente.nome;
+    }
+  }
+
+  return null;
+}
+
+// ============================================================
+// EXTRAÇÃO ROBUSTA DE CORREÇÕES DE VENDA
+// ============================================================
+
+function limparPrefixoCorrecao(texto) {
+  return String(texto || "")
+    .replace(/^\s*(nao|não)\s*[,.:;-]?\s*/i, "")
+    .replace(/^\s*(por favor|porfavor)\s*[,.:;-]?\s*/i, "")
+    .trim();
+}
+
+function extrairNomeClienteCorrecao(texto) {
+  const semPrefixo = limparPrefixoCorrecao(texto);
+  const padroes = [
+    /(?:troque|troca|mude|mudar|altere|alterar|corrija|corrigir)\s+(?:o\s+)?cliente\s+(?:para|por)\s+(.+?)(?=\s+(?:e|,)\s*(?:o\s+)?(?:produto|quantidade|tamanho|pagamento)|$)/i,
+    /(?:nome\s+(?:do\s+)?cliente)\s*(?:e|é|eh|:|=|-)?\s*(?:para\s+)?(.+?)(?=\s+(?:e|,)\s*(?:ele|ela|o|a)?\s*(?:comprou|compraram|foi|pagou|são|sao)|$)/i,
+    /(?:cliente)\s*[:=-]\s*(.+?)(?=\s+(?:e|,)\s*(?:produto|quantidade|tamanho|pagamento)|$)/i,
+  ];
+  for (const padrao of padroes) {
+    const match = semPrefixo.match(padrao);
+    if (match?.[1]) {
+      const nome = match[1].replace(/[.!?,;]+$/, "").trim();
+      if (nome.length >= 3) return nome;
+    }
+  }
+  return null;
+}
+
+function extrairProdutoDireto(texto, produtos) {
+  if (!Array.isArray(produtos)) return null;
+  const n = normalizarTexto(texto);
+  const candidatos = produtos.filter((p) => p?.nome).sort((a, b) => String(b.nome).length - String(a.nome).length);
+  for (const produto of candidatos) {
+    const nome = normalizarTexto(produto.nome);
+    if (nome.length >= 3 && n.includes(nome)) return { id: produto.id, nome: produto.nome };
+  }
+  return null;
+}
+
+function extrairQuantidadeDireta(texto) {
+  const n = normalizarTexto(texto);
+  const match = n.match(/\b(\d+)\s*(potes?|caixas?)\b/i);
+  if (!match) return null;
+  const quantidade = Number(match[1]);
+  if (!Number.isFinite(quantidade) || quantidade <= 0) return null;
+  return { quantidade, tipo: match[2].startsWith("caixa") ? "caixa" : "pote" };
+}
+
+function extrairTamanhoDireto(texto) {
+  const n = normalizarTexto(texto);
+  const match = n.match(/\b(?:tamanho|pote|com)\s*(?:de|do|das)?\s*(22|44)\b/i) || n.match(/\b(22|44)\s*(?:unidades?|unid|un)?\b/i);
+  return match ? Number(match[1]) : null;
+}
+
+function extrairPagamentoDireto(texto) {
+  const n = normalizarTexto(texto);
+  if (/\bpix\b/.test(n)) return { forma: "PIX", tipoCartao: null, parcelas: null };
+  if (/\bdinheiro\b/.test(n)) return { forma: "DINHEIRO", tipoCartao: null, parcelas: null };
+  if (/\bcartao\b/.test(n)) {
+    const parcelas = n.match(/\b(\d+)\s*(?:vezes?|x|parcelas?)\b/);
+    return {
+      forma: "CARTAO",
+      tipoCartao: /\bcredito\b/.test(n) ? "CREDITO" : /\bdebito\b/.test(n) ? "DEBITO" : null,
+      parcelas: parcelas ? Number(parcelas[1]) : null,
+    };
+  }
+  return null;
+}
+
+function aplicarCorrecoesDiretas(venda, texto, produtos, clientes) {
+  if (!venda) return venda;
+  const textoLimpo = limparPrefixoCorrecao(texto);
+  const nomeCliente = extrairNomeClienteCorrecao(textoLimpo);
+
+  if (nomeCliente) {
+    const clienteEncontrado = encontrarClientePorNome(nomeCliente, clientes || []);
+    const nomeFinal = clienteEncontrado?.nome || nomeCliente;
+    venda.comprador = nomeFinal;
+    if (venda.novo_cliente) venda.novo_cliente.nome = nomeFinal;
+  }
+
+  const produto = extrairProdutoDireto(textoLimpo, produtos);
+  const quantidade = extrairQuantidadeDireta(textoLimpo);
+  const tamanho = extrairTamanhoDireto(textoLimpo);
+  const pagamento = extrairPagamentoDireto(textoLimpo);
+
+  if (produto || quantidade || tamanho) {
+    if (!Array.isArray(venda.itens)) venda.itens = [];
+    const item = { ...(venda.itens[0] || {}) };
+    if (produto) {
+      item.produto_final_id = produto.id;
+      item.produtoId = produto.id;
+      item.produto_nome = produto.nome;
+      item.produto = produto.nome;
+    }
+    if (quantidade) {
+      item.quantidade = quantidade.quantidade;
+      item.tipo = quantidade.tipo;
+    }
+    if (tamanho) item.tamanho = tamanho;
+    venda.itens[0] = item;
+  }
+
+  if (pagamento) {
+    venda.forma_pagamento = pagamento.forma;
+    if (pagamento.tipoCartao) venda.tipo_cartao = pagamento.tipoCartao;
+    if (pagamento.parcelas !== null) venda.parcelas = pagamento.parcelas;
+  }
+  return venda;
 }
 
 // ============================================================
@@ -1195,9 +1316,7 @@ async function criarVenda(venda) {
   let clienteId = null;
   let criadoAgora = false;
 
-  if (venda._clienteResolvidoId) {
-    clienteId = venda._clienteResolvidoId;
-  } else if (venda.novo_cliente) {
+  if (venda.novo_cliente) {
     if (!venda.novo_cliente.nome) {
       venda.novo_cliente.nome = venda.comprador || null;
     }
@@ -1257,9 +1376,6 @@ async function criarVenda(venda) {
     String(
       venda.forma_pagamento || "pix",
     ).toUpperCase();
-
-  delete venda._clienteResolvidoId;
-  delete venda._clienteAmbiguo;
 
   const dadosVenda = {
     clienteId,
@@ -1556,63 +1672,28 @@ function hojeISO() {
 // CLIENTE: CONSULTA E CONTROLE DE DADOS
 // ============================================================
 
-function encontrarClientesCandidatos(nome, clientes) {
-  return encontrarClientesPorNome(nome, clientes);
-}
-
 function encontrarClientePorNome(nome, clientes) {
-  const candidatos = encontrarClientesCandidatos(nome, clientes);
-  return candidatos.length === 1 ? candidatos[0] : null;
-}
+  if (!nome || !Array.isArray(clientes)) return null;
 
-function montarEscolhaCliente(candidatos, nomeInformado) {
-  const linhas = candidatos.map((c, i) => {
-    const detalhes = [c.nome];
-    if (c.cidade) detalhes.push(c.cidade);
-    if (c.estado) detalhes.push(c.estado);
-    if (c.documento) detalhes.push(`CPF/CNPJ ${c.documento}`);
-    return `${i + 1}. ${detalhes.join(" — ")}`;
-  });
-  return `Encontrei mais de um cliente com o nome "${nomeInformado}".\n\n${linhas.join("\n")}\n\nQual deles é o correto? Responda com o número da opção ou o nome completo.`;
-}
+  const alvo = normalizarTexto(nome);
 
-function resolverEscolhaCliente(texto, candidatos) {
-  if (!candidatos?.length) return null;
-  const n = textoNormalizado(texto);
-  const m = n.match(/^(?:opcao|opção|numero|número|item)?\s*(\d+)$/i);
-  if (m) return candidatos[Number(m[1]) - 1] || null;
-  return candidatos.find((c) => normalizarTexto(c.nome) === normalizarTexto(texto)) || null;
-}
+  const exato = clientes.find(
+    (cliente) =>
+      cliente?.nome &&
+      normalizarTexto(cliente.nome) === alvo,
+  );
 
-function formatarClienteCompleto(cliente) {
-  const campos = [
-    ["Nome", cliente.nome], ["Telefone", cliente.telefone], ["CPF/CNPJ", cliente.documento],
-    ["E-mail", cliente.email], ["Endereço", cliente.endereco], ["Número", cliente.numero],
-    ["Complemento", cliente.complemento], ["Bairro", cliente.bairro], ["Cidade", cliente.cidade],
-    ["Estado", cliente.estado], ["CEP", cliente.cep], ["Inscrição Estadual", cliente.inscricaoEstadual],
-  ];
-  return campos.filter(([,v]) => v !== null && v !== undefined && String(v).trim() !== "")
-    .map(([l,v]) => `${l}: ${v}`).join("\n");
-}
+  if (exato) return exato;
 
-function identificarCampoClienteConsulta(texto) {
-  const n=normalizarTexto(texto);
-  if (/\btelefone|celular|whatsapp|numero|número\b/.test(n)) return "telefone";
-  if (/\bcpf|cnpj|documento\b/.test(n)) return "documento";
-  if (/\bemail|e-mail\b/.test(n)) return "email";
-  if (/\bendereco|endereço|rua|logradouro\b/.test(n)) return "endereco";
-  if (/\bbairro\b/.test(n)) return "bairro";
-  if (/\bcidade|municipio|município\b/.test(n)) return "cidade";
-  if (/\bestado|uf\b/.test(n)) return "estado";
-  if (/\bcep\b/.test(n)) return "cep";
-  if (/\bcomplemento\b/.test(n)) return "complemento";
-  if (/\binscricao|inscrição\b/.test(n)) return "inscricaoEstadual";
-  return null;
-}
-
-function ehConsultaInformacaoCliente(texto) {
-  const n=normalizarTexto(texto);
-  return /\b(qual|quais|dados|tem|possui|me passa|me informe|telefone|celular|cpf|cnpj|documento|endereco|endereço|bairro|cidade|estado|cep|email|numero|número)\b/.test(n) && /\b(cliente|dele|dela|desse|dessa|esse|essa|cadastrado|cadastrada)\b/.test(n);
+  return clientes.find((cliente) => {
+    if (!cliente?.nome) return false;
+    const nomeCliente = normalizarTexto(cliente.nome);
+    return (
+      nomeCliente.length >= 4 &&
+      (alvo.includes(nomeCliente) ||
+        nomeCliente.includes(alvo))
+    );
+  }) || null;
 }
 
 function ehConsultaCadastroCliente(texto) {
@@ -1666,49 +1747,48 @@ function limparDadosClienteNaoConfirmados(dadosIA, dadosDiretos) {
 
 function prepararNovoClienteDaVenda(venda, clientes) {
   if (!venda?.comprador) return;
-  if (venda._clienteResolvidoId) {
-    const clienteResolvido = (clientes || []).find((c) => String(c.id) === String(venda._clienteResolvidoId));
-    if (clienteResolvido) {
-      venda.comprador = clienteResolvido.nome;
-      venda.novo_cliente = null;
-      venda._clienteAmbiguo = null;
-      return;
-    }
-  }
-  const candidatos = encontrarClientesCandidatos(venda.comprador, clientes);
-  if (candidatos.length === 1) {
-    venda.comprador = candidatos[0].nome;
+
+  const clienteEncontrado = encontrarClientePorNome(
+    venda.comprador,
+    clientes,
+  );
+
+  if (clienteEncontrado) {
+    venda.comprador = clienteEncontrado.nome;
     venda.novo_cliente = null;
-    venda._clienteAmbiguo = null;
     return;
   }
-  if (candidatos.length > 1) {
-    venda._clienteAmbiguo = candidatos.map(c => ({ id:c.id, nome:c.nome, cidade:c.cidade, estado:c.estado, documento:c.documento }));
-    return;
+
+  if (!venda.novo_cliente) {
+    venda.novo_cliente = {};
   }
-  venda._clienteAmbiguo = null;
-  if (!venda.novo_cliente) venda.novo_cliente = {};
+
+  // O nome vem do comprador informado na venda.
   venda.novo_cliente.nome = venda.comprador;
 }
 
-function obterNomeClienteParaConsulta(texto, clientes, chatId) {
+function obterNomeClienteParaConsulta(texto, clientes) {
   const cliente = extrairClienteDaMensagem(texto, clientes);
   if (cliente) return cliente;
-  const n = normalizarTexto(texto).replace(/\b(essa|esse|o|a|cliente|esta|está|cadastrada|cadastrado|no|na|sistema|qual|quais|dados|tem|possui|me|passa|informe|telefone|celular|cpf|cnpj|documento|endereco|endereço|bairro|cidade|estado|cep|email|numero|número|dele|dela|desse|dessa)\b/g," ").replace(/\s+/g," ").trim();
-  if (!n) return ultimoClientePorChat.get(chatId) || null;
-  const encontrado = clientes.find(c => { const nome=normalizarTexto(c?.nome); return nome && (n.includes(nome)||nome.includes(n)); });
-  return encontrado?.nome || ultimoClientePorChat.get(chatId) || null;
-}
 
-function extrairFormaPagamento(texto) { const n=normalizarTexto(texto); if(/\bpix\b/.test(n))return "PIX"; if(/\bdinheiro\b|\bespecie\b/.test(n))return "DINHEIRO"; if(/\bcartao\b/.test(n))return "CARTAO"; if(/\bboleto\b/.test(n))return "BOLETO"; if(/\bcheque\b/.test(n))return "CHEQUE"; return null; }
-function extrairTipoCartao(texto) { const n=normalizarTexto(texto); if(/\bcredito\b/.test(n))return "CREDITO"; if(/\bdebito\b/.test(n))return "DEBITO"; return null; }
-function extrairParcelas(texto) { const n=normalizarTexto(texto); const m=n.match(/(?:em|de|parcelas?)[\s:]*(\d+)\s*x?\b/); return m?Number(m[1]):null; }
-const NUMEROS_EXTENSO={um:1,uma:1,dois:2,duas:2,tres:3,"três":3,quatro:4,cinco:5,seis:6,sete:7,oito:8,nove:9,dez:10};
-function extrairQuantidadeUnidade(texto) { const n=normalizarTexto(texto); const m=n.match(/\b(\d+|um|uma|dois|duas|tres|quatro|cinco|seis|sete|oito|nove|dez)\s*(potes?|caixas?|unidades?|uni)\b/i); if(!m)return null; return {quantidade:/^\d+$/.test(m[1])?Number(m[1]):NUMEROS_EXTENSO[m[1].toLowerCase()],unidade:m[2].toLowerCase().startsWith("caixa")?"caixa":"pote"}; }
-function extrairTamanho(texto) { const n=normalizarTexto(texto); if(/\b44\s*(?:uni|unidades?|por pote|pote)\b|\bpote\s*(?:de|com)\s*44\b/.test(n))return 44; if(/\b22\s*(?:uni|unidades?|por pote|pote)\b|\bpote\s*(?:de|com)\s*22\b/.test(n))return 22; return null; }
-function encontrarProdutoNaMensagem(texto,produtos){const n=normalizarTexto(texto); const c=(produtos||[]).filter(p=>p?.nome&&n.includes(normalizarTexto(p.nome))); return c.length===1?c[0]:null;}
-function aplicarCorrecoesDiretas(venda,texto,produtos,clientes){ if(!venda)return {clienteAmbiguo:null}; const pagamento=extrairFormaPagamento(texto); if(pagamento)venda.forma_pagamento=pagamento; const tc=extrairTipoCartao(texto); if(tc)venda.tipo_cartao=tc; const parc=extrairParcelas(texto); if(parc)venda.parcelas=parc; const t=extrairTamanho(texto); const q=extrairQuantidadeUnidade(texto); if(!Array.isArray(venda.itens))venda.itens=[]; if(venda.itens.length){if(t)venda.itens[0].tamanho=t;if(q){venda.itens[0].quantidade=q.quantidade;venda.itens[0].tipo=q.unidade;}} const p=encontrarProdutoNaMensagem(texto,produtos); if(p){if(!venda.itens.length)venda.itens.push({});venda.itens[0].produto_final_id=p.id;venda.itens[0].produto_nome=p.nome;} const c=encontrarClientesCandidatos(texto,clientes); if(c.length===1){venda.comprador=c[0].nome;venda.novo_cliente=null;} if(c.length>1)return {clienteAmbiguo:c}; return {clienteAmbiguo:null}; }
-function montarResumoEstoque(produtos){const campos=["estoqueAtual","estoque_atual","estoque","quantidadeEstoque","quantidade_estoque"];const l=[];for(const p of produtos||[]){const c=campos.find(k=>p?.[k]!==undefined&&p?.[k]!==null);if(c)l.push(`${p.nome}: ${p[c]}`);}return l.length?l.join("\n"):null;}
+  const n = normalizarTexto(texto)
+    .replace(/\b(essa|esse|o|a|cliente|esta|está|cadastrada|cadastrado|no|na|sistema)\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!n) return null;
+
+  return (
+    clientes.find((cliente) => {
+      const nomeCliente = normalizarTexto(cliente?.nome);
+      return (
+        nomeCliente &&
+        (n.includes(nomeCliente) ||
+          nomeCliente.includes(n))
+      );
+    })?.nome || null
+  );
+}
 
 // ============================================================
 // PROCESSAMENTO PRINCIPAL
@@ -1828,37 +1908,6 @@ async function processarMensagemInternamente(
     const confirmacaoAtual =
       getConfirmacao(chatId);
 
-    const ambiguidadePendente = ambiguidadesCliente.get(chatId);
-    if (ambiguidadePendente) {
-      const candidatosPendentes = ambiguidadePendente.candidatos || ambiguidadePendente;
-      const escolhido = resolverEscolhaCliente(textoAtual, candidatosPendentes);
-      if (!escolhido) {
-        return montarEscolhaCliente(candidatosPendentes, ambiguidadePendente.nomeInformado || candidatosPendentes[0]?.nome || "");
-      }
-
-      if (ambiguidadePendente.tipo === "consulta") {
-        const clientesCompletosEscolha = await catalogCache.getClientesCompletos();
-        const clienteCompleto = clientesCompletosEscolha.find((c) => String(c.id) === String(escolhido.id)) || escolhido;
-        ultimoClientePorChat.set(chatId, clienteCompleto.nome);
-        ambiguidadesCliente.delete(chatId);
-        const campo = ambiguidadePendente.campo;
-        const labels = { telefone:"Telefone", documento:"CPF/CNPJ", email:"E-mail", endereco:"Endereço", bairro:"Bairro", cidade:"Cidade", estado:"Estado", cep:"CEP", complemento:"Complemento", inscricaoEstadual:"Inscrição Estadual" };
-        if (campo && clienteCompleto[campo]) return `${labels[campo] || campo}: ${clienteCompleto[campo]}`;
-        return `Dados de ${clienteCompleto.nome}:\n${formatarClienteCompleto(clienteCompleto)}`;
-      }
-
-      const vendaEscolha = getEstadoVenda(chatId) || confirmacaoAtual?.venda;
-      if (vendaEscolha) {
-        vendaEscolha.comprador = escolhido.nome;
-        vendaEscolha.novo_cliente = null;
-        vendaEscolha._clienteAmbiguo = null;
-        vendaEscolha._clienteResolvidoId = escolhido.id;
-        salvarEstadoVenda(chatId, vendaEscolha);
-      }
-      ultimoClientePorChat.set(chatId, escolhido.nome);
-      ambiguidadesCliente.delete(chatId);
-    }
-
     // ========================================================
     // EXTRAÇÃO DIRETA DE TELEFONE
     // ========================================================
@@ -1952,35 +2001,28 @@ async function processarMensagemInternamente(
 
     if (
       vendaPendente &&
-      ehConfirmacaoNegativa(textoAtual) &&
-      !/(,|\bpara\b|\bquantidade\b|\bpote\b|\bcaixa\b|\bproduto\b|\bpagamento\b|\bcliente\b|\btroca\b|\bmuda\b|\balter)/i.test(textoAtual)
+      ehConfirmacaoNegativa(textoAtual)
     ) {
-      salvarEstadoVenda(
-        chatId,
-        vendaPendente.venda,
-      );
+      const vendaParaCorrigir = vendaPendente.venda;
+      const textoCorrecao = limparPrefixoCorrecao(textoAtual);
 
+      salvarEstadoVenda(chatId, vendaParaCorrigir);
       limparConfirmacao(chatId);
+      acrescentarConversa(chatId, `Gestora: ${textoAtual}`);
 
-      acrescentarConversa(
-        chatId,
-        `Gestora: ${textoAtual}`,
-      );
+      if (!textoCorrecao) {
+        const resposta = "Certo. O que você deseja corrigir na venda?";
+        acrescentarConversa(chatId, `Vovó: ${resposta}`);
+        return resposta;
+      }
 
-      acrescentarConversa(
-        chatId,
-        "Vovó: Certo. O que você deseja corrigir na venda?",
-      );
-
-      return "Certo. Pode me dizer a correção do jeito que quiser, inclusive várias de uma vez. Ex.: troque o cliente para Ana, quantidade 4, pote 44 e pagamento Pix.";
-    }
-
-    // ========================================================
-    // CORREÇÃO DIRETA APÓS UMA CONFIRMAÇÃO
-    // ========================================================
-    if (vendaPendente && !ehConfirmacaoPositiva(textoAtual)) {
-      salvarEstadoVenda(chatId, vendaPendente.venda);
-      limparConfirmacao(chatId);
+      // NÃO + correção na mesma mensagem: aplica agora e continua o fluxo.
+      const produtosCorrecao = await catalogCache.getProdutos();
+      const clientesCorrecao = await catalogCache.getClientes();
+      aplicarCorrecoesDiretas(vendaParaCorrigir, textoCorrecao, produtosCorrecao, clientesCorrecao);
+      normalizarEstadoNovoCliente(vendaParaCorrigir);
+      prepararItensVenda(vendaParaCorrigir);
+      salvarEstadoVenda(chatId, vendaParaCorrigir);
     }
 
     // ========================================================
@@ -1995,49 +2037,35 @@ async function processarMensagemInternamente(
 
     const clientes =
       await catalogCache.getClientes();
-    const clientesCompletos =
-      await catalogCache.getClientesCompletos();
 
     console.log(
       `[FLOW] Processando mensagem de ${chatId}: ${textoAtual}`,
     );
 
     // ========================================================
-    // CONSULTAS DETERMINÍSTICAS À API
+    // CONSULTA REAL AO CADASTRO DE CLIENTES
     // ========================================================
-    if (/\bquantos\s+clientes\b|\btotal\s+de\s+clientes\b/.test(textoNormalizado(textoAtual))) {
-      return `Há ${clientesCompletos.length} clientes cadastrados no sistema.`;
-    }
 
-    if (/\bestoque\b/.test(textoNormalizado(textoAtual)) && /\b(produto|produtos|tenho|tem|atualmente|quanto|quantos|disponivel|disponível)\b/.test(textoNormalizado(textoAtual))) {
-      const resumo = montarResumoEstoque(produtos);
-      return resumo ? `Estoque atual:\n${resumo}` : "Consultei a API, mas /produtos não trouxe o saldo de estoque. Não vou inventar esse valor.";
-    }
+    if (ehConsultaCadastroCliente(textoAtual)) {
+      const nomeConsulta = obterNomeClienteParaConsulta(
+        textoAtual,
+        clientes,
+      );
 
-    const nomePossivelConsulta = obterNomeClienteParaConsulta(textoAtual, clientes, chatId);
-    const ehConsultaCampoCliente = Boolean(identificarCampoClienteConsulta(textoAtual) && nomePossivelConsulta);
-
-    if (ehConsultaCadastroCliente(textoAtual) || ehConsultaInformacaoCliente(textoAtual) || ehConsultaCampoCliente) {
-      const nomeConsulta = nomePossivelConsulta;
-      if (!nomeConsulta) return "Qual é o nome completo ou razão social do cliente que você deseja consultar?";
-      const candidatosConsulta = encontrarClientesCandidatos(nomeConsulta, clientesCompletos);
-      if (candidatosConsulta.length > 1) {
-        ambiguidadesCliente.set(chatId, {
-          tipo: "consulta",
-          nomeInformado: nomeConsulta,
-          campo: identificarCampoClienteConsulta(textoAtual),
-          candidatos: candidatosConsulta.map(c=>({id:c.id,nome:c.nome,cidade:c.cidade,estado:c.estado,documento:c.documento})),
-        });
-        return montarEscolhaCliente(candidatosConsulta,nomeConsulta);
+      if (!nomeConsulta) {
+        return "Qual é o nome completo ou razão social do cliente que você deseja consultar?";
       }
-      const clienteEncontrado=candidatosConsulta[0];
-      if(!clienteEncontrado)return `Não. ${nomeConsulta} não está cadastrado no sistema.`;
-      ultimoClientePorChat.set(chatId,clienteEncontrado.nome);
-      const campo=identificarCampoClienteConsulta(textoAtual);
-      const labels={telefone:"Telefone",documento:"CPF/CNPJ",email:"E-mail",endereco:"Endereço",bairro:"Bairro",cidade:"Cidade",estado:"Estado",cep:"CEP",complemento:"Complemento",inscricaoEstadual:"Inscrição Estadual"};
-      if(campo && clienteEncontrado[campo])return `${labels[campo]||campo}: ${clienteEncontrado[campo]}`;
-      if(ehConsultaCadastroCliente(textoAtual))return `Sim. ${clienteEncontrado.nome} está cadastrado no sistema.`;
-      return `Dados de ${clienteEncontrado.nome}:\n${formatarClienteCompleto(clienteEncontrado)}`;
+
+      const clienteEncontrado = encontrarClientePorNome(
+        nomeConsulta,
+        clientes,
+      );
+
+      if (clienteEncontrado) {
+        return `Sim. ${clienteEncontrado.nome} está cadastrado no sistema.`;
+      }
+
+      return `Não. ${nomeConsulta} não está cadastrado no sistema.`;
     }
 
     // ========================================================
@@ -2057,21 +2085,6 @@ async function processarMensagemInternamente(
 
     vendaEmAndamento =
       getEstadoVenda(chatId);
-
-    if (vendaEmAndamento) {
-      const candidatosClienteMensagem = encontrarClientesCandidatos(textoAtual, clientes);
-      if (candidatosClienteMensagem.length > 1 && !extrairFormaPagamento(textoAtual) && !extrairQuantidadeUnidade(textoAtual) && !extrairTamanho(textoAtual)) {
-        ambiguidadesCliente.set(chatId, { tipo: "venda", nomeInformado: textoAtual, candidatos: candidatosClienteMensagem });
-        return montarEscolhaCliente(candidatosClienteMensagem, textoAtual);
-      }
-      const correcaoDireta = aplicarCorrecoesDiretas(vendaEmAndamento, textoAtual, produtos, clientes);
-      if (correcaoDireta.clienteAmbiguo?.length) {
-        ambiguidadesCliente.set(chatId, { tipo: "venda", nomeInformado: vendaEmAndamento.comprador || "", candidatos: correcaoDireta.clienteAmbiguo });
-        salvarEstadoVenda(chatId, vendaEmAndamento);
-        return montarEscolhaCliente(correcaoDireta.clienteAmbiguo, vendaEmAndamento.comprador || "");
-      }
-      salvarEstadoVenda(chatId, vendaEmAndamento);
-    }
 
     if (vendaEmAndamento) {
       if (
@@ -2108,7 +2121,10 @@ async function processarMensagemInternamente(
 
       // Se já sabemos que o cliente é novo, os próximos dados
       // são tratados pelo FLOW, sem mandar a mensagem para a IA.
-      if (vendaEmAndamento.novo_cliente) {
+      if (
+      vendaEmAndamento.novo_cliente &&
+      !/(produto|paçoca|pacoca|biriba|fondant|pote|potes|caixa|caixas|pix|dinheiro|cartao|cartão|credito|crédito|debito|débito|troque|troca|mude|mudar|altere|alterar|corrija|corrigir|cliente)/i.test(textoAtual)
+    ) {
         const faltantesCliente = [
           "nome",
           "cpf_cnpj",
@@ -2205,6 +2221,18 @@ async function processarMensagemInternamente(
     }
 
     // ========================================================
+    // CORREÇÕES DIRETAS ANTES DA IA
+    // ========================================================
+
+    vendaEmAndamento = getEstadoVenda(chatId);
+    if (vendaEmAndamento) {
+      aplicarCorrecoesDiretas(vendaEmAndamento, textoAtual, produtos, clientes);
+      normalizarEstadoNovoCliente(vendaEmAndamento);
+      prepararItensVenda(vendaEmAndamento);
+      salvarEstadoVenda(chatId, vendaEmAndamento);
+    }
+
+    // ========================================================
     // IA
     // ========================================================
 
@@ -2243,6 +2271,43 @@ async function processarMensagemInternamente(
       throw new Error(
         "A IA retornou uma resposta sem informar o tipo da ação.",
       );
+    }
+
+    // ========================================================
+    // CORREÇÃO DE VENDA COM ESTADO ATIVO
+    // ========================================================
+
+    // Se a mensagem contém uma correção clara e existe uma venda pendente,
+    // não deixamos a IA transformar a correção em uma conversa genérica.
+    if (vendaEmAndamento && resultado.tipo !== "venda") {
+      const vendaCorrigida = getEstadoVenda(chatId);
+      const houveCorrecao = Boolean(
+        extrairNomeClienteCorrecao(textoAtual) ||
+        extrairProdutoDireto(textoAtual, produtos) ||
+        extrairQuantidadeDireta(textoAtual) ||
+        extrairTamanhoDireto(textoAtual) ||
+        extrairPagamentoDireto(textoAtual)
+      );
+
+      if (houveCorrecao) {
+        aplicarCorrecoesDiretas(vendaCorrigida, textoAtual, produtos, clientes);
+        normalizarEstadoNovoCliente(vendaCorrigida);
+        prepararItensVenda(vendaCorrigida);
+        salvarEstadoVenda(chatId, vendaCorrigida);
+
+        const faltantesCorrecao = identificarFaltantesVenda(vendaCorrigida);
+        if (faltantesCorrecao.length === 0) {
+          const confirmacaoCorrigida = montarConfirmacaoVenda(vendaCorrigida);
+          salvarConfirmacao(chatId, {
+            tipo: "venda",
+            venda: vendaCorrigida,
+            faltando: [],
+            perguntaProximo: null,
+          });
+          acrescentarConversa(chatId, `Vovó: ${confirmacaoCorrigida}`);
+          return confirmacaoCorrigida;
+        }
+      }
     }
 
     // ========================================================
@@ -2322,6 +2387,9 @@ async function processarMensagemInternamente(
           novaVenda,
         );
 
+      // Correções explícitas da mensagem têm prioridade sobre valores antigos retornados pela IA.
+      aplicarCorrecoesDiretas(novaVenda, textoAtual, produtos, clientes);
+
       // O cadastro do cliente é controlado pelo FLOW.
       // Nunca aceitamos valores inventados pela IA para um novo cliente.
       if (novaVenda.novo_cliente && !vendaEmAndamento?.novo_cliente) {
@@ -2343,7 +2411,6 @@ async function processarMensagemInternamente(
       ) {
         novaVenda.comprador =
           clienteDireto;
-        ultimoClientePorChat.set(chatId, clienteDireto);
       }
 
       if (
@@ -2384,16 +2451,6 @@ async function processarMensagemInternamente(
         clientes,
       );
 
-      if (novaVenda._clienteAmbiguo?.length) {
-        ambiguidadesCliente.set(chatId, {
-          tipo: "venda",
-          nomeInformado: novaVenda.comprador || "",
-          candidatos: novaVenda._clienteAmbiguo,
-        });
-        salvarEstadoVenda(chatId, novaVenda);
-        return montarEscolhaCliente(novaVenda._clienteAmbiguo, novaVenda.comprador || "");
-      }
-
       normalizarEstadoNovoCliente(
         novaVenda,
       );
@@ -2402,8 +2459,6 @@ async function processarMensagemInternamente(
         novaVenda,
       );
 
-      delete novaVenda._clienteAmbiguo;
-      delete novaVenda._chatId;
       salvarEstadoVenda(
         chatId,
         novaVenda,
