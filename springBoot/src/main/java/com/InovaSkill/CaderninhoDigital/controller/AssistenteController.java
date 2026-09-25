@@ -14,6 +14,8 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.RequestPart;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/api/v1/assistente")
@@ -31,6 +33,14 @@ public class AssistenteController {
     ) {
         VozResultadoResponseDTO response = openRouterService.interpretarVoz(usuarioId, request);
         return ResponseEntity.ok(response);
+    }
+
+    @PostMapping(value = "/transcrever-audio", consumes = "multipart/form-data")
+    public ResponseEntity<java.util.Map<String, String>> transcreverAudio(
+            @UsuarioIdAutenticado Long usuarioId,
+            @RequestPart("audio") MultipartFile audio
+    ) {
+        return ResponseEntity.ok(java.util.Map.of("texto", openRouterService.transcreverAudio(usuarioId, audio)));
     }
 
     @PostMapping("/conversa")

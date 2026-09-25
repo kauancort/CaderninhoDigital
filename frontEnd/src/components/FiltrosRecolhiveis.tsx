@@ -1,5 +1,6 @@
 import { ChevronDown, ChevronUp, Filter, RotateCcw } from "lucide-react";
 import { useId, useState } from "react";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 export function FiltrosRecolhiveis({
   titulo,
@@ -14,7 +15,9 @@ export function FiltrosRecolhiveis({
   children: React.ReactNode;
   className?: string;
 }) {
-  const [aberto, setAberto] = useState(true);
+  const isMobile = useIsMobile();
+  const [aberturaManual, setAberturaManual] = useState<boolean | null>(null);
+  const aberto = aberturaManual ?? !isMobile;
   const conteudoId = useId();
 
   return (
@@ -38,7 +41,7 @@ export function FiltrosRecolhiveis({
               type="button"
               disabled={!ativos}
               onClick={onLimpar}
-              className="inline-flex min-h-9 items-center gap-1.5 rounded-md px-3 text-xs font-bold text-primary hover:bg-secondary disabled:opacity-40"
+              className="inline-flex min-h-11 items-center gap-1.5 rounded-md px-3 text-xs font-bold text-primary hover:bg-secondary disabled:opacity-40"
             >
               <RotateCcw size={13} aria-hidden="true" /> Limpar
             </button>
@@ -47,12 +50,12 @@ export function FiltrosRecolhiveis({
             type="button"
             aria-expanded={aberto}
             aria-controls={conteudoId}
-            onClick={() => setAberto((atual) => !atual)}
-            className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-border bg-background px-3 text-xs font-bold text-foreground hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            onClick={() => setAberturaManual(!aberto)}
+            className="inline-flex min-h-11 items-center gap-1.5 rounded-md border border-border bg-background px-3 text-xs font-bold text-foreground hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
           >
             {aberto ? (
               <>
-                <ChevronUp size={14} aria-hidden="true" /> Minimizar filtros
+                <ChevronUp size={14} aria-hidden="true" /> Recolher filtros
               </>
             ) : (
               <>

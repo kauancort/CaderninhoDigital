@@ -73,6 +73,34 @@ class OpenRouterModeloGatewayTest {
     }
 
     @Test
+    void transcreveAudioPeloEndpointDoOpenRouterSemExporDados() throws Exception {
+        properties.getProvider().setTranscriptionModel("openai/whisper-1");
+        transport.complete(200, "{\"text\":\"Comprei açúcar por quarenta reais\"}");
+
+        String texto = gateway.transcreverAudio(new byte[] { 1, 2, 3, 4 }, "audio/webm;codecs=opus");
+
+        assertThat(texto).isEqualTo("Comprei açúcar por quarenta reais");
+        assertThat(transport.request.uri().toString())
+                .isEqualTo("https://openrouter.ai/api/v1/audio/transcriptions");
+        assertThat(transport.request.headers()).containsEntry("Authorization", "Bearer " + SECRET);
+        var body = mapper.readTree(transport.request.body());
+        assertThat(body.path("model").asText()).isEqualTo("openai/whisper-1");
+        assertThat(body.path("input_audio").path("format").asText()).isEqualTo("webm");
+        assertThat(body.path("input_audio").path("data").asText()).isNotBlank();
+        assertThat(transport.request.body()).doesNotContain(SECRET);
+    }
+
+    @Test
+    void rejeitaTranscricaoVazia() {
+        transport.complete(200, "{\"text\":\"  \"}");
+
+        assertThatThrownBy(() -> gateway.transcreverAudio(new byte[] { 1 }, "audio/mp4"))
+                .isInstanceOf(OrquestradorException.class)
+                .satisfies(error -> assertThat(((OrquestradorException) error).getCodigo())
+                        .isEqualTo(CodigoErroOrquestrador.PROVEDOR_INDISPONIVEL));
+    }
+
+    @Test
     void geraPlanoEstruturadoValido() {
         String plano = "{\"schemaVersion\":\"1.0\",\"intencao\":\"RESUMO_NEGOCIO\","
                 + "\"chamadas\":[],\"modoResposta\":\"TEXTO_SIMPLES\"}";

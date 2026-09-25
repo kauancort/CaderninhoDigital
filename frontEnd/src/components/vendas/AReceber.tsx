@@ -105,7 +105,7 @@ export function AReceber() {
   const dados = paginaQuery.data;
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-5 md:gap-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5 md:gap-4 [&>*:first-child]:col-span-2 sm:[&>*:first-child]:col-span-1">
         {[
           ["Total a receber", fmtBRL(resumo?.totalReceber ?? 0), "text-primary"],
           ["Total vencido", fmtBRL(resumo?.totalVencido ?? 0), "text-error"],
@@ -115,7 +115,7 @@ export function AReceber() {
         ].map(([label, value, classe]) => (
           <div
             key={label}
-            className="flex min-h-24 flex-col justify-center rounded-2xl border border-border bg-card p-4 shadow-warm-sm md:min-h-28 md:p-5"
+            className="min-w-0 flex min-h-24 flex-col justify-center rounded-2xl border border-border bg-card p-4 shadow-warm-sm md:min-h-28 md:p-5"
           >
             <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground md:text-xs">
               {label}
@@ -124,7 +124,7 @@ export function AReceber() {
               <Skeleton className="mt-2 h-8 w-2/3" />
             ) : (
               <p
-                className={`mt-1.5 font-display text-xl font-bold leading-tight tabular-nums md:text-2xl ${classe}`}
+                className={`metric-value mt-1.5 font-display text-xl font-bold leading-tight tabular-nums md:text-2xl ${classe}`}
               >
                 {value}
               </p>

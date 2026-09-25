@@ -153,6 +153,8 @@ Configuração principal:
 ```txt
 OPENROUTER_API_KEY=
 OPENROUTER_MODEL=google/gemma-4-26b-a4b-it
+OPENROUTER_TRANSCRIPTION_MODEL=openai/whisper-1
+OPENROUTER_TRANSCRIPTION_URL=https://openrouter.ai/api/v1/audio/transcriptions
 AI_SEARCH_INTERPRETATION_TIMEOUT_MS=300000
 AI_REQUEST_BUDGET_MILLIS=345000
 AI_MAX_OUTPUT_TOKENS=1000
@@ -164,6 +166,11 @@ TAVILY_MAX_RESULTS=5
 TAVILY_MAX_SNIPPET_CHARACTERS=4000
 AI_MARKET_SEARCH_CACHE_MINUTES=30
 ```
+
+O lançamento por áudio recebe o arquivo como `multipart/form-data`, solicita a
+transcrição ao endpoint STT do OpenRouter e só então envia o texto ao
+interpretador estruturado. A chave permanece no servidor e nunca é exposta ao
+navegador.
 
 O planejamento e a extração usam `response_format=json_schema`, schema estrito,
 `additionalProperties=false`, roteamento somente para provedores compatíveis e

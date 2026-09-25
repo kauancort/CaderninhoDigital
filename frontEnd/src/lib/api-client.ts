@@ -1,14 +1,24 @@
 import { clearUserSession, getUserSession } from "./user-session";
 
-const LOCAL_API_URL = "http://localhost:8080/api/v1";
+const LOCAL_API_URL = "/api/v1";
 const RENDER_API_URL = "https://caderninho-digital-api.onrender.com/api/v1";
 const configuredApiUrl = import.meta.env.VITE_API_URL;
-const isLocalApiUrl = configuredApiUrl?.startsWith("http://localhost");
+const isLocalApiUrl =
+  configuredApiUrl === LOCAL_API_URL || configuredApiUrl?.startsWith("http://localhost");
 const DEFAULT_API_URL = import.meta.env.PROD ? RENDER_API_URL : LOCAL_API_URL;
 
-export const API_URL = (
-  import.meta.env.PROD && isLocalApiUrl ? RENDER_API_URL : configuredApiUrl || DEFAULT_API_URL
-).replace(/\/$/, "");
+// No desenvolvimento, URLs locais sempre passam pelo proxy do Vite. Isso
+// permite abrir a aplicação por outro dispositivo da rede sem apontar para o
+// localhost do celular.
+const resolvedApiUrl = import.meta.env.PROD
+  ? isLocalApiUrl
+    ? RENDER_API_URL
+    : configuredApiUrl || DEFAULT_API_URL
+  : isLocalApiUrl
+    ? LOCAL_API_URL
+    : configuredApiUrl || DEFAULT_API_URL;
+
+export const API_URL = resolvedApiUrl.replace(/\/$/, "");
 
 type ApiErrorBody = {
   message?: string;
