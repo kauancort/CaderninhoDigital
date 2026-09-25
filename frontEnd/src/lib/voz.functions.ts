@@ -8,12 +8,9 @@ const InterpretarInput = z
   })
   .strict();
 
-export type VozTipo =
-  | "venda"
-  | "compra"
-  | "producao"
-  | "gasto"
-  | "desconhecido";
+const TranscricaoAudioResponse = z.object({ texto: z.string().trim().min(1) }).strict();
+
+export type VozTipo = "venda" | "compra" | "producao" | "gasto" | "desconhecido";
 
 export type ItemVendaParsed = {
   produto_final_id: string | null;
@@ -43,13 +40,7 @@ export type ProducaoParsed = {
 
 export type GastoParsed = {
   descricao: string;
-  categoria:
-    | "materia-prima"
-    | "embalagens"
-    | "energia"
-    | "aluguel"
-    | "transporte"
-    | "outros";
+  categoria: "materia-prima" | "embalagens" | "energia" | "aluguel" | "transporte" | "outros";
   valor: number | null;
 };
 
@@ -61,25 +52,39 @@ export type VozResultado = {
   venda?: {
     itens: ItemVendaParsed[];
     comprador: string | null;
-    forma_pagamento:
-      | "dinheiro"
-      | "pix"
-      | "cartao"
-      | "boleto"
-      | "cheque"
-      | "outro";
+    forma_pagamento: "dinheiro" | "pix" | "cartao" | "boleto" | "cheque" | "outro";
   };
   compras?: CompraParsed[];
   producao?: ProducaoParsed;
   gasto?: GastoParsed;
 };
 
+/** Envia a gravação ao backend; a chave do OpenRouter nunca chega ao navegador. */
+export async function transcreverAudio({ data }: { data: unknown }): Promise<{ texto: string }> {
+  if (!(data instanceof Blob) || data.size === 0) {
+    throw new Error("A gravação de áudio está vazia.");
+  }
+  const extensao =
+    data.type.includes("mp4") || data.type.includes("m4a")
+      ? "m4a"
+      : data.type.includes("mpeg") || data.type.includes("mp3")
+        ? "mp3"
+        : data.type.includes("ogg")
+          ? "ogg"
+          : data.type.includes("wav")
+            ? "wav"
+            : "webm";
+  const formulario = new FormData();
+  formulario.append("audio", data, `lancamento.${extensao}`);
+  const resposta = await apiRequest<unknown>("/assistente/transcrever-audio", {
+    method: "POST",
+    body: formulario,
+  });
+  return TranscricaoAudioResponse.parse(resposta);
+}
+
 // A chave do provedor de IA deve existir somente no Spring Boot.
-export async function interpretarVoz({
-  data,
-}: {
-  data: unknown;
-}): Promise<VozResultado> {
+export async function interpretarVoz({ data }: { data: unknown }): Promise<VozResultado> {
   const parsedData = InterpretarInput.parse(data);
 
   return apiRequest<VozResultado>("/assistente/interpretar-voz", {

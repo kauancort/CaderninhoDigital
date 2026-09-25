@@ -37,6 +37,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
+import org.springframework.web.multipart.MultipartFile;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -89,6 +90,32 @@ public class OpenRouterService {
             log.error("Falha interna ao interpretar transcrição: tipo={}", e.getClass().getSimpleName());
             throw new OrquestradorException(CodigoErroOrquestrador.PLANO_INVALIDO,
                     HttpStatus.BAD_GATEWAY, "Não foi possível interpretar o lançamento. Tente novamente");
+        }
+    }
+
+    public String transcreverAudio(Long usuarioId, MultipartFile audio) {
+        buscarUsuarioAutenticado(usuarioId);
+        if (audio == null || audio.isEmpty()) {
+            throw new OrquestradorException(CodigoErroOrquestrador.ARGUMENTOS_INVALIDOS,
+                    HttpStatus.BAD_REQUEST, "O áudio enviado está vazio");
+        }
+        if (audio.getSize() > 25L * 1024 * 1024) {
+            throw new OrquestradorException(CodigoErroOrquestrador.ARGUMENTOS_INVALIDOS,
+                    HttpStatus.BAD_REQUEST, "O áudio deve ter no máximo 25 MB");
+        }
+        try {
+            String formato = audio.getContentType();
+            if (formato == null || formato.isBlank()) formato = audio.getOriginalFilename();
+            return modeloGateway.transcreverAudio(audio.getBytes(), formato);
+        } catch (OrquestradorException exception) {
+            throw exception;
+        } catch (UnsupportedOperationException exception) {
+            throw new OrquestradorException(CodigoErroOrquestrador.PROVEDOR_INDISPONIVEL,
+                    HttpStatus.SERVICE_UNAVAILABLE, "A transcrição de áudio não está configurada");
+        } catch (Exception exception) {
+            log.error("Falha interna ao transcrever áudio: tipo={}", exception.getClass().getSimpleName());
+            throw new OrquestradorException(CodigoErroOrquestrador.PROVEDOR_INDISPONIVEL,
+                    HttpStatus.SERVICE_UNAVAILABLE, "Não foi possível transcrever o áudio");
         }
     }
 

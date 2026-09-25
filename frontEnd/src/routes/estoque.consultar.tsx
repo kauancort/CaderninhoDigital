@@ -181,7 +181,7 @@ function Estoque() {
         <button
           onClick={() => alterarAba("mp")}
           className={[
-            "flex-1 md:flex-none px-3 md:px-4 py-1.5 rounded-full text-[11px] md:text-xs font-bold uppercase tracking-wider whitespace-nowrap transition-colors",
+            "min-h-11 flex-1 md:flex-none px-3 md:px-4 py-1.5 rounded-full text-[11px] md:text-xs font-bold uppercase tracking-wider whitespace-nowrap transition-colors",
             aba === "mp"
               ? "bg-primary text-primary-foreground shadow-warm-sm"
               : "text-muted-foreground hover:text-foreground",
@@ -192,7 +192,7 @@ function Estoque() {
         <button
           onClick={() => alterarAba("pf")}
           className={[
-            "flex-1 md:flex-none px-3 md:px-4 py-1.5 rounded-full text-[11px] md:text-xs font-bold uppercase tracking-wider whitespace-nowrap transition-colors",
+            "min-h-11 flex-1 md:flex-none px-3 md:px-4 py-1.5 rounded-full text-[11px] md:text-xs font-bold uppercase tracking-wider whitespace-nowrap transition-colors",
             aba === "pf"
               ? "bg-primary text-primary-foreground shadow-warm-sm"
               : "text-muted-foreground hover:text-foreground",
@@ -217,7 +217,7 @@ function Estoque() {
 
       {aba === "mp" && (
         <>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 [&>*:last-child]:col-span-2 md:[&>*:last-child]:col-span-1">
             <Sum
               icon={<Package size={18} />}
               tone="primary"
@@ -395,7 +395,7 @@ function RowMP({ item, onClick }: { item: any; onClick: () => void }) {
       className={`w-full bg-card border ${cardBorder} rounded-2xl p-5 text-left shadow-warm-sm flex flex-col md:flex-row md:items-center gap-4 transition-all hover:-translate-y-0.5 hover:shadow-warm-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary`}
     >
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 mb-1">
+        <div className="flex flex-wrap items-center gap-2 mb-1">
           <div className="font-display text-lg font-semibold text-foreground truncate">
             {item.nome}
           </div>
@@ -415,7 +415,7 @@ function RowMP({ item, onClick }: { item: any; onClick: () => void }) {
           />
         </div>
       </div>
-      <div className="flex items-center gap-3 md:gap-4 md:w-64 md:justify-end">
+      <div className="flex flex-wrap items-center justify-between gap-3 md:gap-4 md:w-64 md:justify-end">
         <span className="inline-flex items-center gap-1.5 text-sm font-bold text-primary">
           <Eye size={16} /> Ver detalhes
         </span>
@@ -467,7 +467,7 @@ function RowPF({ produto, onClick }: { produto: any; onClick: () => void }) {
       className={`w-full bg-card border ${cardBorder} rounded-2xl p-5 text-left shadow-warm-sm flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all hover:-translate-y-0.5 hover:shadow-warm-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary`}
     >
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 mb-1">
+        <div className="flex flex-wrap items-center gap-2 mb-1">
           <div className="font-display text-lg font-semibold text-foreground flex items-center gap-2 truncate">
             <Cookie size={18} className={isZerado ? "text-error" : "text-primary"} />
             <span className="truncate">{produto.nome}</span>
@@ -494,7 +494,7 @@ function RowPF({ produto, onClick }: { produto: any; onClick: () => void }) {
         </div>
       </div>
 
-      <div className="flex items-center justify-between md:justify-end gap-3 md:w-48">
+      <div className="flex flex-wrap items-center justify-between md:justify-end gap-3 md:w-56">
         <span className="inline-flex items-center gap-1.5 text-sm font-bold text-primary">
           <Eye size={16} /> Ver detalhes
         </span>

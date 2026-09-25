@@ -30,6 +30,8 @@ public class AiOrchestratorProperties {
         @NotBlank private String url = "https://openrouter.ai/api/v1/chat/completions";
         @NotBlank private String model = "google/gemma-4-26b-a4b-it";
         private String fallbackModel = "";
+        @NotBlank private String transcriptionUrl = "https://openrouter.ai/api/v1/audio/transcriptions";
+        @NotBlank private String transcriptionModel = "openai/whisper-1";
     }
 
     @Data

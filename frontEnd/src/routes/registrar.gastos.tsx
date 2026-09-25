@@ -230,7 +230,7 @@ function RegistrarGasto() {
           </div>
         </div>
 
-        <div className="vovo-gradient border border-gold-light/40 rounded-2xl p-5 flex items-center justify-between">
+        <div className="vovo-gradient border border-gold-light/40 rounded-2xl p-5 flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
               Total

@@ -60,13 +60,24 @@ npm install
 npm run dev
 ```
 
-O frontend estará disponível em `http://localhost:3000` e usará, por padrão, a API em `http://localhost:8080/api/v1`.
+O frontend estará disponível em `http://localhost:3000` e encaminhará `/api` para a API em `http://localhost:8080` pelo proxy do Vite.
+
+O lançamento por áudio usa a transcrição do OpenRouter no backend. Configure
+`OPENROUTER_API_KEY` e, se necessário, `OPENROUTER_TRANSCRIPTION_MODEL`
+(por padrão `openai/whisper-1`). Em celular, a captura direta do microfone exige
+HTTPS; no desenvolvimento por IP o botão oferece gravação por arquivo para
+contornar essa limitação do navegador.
 
 As variáveis locais ficam no arquivo `frontEnd/.env`, que não é versionado. O modelo seguro para configuração está em `frontEnd/.env.example`:
 
 ```env
-VITE_API_URL="http://localhost:8080/api/v1"
+VITE_API_URL="/api/v1"
 ```
+
+Para testar no celular, conecte-o à mesma rede do computador e abra
+`http://<IP-do-computador>:3000`. O Vite encaminha automaticamente URLs locais
+para a API pelo computador, inclusive quando um `.env` antigo ainda aponta para
+`localhost:8080`.
 
 Em builds de produção, o frontend usa por padrão `https://caderninho-digital-api.onrender.com/api/v1`. A variável `VITE_API_URL` pode sobrescrever esse endereço em qualquer ambiente.
 

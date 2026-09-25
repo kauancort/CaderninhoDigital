@@ -1,9 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useApiFn } from "@/lib/api-function";
 import { Mic, Square, Loader2, Check, Pencil, X, Sparkles } from "lucide-react";
-import { interpretarVoz, type VozResultado } from "@/lib/voz.functions";
+import { interpretarVoz, transcreverAudio, type VozResultado } from "@/lib/voz.functions";
 import { registrarCompra } from "@/lib/compras.functions";
 import { registrarProducao } from "@/lib/producoes.functions";
 import { registrarGasto } from "@/lib/gastos.functions";
@@ -20,6 +20,7 @@ export function AssistenteVoz({ open, onClose }: Props) {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const fnInterpretar = useApiFn(interpretarVoz);
+  const fnTranscrever = useApiFn(transcreverAudio);
   const fnCompra = useApiFn(registrarCompra);
   const fnProducao = useApiFn(registrarProducao);
   const fnGasto = useApiFn(registrarGasto);
@@ -34,6 +35,7 @@ export function AssistenteVoz({ open, onClose }: Props) {
   const streamRef = useRef<MediaStream | null>(null);
   const recognitionRef = useRef<any>(null);
   const nativeTranscriptRef = useRef<string>("");
+  const audioInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (!open) {
@@ -71,35 +73,52 @@ export function AssistenteVoz({ open, onClose }: Props) {
   async function iniciarGravacao() {
     setErro(null);
     nativeTranscriptRef.current = "";
+    if (
+      !navigator.mediaDevices?.getUserMedia ||
+      !window.isSecureContext ||
+      !(window as any).MediaRecorder
+    ) {
+      audioInputRef.current?.click();
+      setErro(
+        !window.isSecureContext
+          ? "Este navegador bloqueia o microfone nesta conexão. Escolha gravar um áudio pelo aparelho; ele será transcrito automaticamente."
+          : "Este navegador não oferece gravação direta. Escolha gravar um áudio pelo aparelho; ele será transcrito automaticamente.",
+      );
+      return;
+    }
     try {
-      // Inicia SpeechRecognition nativo do navegador
+      // O reconhecimento nativo é apenas um fallback local. Se ele falhar,
+      // a gravação pelo MediaRecorder continua para a transcrição no backend.
       const SpeechRecognition =
         (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       if (SpeechRecognition) {
-        const recognition = new SpeechRecognition();
-        recognition.lang = "pt-BR";
-        recognition.interimResults = false;
-        recognition.maxAlternatives = 1;
+        try {
+          const recognition = new SpeechRecognition();
+          recognition.lang = "pt-BR";
+          recognition.interimResults = false;
+          recognition.maxAlternatives = 1;
 
-        recognition.onresult = (event: any) => {
-          const text = event.results[0][0].transcript;
-          nativeTranscriptRef.current = text;
-        };
+          recognition.onresult = (event: any) => {
+            const text = event.results[0][0].transcript;
+            nativeTranscriptRef.current = text;
+          };
 
-        recognition.onerror = () =>
-          setErro("Não foi possível reconhecer o áudio. Tente novamente.");
+          recognition.onerror = () =>
+            setErro("Não foi possível reconhecer o áudio. A gravação continuará pelo servidor.");
 
-        recognition.start();
-        recognitionRef.current = recognition;
+          recognition.start();
+          recognitionRef.current = recognition;
+        } catch {
+          recognitionRef.current = null;
+        }
       }
 
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
-      const mime =
-        ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"].find((t) =>
-          (window as any).MediaRecorder?.isTypeSupported?.(t),
-        ) || "audio/webm";
-      const rec = new MediaRecorder(stream, { mimeType: mime });
+      const mime = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"].find((t) =>
+        (window as any).MediaRecorder?.isTypeSupported?.(t),
+      );
+      const rec = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
       recorderRef.current = rec;
       chunksRef.current = [];
       rec.ondataavailable = (e) => {
@@ -111,19 +130,29 @@ export function AssistenteVoz({ open, onClose }: Props) {
         // Pequena pausa para garantir que o evento onresult do reconhecimento nativo seja processado
         await new Promise((resolve) => setTimeout(resolve, 400));
 
-        if (blob.size < 1024) {
+        if (blob.size < 256) {
           setStatus("erro");
           setErro("Gravação muito curta. Tente novamente segurando o microfone enquanto fala.");
           return;
         }
-        await enviarAudio(nativeTranscriptRef.current);
+        await enviarAudio(blob, nativeTranscriptRef.current);
       };
       rec.start();
       setStatus("gravando");
     } catch (e) {
+      stopStream();
       setStatus("erro");
-      setErro("Não consegui acessar o microfone. Verifique as permissões.");
+      setErro(
+        "Não consegui acessar o microfone. Use a opção de enviar um áudio pelo aparelho ou permita o acesso nas configurações do navegador.",
+      );
     }
+  }
+
+  async function selecionarArquivoAudio(event: ChangeEvent<HTMLInputElement>) {
+    const arquivo = event.target.files?.[0];
+    event.target.value = "";
+    if (!arquivo) return;
+    await enviarAudio(arquivo);
   }
 
   function pararGravacao() {
@@ -133,13 +162,22 @@ export function AssistenteVoz({ open, onClose }: Props) {
     }
   }
 
-  async function enviarAudio(texto?: string) {
+  async function enviarAudio(audio?: Blob, textoFallback?: string) {
     try {
+      setErro(null);
       setStatus("processando");
-      if (!texto?.trim()) {
-        throw new Error(
-          "Não consegui transcrever o áudio neste navegador. Tente novamente usando Chrome ou Edge.",
-        );
+      let texto = textoFallback?.trim() ?? "";
+      if (audio) {
+        try {
+          texto = (await fnTranscrever({ data: audio })).texto.trim();
+        } catch (transcricaoError) {
+          // A transcrição nativa continua como fallback quando o provedor está
+          // indisponível, mas o áudio enviado pelo celular sempre é tentado primeiro.
+          if (!texto) throw transcricaoError;
+        }
+      }
+      if (!texto) {
+        throw new Error("Não consegui transcrever o áudio. Tente falar mais perto do microfone.");
       }
       const res = await fnInterpretar({
         data: {
@@ -312,6 +350,22 @@ export function AssistenteVoz({ open, onClose }: Props) {
                 className="mx-auto w-20 h-20 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-warm-md hover:bg-primary-dark transition"
               >
                 <Mic size={32} />
+              </button>
+              <input
+                ref={audioInputRef}
+                type="file"
+                accept="audio/*"
+                capture="user"
+                className="sr-only"
+                onChange={selecionarArquivoAudio}
+                aria-label="Escolher ou gravar um áudio"
+              />
+              <button
+                type="button"
+                onClick={() => audioInputRef.current?.click()}
+                className="mx-auto inline-flex min-h-11 items-center gap-2 rounded-full border border-border bg-card px-4 text-xs font-bold text-primary hover:bg-secondary"
+              >
+                <Mic size={14} /> Gravar pelo aparelho
               </button>
               {erro && (
                 <div className="bg-error-bg border-l-4 border-error text-error rounded-md px-3 py-2 text-xs text-left">

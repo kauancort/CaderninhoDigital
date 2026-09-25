@@ -8,4 +8,12 @@ describe("configuração da Vercel", () => {
     expect(config.rewrites).toContainEqual({ source: "/(.*)", destination: "/index.html" });
     expect(config.redirects).toBeUndefined();
   });
+
+  it("impede indexação do painel privado", () => {
+    const config = JSON.parse(readFileSync(resolve(process.cwd(), "vercel.json"), "utf8"));
+    expect(JSON.stringify(config.headers)).toContain("X-Robots-Tag");
+    expect(readFileSync(resolve(process.cwd(), "public/robots.txt"), "utf8")).toContain(
+      "Disallow: /",
+    );
+  });
 });

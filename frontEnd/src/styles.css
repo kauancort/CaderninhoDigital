@@ -143,6 +143,85 @@
   --shadow-xl: 0 16px 40px oklch(0.2 0.02 30 / 0.12);
 }
 
+<<<<<<< HEAD
+=======
+:root {
+  --radius: 0.75rem;
+  --mobile-nav-height: calc(4.5rem + env(safe-area-inset-bottom, 0px));
+
+  /* Base — Pêssego/creme rosado conforme prints de referência */
+  --background: oklch(0.96 0.018 35); /* peach claro */
+  --foreground: oklch(0.22 0.03 40); /* marrom escuro */
+
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.22 0.03 40);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.22 0.03 40);
+
+  /* Primária — Vermelho Vó Cida #A31C1C */
+  --primary: oklch(0.48 0.19 27);
+  --primary-foreground: oklch(0.99 0.01 80);
+  --primary-dark: oklch(0.4 0.18 27);
+  --primary-light: oklch(0.58 0.2 27);
+  --primary-bg: oklch(0.95 0.03 25);
+
+  /* Secundária / Dourado #C89A0A */
+  --gold: oklch(0.72 0.14 85);
+  --gold-dark: oklch(0.58 0.13 85);
+  --gold-light: oklch(0.83 0.15 90);
+  --gold-bg: oklch(0.97 0.05 90);
+
+  --secondary: oklch(0.93 0.025 40); /* bege rosado */
+  --secondary-foreground: oklch(0.22 0.03 40);
+
+  --muted: oklch(0.93 0.025 40);
+  --muted-foreground: oklch(0.5 0.04 50);
+
+  --accent: oklch(0.97 0.05 90);
+  --accent-foreground: oklch(0.4 0.18 27);
+
+  /* Neutros nomeados */
+  --cream: oklch(0.96 0.018 35);
+  --beige: oklch(0.93 0.025 40);
+  --beige-dark: oklch(0.87 0.03 35);
+  --brown: oklch(0.22 0.03 40);
+  --brown-mid: oklch(0.4 0.04 50);
+
+  /* Feedback */
+  --success: oklch(0.52 0.13 150);
+  --success-bg: oklch(0.96 0.04 150);
+  --warning: oklch(0.72 0.14 85);
+  --warning-bg: oklch(0.97 0.05 90);
+  --error: oklch(0.62 0.22 27);
+  --error-bg: oklch(0.96 0.04 25);
+  --info: oklch(0.52 0.13 250);
+  --info-bg: oklch(0.96 0.03 250);
+
+  --destructive: oklch(0.62 0.22 27);
+  --destructive-foreground: oklch(0.99 0.01 80);
+
+  --border: oklch(0.91 0.015 40);
+  --input: oklch(0.91 0.015 40);
+  --ring: oklch(0.48 0.19 27);
+
+  /* Sidebar — bege rosado mais quente */
+  --sidebar: oklch(0.92 0.025 35);
+  --sidebar-foreground: oklch(0.4 0.04 50);
+  --sidebar-primary: oklch(0.48 0.19 27);
+  --sidebar-primary-foreground: oklch(0.99 0.01 80);
+  --sidebar-accent: oklch(0.83 0.15 90);
+  --sidebar-accent-foreground: oklch(0.3 0.05 50);
+  --sidebar-border: oklch(0.85 0.03 35);
+  --sidebar-ring: oklch(0.48 0.19 27);
+
+  --chart-1: oklch(0.48 0.19 27);
+  --chart-2: oklch(0.72 0.14 85);
+  --chart-3: oklch(0.52 0.13 150);
+  --chart-4: oklch(0.55 0.04 60);
+  --chart-5: oklch(0.38 0.04 50);
+}
+
+>>>>>>> eb21e83b67c8c3f716902ef7fc04a82497e65549
 @layer base {
   * {
     border-color: var(--color-border);
@@ -196,8 +275,83 @@
 }
 
 @layer components {
+  .app-mobile-nav {
+    position: fixed;
+    inset: auto 0 0;
+    z-index: 40;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    height: var(--mobile-nav-height);
+    padding: 0.375rem max(0.5rem, env(safe-area-inset-right, 0px))
+      calc(0.375rem + env(safe-area-inset-bottom, 0px)) max(0.5rem, env(safe-area-inset-left, 0px));
+    border-top: 1px solid var(--color-border);
+    background: var(--color-card);
+    box-shadow: 0 -4px 20px oklch(0.2 0.02 30 / 0.06);
+  }
+  .app-main {
+    padding-bottom: calc(var(--mobile-nav-height) + 1rem);
+  }
+  .app-content {
+    overflow-wrap: anywhere;
+  }
+  .app-content :where(.grid, .flex) > * {
+    min-width: 0;
+  }
+  .metric-value {
+    overflow-wrap: anywhere;
+    line-height: 1.3;
+  }
+  @media (min-width: 1024px) {
+    .app-main {
+      padding-bottom: 0;
+    }
+  }
+  @media (max-width: 639px) {
+    .app-content {
+      padding-left: max(1rem, env(safe-area-inset-left, 0px));
+      padding-right: max(1rem, env(safe-area-inset-right, 0px));
+    }
+    .ds-input {
+      padding: 0.75rem;
+    }
+  }
+  .ds-button-primary,
+  .ds-button-secondary {
+    display: inline-flex;
+    min-height: 44px;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border: 1px solid transparent;
+    border-radius: 0.5rem;
+    padding: 0.625rem 1rem;
+    font-weight: 600;
+    text-align: center;
+    transition: background-color 150ms ease;
+  }
+  .ds-button-primary {
+    background: var(--color-primary);
+    color: var(--color-primary-foreground);
+  }
+  .ds-button-primary:hover:not(:disabled) {
+    background: var(--color-primary-dark);
+  }
+  .ds-button-secondary {
+    border-color: var(--color-border);
+    background: var(--color-card);
+    color: var(--color-foreground);
+  }
+  .ds-button-secondary:hover:not(:disabled) {
+    background: var(--color-secondary);
+  }
+  .ds-button-primary:disabled,
+  .ds-button-secondary:disabled {
+    opacity: 0.5;
+  }
   .ds-input {
     width: 100%;
+    min-width: 0;
+    max-width: 100%;
     min-height: 48px;
     border: 1.5px solid var(--color-border);
     border-radius: 0.5rem;
