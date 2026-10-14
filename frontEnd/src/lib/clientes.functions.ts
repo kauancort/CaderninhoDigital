@@ -431,7 +431,7 @@ export async function buscarTransportadoraCliente(clienteId: string | number) {
   return mapTransportadora(await res.json());
 }
 
-export async function buscarDetalhesTransportadora(clienteId: string | number) {
+export async function buscarDetalhesTransportadora(clienteId: string | number): Promise<TransportadoraDetalhes> {
   const res = await fetch(`${BASE_URL}/clientes/${clienteId}/transportadora/detalhes`, {});
 
   if (!res.ok) {
@@ -460,7 +460,7 @@ export async function buscarDetalhesTransportadora(clienteId: string | number) {
       codigoRastreamento: uso.codigoRastreamento ?? null,
       situacaoDespacho: uso.situacaoDespacho ?? null,
     })),
-  } satisfies TransportadoraDetalhes;
+  };
 }
 
 export async function salvarTransportadoraCliente(

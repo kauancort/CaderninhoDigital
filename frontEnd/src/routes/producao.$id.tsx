@@ -96,7 +96,7 @@ function DetalheLote() {
             <span className="text-sm text-muted-foreground font-sans">potes</span>
           </div>
           <div className="text-xs text-muted-foreground mt-1">
-            {Number(l.unidade ?? 0)} uni/pote
+            {l.unidade != null ? `${Number(l.unidade)} uni/pote` : "Tamanho não informado"}
           </div>
         </div>
         <div className="bg-card border border-border rounded-2xl p-4 md:p-5 shadow-warm-sm">
@@ -104,7 +104,7 @@ function DetalheLote() {
             Total de unidades
           </div>
           <div className="font-display text-2xl md:text-3xl font-bold text-foreground mt-1 break-words">
-            {Number(l.quantidade_produzida)}{" "}
+            {Number(l.potes ?? 0) * Number(l.unidade ?? 0)}{" "}
             <span className="text-sm text-muted-foreground font-sans">unidades</span>
           </div>
         </div>

@@ -83,7 +83,7 @@ function HistoricoFamilia() {
             {lotesFam.map((lote: any) => {
               const dataHora = formatarDataHora(lote.criado_em, lote.data_producao);
               const potes = Number(lote.potes ?? 0);
-              const totalUnidades = potes * Number(lote.unidade ?? 0);
+              const totalUnidades = lote.unidade == null ? null : potes * Number(lote.unidade);
               return (
                 <li key={lote.id}>
                   <Link
@@ -121,7 +121,7 @@ function HistoricoFamilia() {
                         {potes} {potes === 1 ? "pote" : "potes"}
                       </div>
                       <div className="mt-0.5 text-xs text-muted-foreground">
-                        {totalUnidades} {totalUnidades === 1 ? "unidade" : "unidades"}
+                        {totalUnidades == null ? "Tamanho não informado" : `${totalUnidades} ${totalUnidades === 1 ? "unidade" : "unidades"}`}
                       </div>
                     </div>
 

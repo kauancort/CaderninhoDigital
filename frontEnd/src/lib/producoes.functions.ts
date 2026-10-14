@@ -1,6 +1,7 @@
 import { createApiFn } from "@/lib/api-function";
 import { API_URL as BASE_URL, apiFetch as fetch } from "@/lib/api-client";
 import { z } from "zod";
+
 function mapProducao(p: any) {
   return {
     id: String(p.id),
@@ -9,7 +10,8 @@ function mapProducao(p: any) {
     gestor_nome: p.gestorNome || null,
     quantidade_produzida: p.quantidadeProduzida,
     potes: p.quantidadeProduzida,
-    unidade: 22,
+    // O tamanho vem do backend; registros antigos podem não ter esse dado.
+    unidade: p.tamanhoPote ?? null,
     observacoes: p.observacao || "",
     data_producao: p.dataProducao,
     criado_em: p.criadoEm || null,
@@ -90,7 +92,9 @@ export const registrarProducao = createApiFn({ method: "POST" })
         quantidade_produzida: z.number().positive(),
         data_producao: z.string().date(),
         potes: z.number().int().positive().optional(),
-        unidade: z.number().int().positive().optional(),
+        unidade: z.number().int().refine((n) => n === 20 || n === 44, {
+          message: "O tamanho do pote deve ser 20 ou 44 unidades",
+        }),
         observacoes: z.string().max(500).optional().nullable(),
         ingredientes: z
           .array(
@@ -108,7 +112,8 @@ export const registrarProducao = createApiFn({ method: "POST" })
       produtoId: Number(data.produto_final_id),
       dataProducao: data.data_producao,
       quantidadeProduzida: data.quantidade_produzida,
-      observacao: data.observacoes || `Lote com ${data.potes} potes de ${data.unidade}g`,
+      tamanhoPote: data.unidade,
+      observacao: data.observacoes || `Lote com ${data.potes ?? data.quantidade_produzida} potes de ${data.unidade} unidades`,
     };
 
     if (data.ingredientes.length > 0) {
