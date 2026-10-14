@@ -4,6 +4,7 @@ import { clientePayload } from "./clientes.functions";
 describe("payload de cliente", () => {
   it("envia os novos campos sem converter inscrição estadual em número", () => {
     const payload = clientePayload({
+      tipo: "CLIENTE",
       nome: "Empresa",
       telefone: "(11) 99999-9999",
       email: "empresa@email.com",
@@ -28,6 +29,7 @@ describe("payload de cliente", () => {
 
   it("mantém os campos opcionais nulos", () => {
     const payload = clientePayload({
+      tipo: "CLIENTE",
       nome: "Pessoa",
       telefone: "(11) 99999-9999",
       email: "",

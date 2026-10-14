@@ -233,7 +233,7 @@ function RegistrarProducao() {
                 </SelectTrigger>
                 <SelectContent side="bottom">
                   <SelectItem value="44">44 uni.</SelectItem>
-                  <SelectItem value="22">22 uni.</SelectItem>
+                  <SelectItem value="20">20 uni.</SelectItem>
                 </SelectContent>
               </Select>
             </div>

@@ -1,6 +1,6 @@
 type Validator = (data: unknown) => unknown;
 
-export function createApiFn(_options: { method: "GET" | "POST" }) {
+export function createApiFn(_options: { method: "GET" | "POST" | "PUT" | "DELETE" }) {
   let validate: Validator | undefined;
   const builder = {
     middleware(..._middleware: unknown[]) {
