@@ -16,12 +16,11 @@ public class ProducaoRequestDTO {
     private Long produtoId;
     @NotNull(message = "A data da produção é obrigatória")
     private LocalDate dataProducao;
-    @NotNull(message = "O tamanho do pote é obrigatório")
-    private Integer tamanhoPote; // Valores permitidos: 20 ou 44 unidades
-
     @NotNull(message = "A quantidade produzida é obrigatória")
     @DecimalMin(value = "0.0", inclusive = false, message = "A quantidade produzida deve ser maior que zero")
     private BigDecimal quantidadeProduzida;
+    @NotNull(message = "O tamanho do pote é obrigatório")
+    private Integer tamanhoPote;
     private String observacao;
     @Valid
     private List<InsumoProducaoRequestDTO> insumos;

@@ -276,12 +276,73 @@ public class VendaService {
             Usuario gestor
     ) {
 
+        if (produto == null || produto.getId() == null
+                || gestor == null || gestor.getId() == null) {
+            return;
+        }
+
         List<Venda> vendasAguardandoEstoque =
                 vendaRepository.findByAguardandoEstoqueTrueOrderByDataVendaAsc();
 
         for (Venda venda : vendasAguardandoEstoque) {
 
+            // Não processa vendas de outro gestor.
+            if (venda.getGestor() == null
+                    || venda.getGestor().getId() == null
+                    || !gestor.getId().equals(venda.getGestor().getId())) {
+                continue;
+            }
+
+            // Só reavalia vendas que contêm o produto que acabou de ser produzido.
+            boolean contemProdutoProduzido = venda.getItens().stream()
+                    .map(ItemVenda::getProduto)
+                    .filter(produtoVenda -> produtoVenda != null
+                            && produtoVenda.getId() != null)
+                    .anyMatch(produtoVenda ->
+                            produto.getId().equals(produtoVenda.getId()));
+
+            if (!contemProdutoProduzido) {
+                continue;
+            }
+
             boolean podeConcluir = true;
+
+            /*
+             * Valida o estoque total necessário por produto antes de baixar
+             * qualquer quantidade. Isso evita que itens repetidos do mesmo
+             * produto na mesma venda passem na validação individual e causem
+             * uma exceção durante a baixa.
+             */
+            for (ItemVenda item : venda.getItens()) {
+
+                Produto produtoVenda = item.getProduto();
+
+                if (produtoVenda == null || produtoVenda.getId() == null) {
+                    continue;
+                }
+
+                BigDecimal quantidadeNecessaria = BigDecimal.ZERO;
+
+                for (ItemVenda outroItem : venda.getItens()) {
+                    Produto outroProduto = outroItem.getProduto();
+
+                    if (outroProduto != null
+                            && produtoVenda.getId().equals(outroProduto.getId())) {
+                        quantidadeNecessaria =
+                                quantidadeNecessaria.add(outroItem.getQuantidade());
+                    }
+                }
+
+                if (produtoVenda.getEstoqueAtual()
+                        .compareTo(quantidadeNecessaria) < 0) {
+                    podeConcluir = false;
+                    break;
+                }
+            }
+
+            if (!podeConcluir) {
+                continue;
+            }
 
             for (ItemVenda item : venda.getItens()) {
 
@@ -291,59 +352,40 @@ public class VendaService {
                     continue;
                 }
 
-                if (produtoVenda.getEstoqueAtual()
-                        .compareTo(item.getQuantidade()) < 0) {
+                BigDecimal estoqueAnterior =
+                        produtoVenda.getEstoqueAtual();
 
-                    podeConcluir = false;
-                    break;
-                }
-            }
+                baixarEstoque(
+                        produtoVenda,
+                        item.getQuantidade()
+                );
 
-            if (podeConcluir) {
-
-                for (ItemVenda item : venda.getItens()) {
-
-                    Produto produtoVenda = item.getProduto();
-
-                    if (produtoVenda == null) {
-                        continue;
-                    }
-
-                    BigDecimal estoqueAnterior =
-                            produtoVenda.getEstoqueAtual();
-
-                    baixarEstoque(
-                            produtoVenda,
-                            item.getQuantidade()
-                    );
-
-                    movimentacaoEstoqueService.registrarProduto(
-                            produtoVenda,
-                            gestor,
-                            estoqueAnterior,
-                            produtoVenda.getEstoqueAtual(),
-                            TipoMovimentacaoEstoque.SAIDA,
-                            OrigemMovimentacaoEstoque.VENDA,
-                            venda.getId(),
-                            "Baixa automática de Venda Pendente por reabastecimento"
-                    );
-                }
-
-                venda.setAguardandoEstoque(false);
-
-                Venda salva = vendaRepository.save(venda);
-
-                auditoriaService.registrar(
+                movimentacaoEstoqueService.registrarProduto(
+                        produtoVenda,
                         gestor,
-                        "VENDA",
-                        salva.getId(),
-                        "BAIXA_AUTOMATICA_PENDENTE",
-                        true,
-                        false,
-                        "Venda concluída automaticamente após reposição de estoque",
-                        "VENDA"
+                        estoqueAnterior,
+                        produtoVenda.getEstoqueAtual(),
+                        TipoMovimentacaoEstoque.SAIDA,
+                        OrigemMovimentacaoEstoque.VENDA,
+                        venda.getId(),
+                        "Baixa automática de Venda Pendente por reabastecimento"
                 );
             }
+
+            venda.setAguardandoEstoque(false);
+
+            Venda salva = vendaRepository.save(venda);
+
+            auditoriaService.registrar(
+                    gestor,
+                    "VENDA",
+                    salva.getId(),
+                    "BAIXA_AUTOMATICA_PENDENTE",
+                    true,
+                    false,
+                    "Venda concluída automaticamente após reposição de estoque",
+                    "VENDA"
+            );
         }
     }
 
