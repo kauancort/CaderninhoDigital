@@ -88,18 +88,33 @@ public class VendaService {
          */
         boolean possuiEstoqueSuficiente = true;
 
+        /*
+         * Soma as quantidades de itens que usam o mesmo produto antes de
+         * validar o estoque. Uma venda pode conter o mesmo produto em mais
+         * de uma linha (por exemplo, potes de tamanhos diferentes).
+         * Validar cada linha separadamente pode aprovar a venda e depois
+         * falhar durante a baixa, causando rollback de toda a venda.
+         */
+        Map<Long, BigDecimal> quantidadesPorProduto = new java.util.LinkedHashMap<>();
+
         for (ItemVendaRequestDTO itemDto : dto.getItens()) {
             if (itemDto.getProdutoId() == null) {
                 // Item avulso não tem controle de estoque
                 continue;
             }
 
-            Produto produto =
-                    buscarProdutoDoGestor(itemDto.getProdutoId(), gestor);
+            quantidadesPorProduto.merge(
+                    itemDto.getProdutoId(),
+                    itemDto.getQuantidade(),
+                    BigDecimal::add
+            );
+        }
 
-            if (produto.getEstoqueAtual()
-                    .compareTo(itemDto.getQuantidade()) < 0) {
+        for (Map.Entry<Long, BigDecimal> entrada : quantidadesPorProduto.entrySet()) {
+            Produto produto = buscarProdutoDoGestor(entrada.getKey(), gestor);
+            BigDecimal quantidadeNecessaria = entrada.getValue();
 
+            if (produto.getEstoqueAtual().compareTo(quantidadeNecessaria) < 0) {
                 possuiEstoqueSuficiente = false;
                 break;
             }

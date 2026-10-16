@@ -906,7 +906,7 @@ function extrairProdutoDireto(texto, produtos) {
     return !nomesNegados.includes(nome);
   });
 
-  // Se a mensagem explicita "X, não Y", prioriza o nome X antes da negação.
+  // Primeiro, prioriza o nome completo do produto.
   const antesDaNegacao = n.split(/\bnao\b/i)[0];
   for (const produto of candidatosValidos) {
     const nome = normalizarTexto(produto.nome);
@@ -922,10 +922,28 @@ function extrairProdutoDireto(texto, produtos) {
     }
   }
 
+  // Também aceita o nome curto usado pela Gestora, como "fondant"
+  // para "Fondant de leite", desde que esse primeiro termo identifique
+  // um único produto do catálogo.
+  const nomesIniciais = new Map();
+  for (const produto of candidatosValidos) {
+    const nomeNormalizado = normalizarTexto(produto.nome);
+    const primeiroTermo = nomeNormalizado.split(/\s+/)[0];
+    if (primeiroTermo.length < 4) continue;
+    const lista = nomesIniciais.get(primeiroTermo) || [];
+    lista.push(produto);
+    nomesIniciais.set(primeiroTermo, lista);
+  }
+
+  for (const [termo, lista] of nomesIniciais.entries()) {
+    const termoEscapado = termo.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    if (lista.length === 1 && new RegExp(`\\b${termoEscapado}\\b`, "i").test(n)) {
+      return { id: lista[0].id, nome: lista[0].nome };
+    }
+  }
+
   return null;
 }
-
-
 
 function extrairQuantidadeDireta(texto) {
 
@@ -983,6 +1001,113 @@ function extrairPagamentoDireto(texto) {
 
 
 
+function extrairItensMultiplosDiretos(texto, produtos) {
+  if (!Array.isArray(produtos) || !texto) return [];
+  const original = String(texto);
+  const normalizado = normalizarTexto(original);
+  const catalogo = produtos
+    .filter((p) => p?.nome && p?.id !== undefined && p?.id !== null)
+    .map((p) => ({ ...p, nomeNormalizado: normalizarTexto(p.nome) }))
+    .sort((a, b) => b.nomeNormalizado.length - a.nomeNormalizado.length);
+  const encontrados = [];
+  for (const produto of catalogo) {
+    let inicio = 0;
+    while ((inicio = normalizado.indexOf(produto.nomeNormalizado, inicio)) !== -1) {
+      if (!encontrados.some((x) => x.inicio === inicio)) {
+        encontrados.push({ inicio, fim: inicio + produto.nomeNormalizado.length, produto });
+      }
+      inicio += produto.nomeNormalizado.length;
+    }
+  }
+  encontrados.sort((a, b) => a.inicio - b.inicio);
+  // Evita que nomes de produtos contidos em nomes maiores gerem itens duplicados.
+  const unicos = encontrados.filter((item, i, arr) => !arr.some((outro, j) =>
+    i !== j && outro.inicio <= item.inicio && outro.fim >= item.fim &&
+    (outro.fim - outro.inicio) > (item.fim - item.inicio)));
+  if (unicos.length < 2) return [];
+
+  return unicos.map((item, i) => {
+    const anterior = i === 0 ? Math.max(0, item.inicio - 55) : unicos[i - 1].fim;
+    const proximo = i === unicos.length - 1 ? Math.min(normalizado.length, item.fim + 65) : unicos[i + 1].inicio;
+    const trecho = normalizado.slice(anterior, proximo);
+    const trechoProduto = normalizado.slice(item.inicio, proximo);
+    const qtdAntes = trecho.match(/(?:\b(\d+)\s*(?:potes?|caixas?)\s*(?:de\s*)?)$/i);
+    const qtdDepois = trechoProduto.match(/^.{0,35}?\b(\d+)\s*(?:potes?|caixas?)\b/i);
+    const qtdGenerica = normalizado.match(/\b(\d+)\s+potes?\s+de\s+cada\b/i);
+    const qtdPorExtenso = /\b(?:um|uma|outro|outra)\s+pote\b/i.test(trecho) || /\b(?:um|uma)\s+pote\b/i.test(trechoProduto) ? 1 : null;
+    const quantidade = qtdAntes ? Number(qtdAntes[1]) : qtdDepois ? Number(qtdDepois[1]) : qtdGenerica ? Number(qtdGenerica[1]) : qtdPorExtenso;
+    const tamanhoMatch = trechoProduto.match(/\b(?:tamanho|pote|com)?\s*(?:de\s*)?(20|44)\s*(?:unidades?)?\b/i) ||
+      trecho.match(/\b(?:tamanho|pote|com)?\s*(?:de\s*)?(20|44)\s*(?:unidades?)?\b/i);
+    const tamanho = tamanhoMatch ? Number(tamanhoMatch[1]) : null;
+    const resultado = {
+      produto_final_id: item.produto.id,
+      produtoId: item.produto.id,
+      produto_nome: item.produto.nome,
+      produto: item.produto.nome,
+    };
+    if (quantidade && quantidade > 0) resultado.quantidade = quantidade;
+    if (tamanho) {
+      resultado.tamanho = tamanho;
+      resultado.tamanho_pote = tamanho;
+      resultado.tipo_pote = tamanho;
+    }
+    const preco = calcularPrecoItem(resultado);
+    if (preco !== null) resultado.preco_unitario = preco;
+    return resultado;
+  });
+}
+
+function consolidarItensVendaDuplicados(venda) {
+  if (!venda || !Array.isArray(venda.itens)) return venda;
+
+  const consolidados = [];
+  const indicesPorChave = new Map();
+
+  for (const itemOriginal of venda.itens) {
+    const item = { ...itemOriginal };
+    const produtoId = item.produto_final_id ?? item.produtoId ?? item.produto_id;
+    const tamanho = Number(item.tamanho ?? item.tamanho_pote ?? item.tipo_pote ?? 0);
+    const tipo = normalizarTexto(item.tipo || "pote");
+
+    // Só consolida itens identificados com produto e tamanho válidos.
+    // Assim, itens incompletos não são agrupados por engano.
+    if (produtoId === undefined || produtoId === null || ![20, 44].includes(tamanho)) {
+      consolidados.push(item);
+      continue;
+    }
+
+    const chave = `${produtoId}|${tamanho}|${tipo}`;
+    const indiceExistente = indicesPorChave.get(chave);
+    if (indiceExistente === undefined) {
+      item.tamanho = tamanho;
+      item.tamanho_pote = tamanho;
+      item.tipo_pote = tamanho;
+      indicesPorChave.set(chave, consolidados.length);
+      consolidados.push(item);
+      continue;
+    }
+
+    const existente = consolidados[indiceExistente];
+    const quantidadeExistente = Number(existente.quantidade);
+    const quantidadeNova = Number(item.quantidade);
+
+    // Só soma quantidades numéricas válidas; não inventa quantidade
+    // quando algum dos itens ainda está incompleto.
+    if (
+      Number.isFinite(quantidadeExistente) && quantidadeExistente > 0 &&
+      Number.isFinite(quantidadeNova) && quantidadeNova > 0
+    ) {
+      existente.quantidade = quantidadeExistente + quantidadeNova;
+    }
+
+    const preco = calcularPrecoItem(existente);
+    if (preco !== null) existente.preco_unitario = preco;
+  }
+
+  venda.itens = consolidados;
+  return venda;
+}
+
 function aplicarCorrecoesDiretas(venda, texto, produtos, clientes) {
   if (!venda) return venda;
   const textoLimpo = limparPrefixoCorrecao(texto);
@@ -996,12 +1121,23 @@ function aplicarCorrecoesDiretas(venda, texto, produtos, clientes) {
     if (venda.novo_cliente) venda.novo_cliente.nome = nomeFinal;
   }
 
+  const itensMultiplos = extrairItensMultiplosDiretos(textoLimpo, produtos);
   const produto = extrairProdutoDireto(textoLimpo, produtos);
   const quantidade = extrairQuantidadeDireta(textoLimpo);
   const tamanho = extrairTamanhoDireto(textoLimpo);
   const pagamento = extrairPagamentoDireto(textoLimpo);
 
-  if (produto || quantidade || tamanho) {
+  if (itensMultiplos.length >= 2) {
+    if (!Array.isArray(venda.itens)) venda.itens = [];
+    for (const itemNovo of itensMultiplos) {
+      const idNovo = itemNovo.produto_final_id;
+      const indice = venda.itens.findIndex((item) =>
+        String(item.produto_final_id ?? item.produtoId ?? item.produto_id ?? "") === String(idNovo) &&
+        Number(item.tamanho ?? item.tamanho_pote ?? item.tipo_pote ?? 0) === Number(itemNovo.tamanho ?? 0));
+      if (indice >= 0) venda.itens[indice] = { ...venda.itens[indice], ...itemNovo };
+      else venda.itens.push(itemNovo);
+    }
+  } else if (produto || quantidade || tamanho) {
     if (!Array.isArray(venda.itens)) venda.itens = [];
     let indices = [];
 
@@ -1060,6 +1196,11 @@ function aplicarCorrecoesDiretas(venda, texto, produtos, clientes) {
     if (pagamento.tipoCartao) venda.tipo_cartao = pagamento.tipoCartao;
     if (pagamento.parcelas !== null) venda.parcelas = pagamento.parcelas;
   }
+
+  // Se uma correção muda dois itens do mesmo produto para o mesmo tamanho,
+  // por exemplo "os dois fondant são de 44", agrupa-os em uma linha com
+  // a quantidade total, em vez de deixar duas linhas duplicadas.
+  consolidarItensVendaDuplicados(venda);
   return venda;
 }
 function mesclarObjetos(base, novo) {
@@ -1140,24 +1281,27 @@ function mesclarVenda(vendaAntiga, vendaNova) {
 
     for (const [chave, valor] of Object.entries(vendaNova)) {
 
-      if (
-
-        chave === "itens" &&
-
-        Array.isArray(valor)
-
-      ) {
-
+      if (chave === "itens" && Array.isArray(valor)) {
+        // A IA pode devolver apenas o item mencionado na última mensagem.
+        // Mescla por produto+tamanho para não apagar os demais itens já informados.
         if (valor.length > 0) {
-
-          resultado.itens = valor;
-
+          const itensBase = Array.isArray(resultado.itens) ? resultado.itens : [];
+          const chaveItem = (item) => {
+            const id = item?.produto_final_id ?? item?.produtoId ?? item?.produto_id;
+            const nome = normalizarTexto(item?.produto_nome || item?.nome || item?.produto || "");
+            const tamanho = item?.tamanho ?? item?.tamanho_pote ?? item?.tipo_pote ?? "";
+            return `${id ?? nome}|${String(tamanho).toLowerCase()}`;
+          };
+          const mesclados = [...itensBase];
+          for (const itemNovo of valor) {
+            const chaveNova = chaveItem(itemNovo);
+            const indice = mesclados.findIndex((itemAntigo) => chaveItem(itemAntigo) === chaveNova);
+            if (indice >= 0) mesclados[indice] = { ...mesclados[indice], ...itemNovo };
+            else mesclados.push(itemNovo);
+          }
+          resultado.itens = mesclados;
         }
-
-
-
         continue;
-
       }
 
 
@@ -4922,68 +5066,66 @@ console.log(
 
     ) {
 
-      let novaVenda =
+      let novaVenda = resultado.venda;
 
-        resultado.venda;
+      // Alguns retornos da IA trazem os campos diretamente no objeto principal,
+      // sem o objeto aninhado resultado.venda. Preserve esses dados, especialmente
+      // a lista completa de itens, em vez de reconstruir uma venda quase vazia.
+      if (!novaVenda && resultado && typeof resultado === "object") {
+        const temDadosVenda =
+          Array.isArray(resultado.itens) ||
+          resultado.comprador !== undefined ||
+          resultado.novo_cliente !== undefined ||
+          resultado.forma_pagamento !== undefined;
 
-
-
-      if (
-
-        !novaVenda &&
-
-        vendaEmAndamento
-
-      ) {
-
-        novaVenda =
-
-          vendaEmAndamento;
-
+        if (temDadosVenda) {
+          novaVenda = {
+            tipo: "venda",
+            comprador: resultado.comprador ?? null,
+            novo_cliente: resultado.novo_cliente ?? null,
+            forma_pagamento: resultado.forma_pagamento ?? null,
+            tipo_cartao: resultado.tipo_cartao ?? null,
+            parcelas: resultado.parcelas ?? null,
+            itens: Array.isArray(resultado.itens) ? resultado.itens : [],
+          };
+        }
       }
 
-
+      if (!novaVenda && vendaEmAndamento) {
+        novaVenda = vendaEmAndamento;
+      }
 
       if (!novaVenda) {
-
         novaVenda = {
-
           tipo: "venda",
-
           comprador: null,
-
           novo_cliente: null,
-
           forma_pagamento: null,
-
           tipo_cartao: null,
-
           parcelas: null,
-
           itens: [],
-
         };
-
       }
 
+      const itensRetornadosPelaIA = Array.isArray(novaVenda.itens)
+        ? novaVenda.itens.length
+        : 0;
 
+      novaVenda = mesclarVenda(vendaEmAndamento, novaVenda);
 
-      novaVenda =
-
-        mesclarVenda(
-
-          vendaEmAndamento,
-
-          novaVenda,
-
-        );
-
-
-
-      // Correções explícitas da mensagem têm prioridade sobre valores antigos retornados pela IA.
-
-      aplicarCorrecoesDiretas(novaVenda, textoAtual, produtos, clientes);
-
+      // A extração direta entende um produto por vez. Se a IA já separou vários
+      // itens, não deixe essa extração simplificada sobrescrever quantidades ou
+      // tamanhos dos itens. O pagamento direto continua sendo aplicado.
+      if (itensRetornadosPelaIA < 2) {
+        aplicarCorrecoesDiretas(novaVenda, textoAtual, produtos, clientes);
+      } else {
+        const pagamentoDireto = extrairPagamentoDireto(textoAtual);
+        if (pagamentoDireto) {
+          novaVenda.forma_pagamento = pagamentoDireto.forma;
+          if (pagamentoDireto.tipoCartao) novaVenda.tipo_cartao = pagamentoDireto.tipoCartao;
+          if (pagamentoDireto.parcelas !== null) novaVenda.parcelas = pagamentoDireto.parcelas;
+        }
+      }
 
 
       // O cadastro do cliente é controlado pelo FLOW.
@@ -5078,7 +5220,14 @@ console.log(
 
       );
 
-
+      console.log('[FLOW][VENDA] Itens após prepararItensVenda:',
+        Array.isArray(novaVenda.itens) ? novaVenda.itens.length : 0,
+        JSON.stringify((novaVenda.itens || []).map((item) => ({
+          produtoId: item.produto_final_id,
+          produto: item.produto_nome || item.nome || item.produto,
+          quantidade: item.quantidade,
+          tamanho: item.tamanho ?? item.tamanho_pote ?? item.tipo_pote,
+        }))));
 
       salvarEstadoVenda(
 
