@@ -1,4 +1,3 @@
-
 package com.InovaSkill.CaderninhoDigital.dto.request;
 
 import jakarta.validation.Valid;
@@ -13,26 +12,14 @@ import lombok.Setter;
 @Getter
 @Setter
 public class ProducaoRequestDTO {
-
     @NotNull(message = "O produto é obrigatório")
     private Long produtoId;
-
     @NotNull(message = "A data da produção é obrigatória")
     private LocalDate dataProducao;
-
     @NotNull(message = "A quantidade produzida é obrigatória")
-    @DecimalMin(
-        value = "0.0",
-        inclusive = false,
-        message = "A quantidade produzida deve ser maior que zero"
-    )
+    @DecimalMin(value = "0.0", inclusive = false, message = "A quantidade produzida deve ser maior que zero")
     private BigDecimal quantidadeProduzida;
-
-    @NotNull(message = "O tamanho do pote é obrigatório")
-    private Integer tamanhoPote;
-
     private String observacao;
-
     @Valid
     private List<InsumoProducaoRequestDTO> insumos;
 }
