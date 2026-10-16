@@ -19,6 +19,18 @@ async function atualizar(force = false) {
   }
 }
 
+function extrairLista(resposta, nome) {
+  if (Array.isArray(resposta)) return resposta;
+  // Compatível com respostas comuns de APIs Spring: {data: []}, {content: []}, {items: []}.
+  const candidatos = [resposta?.data, resposta?.content, resposta?.items, resposta?.results, resposta?.[nome]];
+  for (const candidato of candidatos) {
+    if (Array.isArray(candidato)) return candidato;
+    if (Array.isArray(candidato?.content)) return candidato.content;
+    if (Array.isArray(candidato?.items)) return candidato.items;
+  }
+  throw new Error(`A API retornou um formato inesperado para ${nome}. O catálogo não será marcado como vazio.`);
+}
+
 async function atualizarCatalogo() {
   console.log("[catalogo] Atualizando dados da API...");
 
@@ -28,9 +40,13 @@ async function atualizarCatalogo() {
     api.get("/clientes"),
   ]);
 
-  produtos = Array.isArray(prod) ? prod : [];
-  materiasPrimas = Array.isArray(mp) ? mp : [];
-  clientes = Array.isArray(cli) ? cli : [];
+  // Só atualiza o cache depois que as três respostas forem válidas.
+  const novosProdutos = extrairLista(prod, "produtos");
+  const novasMateriasPrimas = extrairLista(mp, "materias-primas");
+  const novosClientes = extrairLista(cli, "clientes");
+  produtos = novosProdutos;
+  materiasPrimas = novasMateriasPrimas;
+  clientes = novosClientes;
   ultimaAtualizacao = Date.now();
 
   console.log(
@@ -48,14 +64,24 @@ async function getMateriasPrimas() {
   return materiasPrimas;
 }
 
+function normalizarClienteCatalogo(c) {
+  if (!c || typeof c !== "object") return c;
+  return {
+    ...c,
+    id: c.id ?? c.clienteId ?? c.idCliente ?? c.codigo,
+    nome: c.nome || c.nomeCompleto || c.razaoSocial || c.razao_social || "",
+    documento: c.documento || c.cpfCnpj || c.cpf_cnpj || c.cpf || c.cnpj || "",
+  };
+}
+
 async function getClientes() {
   await atualizar();
-  return clientes.map((c) => ({ id: c.id, nome: c.nome }));
+  return clientes.map(normalizarClienteCatalogo).filter((c) => c && c.nome);
 }
 
 async function getClientesCompletos() {
   await atualizar();
-  return clientes;
+  return clientes.map(normalizarClienteCatalogo).filter((c) => c && c.nome);
 }
 
 async function getClientePorId(id) {

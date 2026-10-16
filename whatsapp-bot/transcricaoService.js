@@ -1,86 +1,80 @@
-const axios = require("axios");
-const FormData = require("form-data");
-require("form-data");
+const Groq = require("groq-sdk");
+const fs = require("fs");
+const path = require("path");
+const os = require("os");
+const crypto = require("crypto");
+require("dotenv").config();
 
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
-const GROQ_URL = "https://api.groq.com/openai/v1/audio/transcriptions";
 
-function validarConfiguracao() {
-  if (!GROQ_API_KEY || !GROQ_API_KEY.trim()) {
-    throw new Error(
-      "GROQ_API_KEY não está configurada no arquivo .env",
-    );
-  }
+if (!GROQ_API_KEY) {
+  console.warn("⚠️ GROQ_API_KEY não está configurada no arquivo .env");
 }
 
-async function transcreverAudio(base64Audio, mimetype) {
-  validarConfiguracao();
+const groq = new Groq({ apiKey: GROQ_API_KEY });
 
-  if (!base64Audio) {
-    throw new Error("Áudio vazio recebido para transcrição.");
+function escolherExtensao(mimetype = "audio/ogg") {
+  const tipo = String(mimetype).toLowerCase();
+  if (tipo.includes("webm")) return ".webm";
+  if (tipo.includes("mpeg") || tipo.includes("mp3")) return ".mp3";
+  if (tipo.includes("wav")) return ".wav";
+  if (tipo.includes("mp4")) return ".mp4";
+  if (tipo.includes("m4a")) return ".m4a";
+  return ".ogg";
+}
+
+async function transcreverAudio(audioBase64, mimetype = "audio/ogg") {
+  if (!GROQ_API_KEY) {
+    throw new Error("GROQ_API_KEY não está configurada no .env");
   }
 
-  const buffer = Buffer.from(base64Audio, "base64");
+  if (!audioBase64) {
+    throw new Error("O áudio não foi informado.");
+  }
 
-  const extensao = mimetype && mimetype.includes("mp4") ? "mp4" : "ogg";
-
-  const form = new FormData();
-  form.append("file", buffer, {
-    filename: `audio.${extensao}`,
-    contentType: mimetype || "audio/ogg",
-  });
-  form.append("model", "whisper-large-v3-turbo");
-  form.append("language", "pt");
-  form.append("response_format", "json");
-
-  console.log("[transcricao] Enviando áudio para Groq Whisper...");
+  const extensao = escolherExtensao(mimetype);
+  const nomeTemporario = `whatsapp-${crypto.randomUUID()}${extensao}`;
+  const caminhoTemporario = path.join(os.tmpdir(), nomeTemporario);
 
   try {
-    const resposta = await axios.post(GROQ_URL, form, {
-      headers: {
-        Authorization: `Bearer ${GROQ_API_KEY}`,
-        ...form.getHeaders(),
-      },
-      timeout: 30000,
-      maxBodyLength: Infinity,
-      maxContentLength: Infinity,
+    const buffer = Buffer.from(audioBase64, "base64");
+    fs.writeFileSync(caminhoTemporario, buffer);
+
+    console.log("[transcricao] Enviando áudio para Groq Whisper...");
+
+    const resposta = await groq.audio.transcriptions.create({
+      file: fs.createReadStream(caminhoTemporario),
+      model: "whisper-large-v3",
+      language: "pt",
+      response_format: "text",
     });
 
-    const texto = resposta.data?.text?.trim();
+    const texto =
+      typeof resposta === "string"
+        ? resposta
+        : resposta?.text || "";
 
-    if (!texto) {
-      throw new Error("A transcrição retornou vazia.");
+    if (!texto.trim()) {
+      throw new Error("A Groq não retornou nenhum texto para o áudio.");
     }
 
-    console.log("[transcricao] Texto transcrito:", texto);
+    console.log("[transcricao] Texto transcrito:", texto.trim());
 
-    return texto;
-  } catch (error) {
-    const status = error.response?.status;
-    const data = error.response?.data;
-
-    console.error(
-      "[transcricao] Erro ao transcrever áudio:",
-      status || "",
-      data || error.message,
-    );
-
-    if (status === 401) {
-      throw new Error("A chave GROQ_API_KEY é inválida.");
-    }
-
-    if (status === 429) {
-      throw new Error(
-        "Limite de transcrições da Groq atingido. Tente novamente em instantes.",
+    return texto.trim();
+  } finally {
+    try {
+      if (fs.existsSync(caminhoTemporario)) {
+        fs.unlinkSync(caminhoTemporario);
+      }
+    } catch (erroLimpeza) {
+      console.warn(
+        "⚠️ Não foi possível remover o arquivo temporário do áudio:",
+        erroLimpeza.message,
       );
     }
-
-    throw new Error(
-      `Não consegui entender o áudio: ${
-        data?.error?.message || error.message
-      }`,
-    );
   }
 }
 
-module.exports = { transcreverAudio };
+module.exports = {
+  transcreverAudio,
+};

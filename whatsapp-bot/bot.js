@@ -26,12 +26,6 @@ const client = new Client({
     clientId: "caderninho-teste-2",
   }),
 
-  webVersionCache: {
-    type: "remote",
-    remotePath:
-      "https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.3000.1023950968.html",
-  },
-
   puppeteer: {
     headless: true,
     protocolTimeout: 180000,
@@ -65,19 +59,76 @@ function normalizarNumero(numero) {
     .trim();
 }
 
-function numeroDaGestoraAutorizado(message) {
-  const numero = normalizarNumero(process.env.WHATSAPP_GESTORA);
-  const lid = normalizarNumero(process.env.WHATSAPP_GESTORA_LID);
+async function numeroDaGestoraAutorizado(message) {
+  const numeroGestora = normalizarNumero(
+    process.env.WHATSAPP_GESTORA
+  );
+
+  if (!numeroGestora) {
+    console.error(
+      "[BOT] WHATSAPP_GESTORA não está configurado no .env."
+    );
+
+    return false;
+  }
 
   const [id, sufixo] = String(message.from || "").split("@");
   const idNormalizado = normalizarNumero(id);
 
-  if (sufixo === "lid") {
-    return Boolean(lid && idNormalizado === lid);
-  }
+  /* =========================
+     MENSAGEM @c.us
+  ========================= */
 
   if (sufixo === "c.us") {
-    return Boolean(numero && idNormalizado === numero);
+    return idNormalizado === numeroGestora;
+  }
+
+  /* =========================
+     MENSAGEM @lid
+  ========================= */
+
+  if (sufixo === "lid") {
+    try {
+      /*
+       * Não usamos contato.number nem contato.id.user,
+       * porque esses campos podem continuar trazendo
+       * o próprio LID.
+       *
+       * O whatsapp-web.js possui getContactLidAndPhone(),
+       * que converte o LID para o número real associado.
+       */
+      const resultado =
+        await client.getContactLidAndPhone([
+          message.from,
+        ]);
+
+      const dadosContato = resultado?.[0];
+
+      const telefoneReal = normalizarNumero(
+        String(dadosContato?.pn || "")
+          .replace("@c.us", "")
+      );
+
+      console.log(
+        "[BOT] LID recebido:",
+        message.from
+      );
+
+      console.log(
+        "[BOT] Número real associado ao LID:",
+        telefoneReal || "(não identificado)"
+      );
+
+      return telefoneReal === numeroGestora;
+
+    } catch (erro) {
+      console.error(
+        "[BOT] Não foi possível converter o LID para o número real:",
+        erro?.message || erro
+      );
+
+      return false;
+    }
   }
 
   return false;
@@ -227,7 +278,14 @@ client.on("disconnected", (reason) => {
    RECEBIMENTO DE MENSAGENS
 ========================= */
 
-client.on("message", async (message) => {
+client.on("message_create", async (message) => {
+  if (message.fromMe) {
+    console.log(
+      "[BOT] Mensagem enviada pelo próprio bot. Ignorando."
+    );
+    return;
+  }
+
   const messageId =
     message.id?._serialized ||
     message.id?.$1 ||
@@ -242,17 +300,6 @@ client.on("message", async (message) => {
     return;
   }
 
-  if (messageId) {
-    mensagensProcessadas.add(messageId);
-
-    if (mensagensProcessadas.size > 500) {
-      const primeiro =
-        mensagensProcessadas.values().next().value;
-
-      mensagensProcessadas.delete(primeiro);
-    }
-  }
-
   console.log(
     "[BOT] Mensagem recebida:",
     message.from,
@@ -264,7 +311,7 @@ client.on("message", async (message) => {
      VERIFICAR GESTORA
   ========================= */
 
-  if (!numeroDaGestoraAutorizado(message)) {
+  if (!(await numeroDaGestoraAutorizado(message))) {
     console.log(
       "[BOT] Mensagem ignorada: remetente não autorizado."
     );
@@ -273,6 +320,15 @@ client.on("message", async (message) => {
   }
 
   console.log("[BOT] Mensagem da Gestora autorizada.");
+
+  // Só guardar IDs após validar o remetente autorizado.
+  if (messageId) {
+    mensagensProcessadas.add(messageId);
+    if (mensagensProcessadas.size > 500) {
+      const primeiro = mensagensProcessadas.values().next().value;
+      mensagensProcessadas.delete(primeiro);
+    }
+  }
 
   const chatId = message.from;
 
@@ -355,12 +411,15 @@ client.on("message", async (message) => {
           "[BOT] Enviando áudio transcrito para processarMensagem()..."
         );
 
-        const resposta = await processarMensagem(
-          chatId,
-          {
-            texto,
-          }
-        );
+        /*
+         * IMPORTANTE:
+         * Já estamos dentro da fila desta conversa.
+         * Não enfileirar novamente aqui, pois isso faria
+         * a tarefa esperar por ela mesma indefinidamente.
+         */
+        const resposta = await processarMensagem(chatId, {
+          texto,
+        });
 
         console.log("[BOT] Resposta gerada pelo flow.");
 
@@ -386,19 +445,19 @@ client.on("message", async (message) => {
         texto
       );
 
-      const resposta = await processarMensagem(
-        chatId,
-        {
-          texto,
-        }
-      );
+      /*
+       * IMPORTANTE:
+       * Processar diretamente, sem chamar enfileirar()
+       * novamente. Isso evita o travamento da fila.
+       */
+      const resposta = await processarMensagem(chatId, {
+        texto,
+      });
 
       console.log("[BOT] Resposta gerada pelo flow.");
 
-      await enviarResposta(
-        message,
-        resposta
-      );
+      await enviarResposta(message, resposta);
+
     } catch (error) {
       console.error(
         "[BOT] Erro ao processar mensagem:",

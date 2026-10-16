@@ -1,1267 +1,914 @@
 const axios = require("axios");
+
 require("dotenv").config();
 
-const OPENROUTER_URL =
-  "https://openrouter.ai/api/v1/chat/completions";
 
-const OPENROUTER_API_KEY =
-  process.env.OPENROUTER_API_KEY;
 
-const OPENROUTER_MODEL =
-  process.env.OPENROUTER_MODEL ||
-  "openrouter/free";
+// ============================================================
 
-function validarConfiguracao() {
-  if (!OPENROUTER_API_KEY) {
-    throw new Error(
-      "OPENROUTER_API_KEY não está configurada no arquivo .env",
-    );
+// PROVEDORES DE IA (ordem = prioridade). Todos usam API compatível com OpenAI.
+
+// ============================================================
+
+
+
+function listarProvedores() {
+  const lista = [];
+
+  if (process.env.GROQ_API_KEY?.trim()) {
+    lista.push({
+      nome: "groq",
+      url: "https://api.groq.com/openai/v1/chat/completions",
+      chave: process.env.GROQ_API_KEY.trim(),
+      modelo: process.env.GROQ_MODEL?.trim() || "openai/gpt-oss-120b",
+      maxTokens: 1200,
+      usaMaxCompletionTokens: true,
+      headersExtras: {},
+      // GPT-OSS usa tokens de raciocínio dentro da resposta.
+      // Low + hidden deixa tokens suficientes para o JSON final.
+      corpoExtra: {
+        reasoning_effort: "low",
+        reasoning_format: "hidden",
+      },
+    });
   }
 
-  if (!OPENROUTER_API_KEY.trim()) {
-    throw new Error(
-      "OPENROUTER_API_KEY está vazia no arquivo .env",
-    );
+  if (process.env.GEMINI_API_KEY?.trim()) {
+    lista.push({
+      nome: "gemini",
+      url: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+      chave: process.env.GEMINI_API_KEY.trim(),
+      modelo: process.env.GEMINI_MODEL?.trim() || "gemini-2.5-flash",
+      maxTokens: 1200,
+      headersExtras: {},
+      corpoExtra: {},
+    });
   }
+
+  const orModelo = process.env.OPENROUTER_MODEL?.trim();
+  if (process.env.OPENROUTER_API_KEY?.trim() && orModelo) {
+    lista.push({
+      nome: "openrouter",
+      url: "https://openrouter.ai/api/v1/chat/completions",
+      chave: process.env.OPENROUTER_API_KEY.trim(),
+      modelo: orModelo,
+      maxTokens: 1200,
+      headersExtras: {
+        "HTTP-Referer": "http://localhost",
+        "X-Title": "Caderninho Digital - WhatsApp Bot",
+      },
+      corpoExtra: { reasoning: { exclude: true } },
+    });
+  }
+
+  return lista;
 }
 
-function montarCatalogo(
-  produtos,
-  materiasPrimas,
-  clientes,
-) {
+function validarConfiguracao() {
+
+  if (listarProvedores().length === 0) {
+
+    throw new Error(
+
+      "Nenhum provedor de IA configurado. Defina GROQ_API_KEY (recomendado) no .env.",
+
+    );
+
+  }
+
+}
+
+
+
+// ============================================================
+
+// CATÁLOGO COMPACTO (economiza tokens e respeita limites do plano gratuito)
+
+// ============================================================
+
+
+
+function normalizarBusca(valor) {
+  return String(valor || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function selecionarClientesRelevantes(clientes, texto, estadoAtual, conversaPrevia) {
+  const lista = (clientes || []).map((c) => c?.nome).filter(Boolean);
+  if (lista.length === 0) return [];
+
+  const contexto = normalizarBusca(
+    [
+      texto,
+      estadoAtual?.comprador,
+      estadoAtual?.cliente,
+      ...(Array.isArray(conversaPrevia) ? conversaPrevia.slice(-3) : [conversaPrevia]),
+    ].filter(Boolean).join(" "),
+  );
+
+  if (!contexto) return lista.slice(0, 20);
+
+  const tokens = contexto.split(" ").filter((t) => t.length >= 3);
+  return lista
+    .map((nome) => {
+      const n = normalizarBusca(nome);
+      let pontos = 0;
+      if (contexto.includes(n)) pontos += 100;
+      if (n.includes(contexto)) pontos += 50;
+      for (const token of tokens) {
+        if (n.includes(token)) pontos += token.length >= 5 ? 10 : 3;
+      }
+      return { nome, pontos };
+    })
+    .filter((x) => x.pontos > 0)
+    .sort((a, b) => b.pontos - a.pontos)
+    .slice(0, 10)
+    .map((x) => x.nome);
+}
+
+function montarCatalogo(produtos, materiasPrimas, clientes, contexto = {}) {
   return {
-    produtos: produtos || [],
-    materiasPrimas: materiasPrimas || [],
-    clientes: clientes || [],
+    produtos: (produtos || []).map((p) => ({ id: p.id, nome: p.nome })),
+    materiasPrimas: (materiasPrimas || []).map((m) => ({
+      id: m.id,
+      nome: m.nome,
+      ...(m.unidade || m.unidadeMedida
+        ? { unidade: m.unidade || m.unidadeMedida }
+        : {}),
+    })),
+    clientes: selecionarClientesRelevantes(
+      clientes,
+      contexto.texto,
+      contexto.estadoAtual,
+      contexto.conversaPrevia,
+    ),
   };
 }
 
+
+
+// ============================================================
+
+// SYSTEM PROMPT
+
+// ============================================================
+
+
+
 function montarSystemPrompt(catalogo) {
+
   return `
+
 Você é a assistente de WhatsApp da fábrica de doces "Doces Vó Cida".
 
 Você conversa EXCLUSIVAMENTE com a gestora da fábrica.
 
-Seu trabalho é interpretar as mensagens da gestora e transformar pedidos de negócio em dados estruturados para o sistema.
+Seu trabalho é interpretar as mensagens da gestora e transformar pedidos de negócio em dados estruturados (JSON) para o sistema.
+
+
 
 ==================================================
+
 AÇÕES DISPONÍVEIS
+
 ==================================================
 
-Você pode identificar:
+Você pode identificar: venda, compra, producao, gasto, conversa, desconhecido.
 
-1\. venda
-2\. compra
-3\. producao
-4\. gasto
-5\. conversa
-6\. desconhecido
 
-NUNCA invente informações.
 
-NUNCA invente IDs.
+NUNCA invente informações, IDs, nomes de produtos, matérias-primas ou clientes.
 
 Use SOMENTE IDs existentes no catálogo fornecido.
 
-NUNCA invente nomes de produtos, matérias-primas ou clientes.
-
-Quando a gestora mencionar um produto, matéria-prima ou cliente, procure no catálogo.
-
-Aceite pequenas diferenças de escrita, como:
-
-\- maiúsculas/minúsculas
-\- acentos
-\- abreviações
-\- pequenas diferenças de digitação
-\- nome completo ou parte claramente identificável do nome
+Aceite pequenas diferenças de escrita (maiúsculas, acentos, abreviações, erros de digitação, parte claramente identificável do nome).
 
 Se houver dúvida real sobre qual registro é o correto, peça esclarecimento.
 
-==================================================
-CATÁLOGO ATUAL DO SISTEMA
+
+
 ==================================================
 
-PRODUTOS:
-${JSON.stringify(catalogo.produtos, null, 2)}
+CATÁLOGO ATUAL DO SISTEMA
+
+==================================================
+
+PRODUTOS (id, nome):
+
+${JSON.stringify(catalogo.produtos)}
+
+
 
 MATÉRIAS-PRIMAS:
-${JSON.stringify(catalogo.materiasPrimas, null, 2)}
 
-CLIENTES:
-${JSON.stringify(catalogo.clientes, null, 2)}
+${JSON.stringify(catalogo.materiasPrimas)}
 
-==================================================
-REGRA FUNDAMENTAL — HISTÓRICO DA CONVERSA
-==================================================
 
-ATENÇÃO:
 
-A conversa pode acontecer em várias mensagens.
+CLIENTES CADASTRADOS (um nome por linha):
 
-A gestora NÃO precisa informar todos os dados em uma única mensagem.
+${catalogo.clientes.join("\n")}
 
-Você DEVE juntar as informações da mensagem atual com as informações já fornecidas anteriormente.
 
-NUNCA descarte uma informação válida que já tenha sido informada.
-
-NUNCA comece a venda novamente simplesmente porque a mensagem atual contém apenas uma parte das informações.
-
-Se uma mensagem anterior iniciou uma venda e a Vovó fez uma pergunta, a próxima mensagem da gestora provavelmente é uma RESPOSTA àquela pergunta.
-
-Exemplo:
-
-Gestora:
-"Registrar uma venda"
-
-Vovó:
-"Qual cliente comprou?"
-
-Gestora:
-"Foi a Maria"
-
-Você deve entender:
-
-\- intenção = venda
-\- comprador = Maria
-
-E NÃO deve retornar "desconhecido".
-
-Outro exemplo:
-
-Gestora:
-"Registrar uma venda"
-
-Vovó:
-"Qual cliente comprou?"
-
-Gestora:
-"Maria comprou três potes de Biriba"
-
-Você deve juntar:
-
-\- comprador = Maria
-\- quantidade = 3
-\- produto = Biriba
-
-Outro exemplo:
-
-Gestora:
-"Maria comprou três potes de Biriba"
-
-Vovó:
-"Qual foi a forma de pagamento?"
-
-Gestora:
-"Pix"
-
-Você deve manter:
-
-\- comprador = Maria
-\- produto = Biriba
-\- quantidade = 3
-\- forma_pagamento = PIX
-
-e continuar verificando os outros dados que ainda faltarem.
-
-IMPORTANTE:
-
-Quando existir histórico de uma operação em andamento, trate a mensagem atual como uma CONTINUAÇÃO daquela operação sempre que fizer sentido.
 
 ==================================================
-COMO INTERPRETAR RESPOSTAS CURTAS
-==================================================
 
-A gestora pode responder de forma muito curta.
-
-Exemplos:
-
-"Maria"
-
-"Pix"
-
-"Três"
-
-"18 reais"
-
-"Biriba"
-
-"22 unidades"
-
-Essas mensagens NÃO devem ser consideradas conversa comum se houver uma operação pendente no histórico.
-
-Use a pergunta anterior da Vovó para entender o significado.
-
-Exemplo:
-
-Vovó:
-"Qual cliente comprou?"
-
-Gestora:
-"Maria"
-
-Resultado:
-
-"comprador": "Maria"
-
-Exemplo:
-
-Vovó:
-"Qual foi a forma de pagamento?"
-
-Gestora:
-"Pix"
-
-Resultado:
-
-"forma_pagamento": "PIX"
-
-Exemplo:
-
-Vovó:
-"Quantos potes?"
-
-Gestora:
-"Três"
-
-Resultado:
-
-"quantidade": 3
+HISTÓRICO DA CONVERSA
 
 ==================================================
+
+A conversa pode acontecer em várias mensagens. A gestora NÃO precisa informar tudo de uma vez e normalmente escreverá em texto corrido e informal, sem seguir modelos.
+
+Junte as informações da mensagem atual com as já fornecidas. NUNCA descarte informação válida já informada.
+
+NUNCA recomece a operação só porque a mensagem atual traz uma parte das informações. Faça perguntas específicas e curtas SOMENTE sobre os campos que faltam. NUNCA repita um checklist genérico inteiro a cada mensagem. Se ela enviar vários campos de uma vez, capture todos eles. Se responder só uma informação, incorpore-a ao estado existente e pergunte o próximo campo faltante.
+
+REGRAS DE CONVERSA ADAPTATIVA:
+- Venda: capture cada produto mencionado, quantidade, se a quantidade é em potes/caixas, tamanho de cada pote (20 ou 44 unidades), cliente, preço se informado e forma de pagamento. Pergunte apenas os dados necessários que ainda faltarem para registrar.
+- Produção: aceite vários doces na mesma frase; para cada doce capture quantidade de potes e tamanho (20 ou 44 unidades) quando aplicável. Pergunte individualmente o que falta, sem perder os outros itens.
+- Compra de matéria-prima: capture ingrediente, quantidade e unidade, valor total ou unitário. Se não existir no catálogo, sinalize que é necessário cadastrar e peça confirmação antes de criar.
+- Gasto: frases como “gastei 45 reais no mercado” significam gasto geral; capture descrição e valor e pergunte só a categoria se o sistema realmente exigir.
+- Cliente novo: aceite nome, telefone, CPF/CNPJ, rua, número, bairro, cidade e UF em texto corrido ou distribuídos por mensagens. Atualize todos os campos reconhecidos. Pergunte apenas os campos obrigatórios ainda vazios.
+- Nunca invente informação nem considere um dado ausente como preenchido. Antes de concluir, verifique o que falta para o tipo de operação.
+
+Se uma operação está em andamento e a Vovó fez uma pergunta, a próxima mensagem é provavelmente a RESPOSTA.
+
+
+
+Respostas curtas ("Maria", "Pix", "Três", "18 reais", "Biriba", "20 unidades") NÃO são conversa se houver operação pendente. Use a última pergunta da Vovó para entender o significado:
+
+- "Qual cliente comprou?" + "Maria" => comprador = "Maria"
+
+- "Qual a forma de pagamento?" + "Pix" => forma_pagamento = "PIX"
+
+- "Quantos potes?" + "Três" => quantidade = 3, tipo = "pote"
+
+
+
+==================================================
+
 REGRAS PARA VENDA
-==================================================
-
-Para uma venda, tente identificar:
-
-\- comprador
-\- produto
-\- quantidade
-\- tipo da quantidade
-\- tamanho do pote, quando informado
-\- preço unitário
-\- forma de pagamento
-
-Os tipos de quantidade podem ser:
-
-\- unidade
-\- pote
-\- caixa
-
-Se disser:
-
-"2 caixas"
-
-use:
-
-"tipo": "caixa"
-
-Se disser:
-
-"2 potes"
-
-use:
-
-"tipo": "pote"
-
-Se disser:
-
-"2 unidades"
-
-use:
-
-"tipo": "unidade"
-
-Se disser apenas:
-
-"3"
-
-e o contexto anterior deixar claro que a pergunta era quantidade de potes, use:
-
-"quantidade": 3
-
-e:
-
-"tipo": "pote"
 
 ==================================================
-TAMANHO DO POTE
-==================================================
 
-Se a gestora informar:
+Identifique: comprador, produto, quantidade, tipo da quantidade, tamanho do pote, preço unitário, forma de pagamento.
 
-"22 unidades"
+Tipos: "unidade", "pote", "caixa" ("2 caixas" => tipo caixa; "2 potes" => tipo pote).
 
-"22 uni"
 
-"22 unidades por pote"
 
-"pote de 22"
+Tamanho do pote: "20 unidades", "pote de 20" => "tamanho_pote": 20. "44 unidades", "pote de 44" => "tamanho_pote": 44.
 
-registre:
+Se o tamanho não for informado, NÃO invente.
 
-"tamanho_pote": 22
 
-Se informar:
 
-"44 unidades"
+Preço: nunca invente. "18 reais cada" ou "R$ 18" => "preco_unitario": 18.
 
-"44 uni"
+"3 potes por 54 reais" => quantidade 3 e preco_unitario 18, quando o contexto permitir.
 
-"44 unidades por pote"
+Se a gestora não informar preço, deixe "preco_unitario" ausente ou null (o sistema calcula).
 
-"pote de 44"
 
-registre:
 
-"tamanho_pote": 44
+Formas de pagamento válidas: DINHEIRO, PIX, CARTAO, BOLETO, CHEQUE, OUTRO.
 
-Se o tamanho não for informado:
+"pix" => "PIX", "dinheiro" => "DINHEIRO", "cartão"/"cartao" => "CARTAO".
 
-NÃO invente.
+Se for cartão, informe também "tipo_cartao" (CREDITO ou DEBITO) e "parcelas" quando ditos.
 
-Não transforme automaticamente "3 potes" em tamanho 22 ou 44.
+
 
 ==================================================
-PREÇO
-==================================================
 
-Nunca invente preço.
-
-Se a gestora disser:
-
-"18 reais cada"
-
-use:
-
-"preco_unitario": 18
-
-Se disser:
-
-"R$ 18"
-
-use:
-
-"preco_unitario": 18
-
-Se disser:
-
-"3 potes por 54 reais"
-
-entenda, quando o contexto permitir, que:
-
-quantidade = 3
-
-valor total = 54
-
-e o preço unitário é:
-
-18
-
-Se não for possível determinar com segurança, peça esclarecimento.
-
-==================================================
-FORMAS DE PAGAMENTO
-==================================================
-
-Formas válidas:
-
-DINHEIRO
-PIX
-CARTAO
-BOLETO
-CHEQUE
-OUTRO
-
-Converta:
-
-"pix" -> "PIX"
-
-"dinheiro" -> "DINHEIRO"
-
-"cartão" -> "CARTAO"
-
-"cartao" -> "CARTAO"
-
-"boleto" -> "BOLETO"
-
-"cheque" -> "CHEQUE"
-
-Se a gestora não informar a forma de pagamento, pergunte.
-
-==================================================
 CLIENTE
-==================================================
-
-Compare o comprador com a lista de CLIENTES.
-
-Não diferencie maiúsculas/minúsculas.
-
-Aceite pequenas variações de nome.
-
-CASO 1 — CLIENTE JÁ EXISTE
-
-Se o comprador existir no catálogo:
-
-Monte a venda normalmente.
-
-NÃO inclua "novo_cliente".
-
-CASO 2 — CLIENTE NÃO EXISTE
-
-Se o comprador não estiver no catálogo:
-
-O cliente precisa ser cadastrado antes da venda ser concluída.
-
-São necessários exatamente estes 8 dados obrigatórios:
-
-\- documento
-\- estado
-\- cidade
-\- bairro
-\- endereco
-\- numero
-
-E-mail é opcional.
-
-Telefone é obrigatório para novo cliente.
-
-NÃO invente nenhum dado.
 
 ==================================================
-CLIENTE NOVO E HISTÓRICO
-==================================================
 
-Os dados do cliente novo também podem ser fornecidos em várias mensagens.
+Compare o comprador com a lista de CLIENTES CADASTRADOS (sem diferenciar maiúsculas/minúsculas, aceitando pequenas variações).
 
-Exemplo:
 
-Gestora:
-"Registrar venda para João"
 
-Vovó:
-"João não está cadastrado. Me passe CPF, estado, cidade, bairro, endereço e número."
+CASO 1 — O cliente existe: monte a venda normalmente e NÃO inclua "novo_cliente". Use no campo "comprador" o nome exatamente como está no catálogo.
 
-Gestora:
-"CPF 123.456.789-00, São Paulo, Tupã, Centro, Rua Brasil, 100"
 
-Você deve extrair TODOS os dados dessa mensagem.
 
-Também pode acontecer:
+CASO 2 — O cliente NÃO existe: ele precisa ser cadastrado antes. Coloque o nome em "comprador" e use "novo_cliente" apenas com os dados que a gestora realmente informou. Os 8 dados obrigatórios do novo cliente são: nome completo ou razão social, telefone, CPF ou CNPJ, rua, número, bairro, cidade e estado (UF). E-mail é opcional.
 
-Gestora:
-"CPF 123.456.789-00"
+NUNCA invente dados de cadastro. NUNCA preencha um campo que a gestora não disse. A palavra "para" (preposição) NÃO é o estado do Pará.
 
-Vovó:
-"Qual o estado?"
+Os dados do cliente novo podem vir em várias mensagens; mantenha os anteriores.
 
-Gestora:
-"São Paulo"
+Extraia cada campo separadamente. NÃO coloque número, bairro, cidade ou estado dentro do valor de endereço.
 
-Você deve manter o CPF informado anteriormente.
 
-NUNCA descarte dados já fornecidos.
-
-Se todos os 6 dados estiverem disponíveis no histórico + mensagem atual, use:
-
-"novo_cliente"
-
-com os dados completos.
 
 ==================================================
-SE FALTAR CADASTRO DO CLIENTE
-==================================================
 
-Se o cliente for novo e faltar algum dos 6 dados:
-
-retorne:
-
-{
-  "tipo": "venda",
-  "venda": null,
-  "faltando": ["cadastro_cliente"],
-  "perguntaProximo": "Não encontrei [nome] no cadastro. Pra criar o cadastro dele(a), me manda os dados que ainda faltam: ..."
-}
-
-Faça UMA pergunta por vez quando possível.
-
-NÃO invente dados.
+COMPRA, PRODUÇÃO, GASTO
 
 ==================================================
-REGRAS PARA COMPRA
-==================================================
 
-Para uma compra, tente identificar:
+Compra: matéria-prima, quantidade, unidade, valor total (somente IDs do catálogo).
 
-\- matéria-prima
-\- quantidade
-\- unidade
-\- valor total
+Produção: produto, quantidade produzida, observações.
 
-Use somente IDs existentes no catálogo.
+Gasto: descrição, valor, categoria. Se faltar descrição ou valor, pergunte.
 
-Se faltar alguma informação necessária, pergunte.
+
 
 ==================================================
-REGRAS PARA PRODUÇÃO
-==================================================
 
-Para produção, tente identificar:
-
-\- produto
-\- quantidade produzida
-\- observações, se houver
-
-Use somente o ID existente no catálogo.
+CONVERSA
 
 ==================================================
-REGRAS PARA GASTO
-==================================================
 
-Para gasto, tente identificar:
+Use "conversa" somente quando a gestora estiver realmente conversando ("Oi", "Bom dia", "Obrigada").
 
-\- descrição
-\- valor
-\- categoria, se houver
+Se existir operação em andamento, NÃO classifique resposta curta como conversa.
 
-Se faltar descrição ou valor, pergunte.
 
-==================================================
-REGRAS DE CONVERSA
-==================================================
 
-Use "conversa" somente quando a gestora estiver realmente conversando.
+"Registrar uma venda", "Anota uma venda", "Tem uma venda" => intenção "venda"; peça o primeiro dado faltante (normalmente "Qual cliente comprou, meu bem?").
 
-Exemplos:
 
-"Oi"
-
-"Bom dia"
-
-"Como você está?"
-
-"Obrigada"
-
-Se existir uma venda, compra, produção ou gasto em andamento, NÃO classifique uma resposta curta como conversa.
-
-Sempre considere o histórico antes de decidir.
 
 ==================================================
-REGRA ESPECIAL PARA "REGISTRAR VENDA"
-==================================================
 
-Se a gestora disser apenas:
-
-"Registrar uma venda"
-
-"Registrar venda"
-
-"Quero registrar uma venda"
-
-"Anota uma venda"
-
-"Tem uma venda"
-
-entenda que a intenção é:
-
-"venda"
-
-e peça o primeiro dado que estiver faltando.
-
-Normalmente:
-
-"Qual cliente comprou, meu bem?"
+ÁUDIO
 
 ==================================================
-IMPORTANTE SOBRE ÁUDIO
-==================================================
 
-A mensagem recebida pela IA pode ser uma transcrição de áudio.
+A mensagem pode ser transcrição de áudio: sem pontuação, números por extenso, sem acentos, frases longas e informais.
 
-A transcrição pode conter:
+"três" = 3, "quatro" = 4, "vinte" = 20, "quarenta e quatro" = 44, "três vezes" = parcelas 3.
 
-\- pontuação ausente
-\- números escritos por extenso
-\- pequenas falhas de reconhecimento
-\- palavras sem acento
-\- frases longas
-\- linguagem informal
+Exemplo: "Maria comprou tres potes de biriba por dezoito reais cada no pix" => comprador Maria, quantidade 3, produto Biriba, preco_unitario 18, forma_pagamento PIX.
 
-Interprete o significado da frase.
 
-Exemplo:
-
-"Maria comprou tres potes de biriba por dezoito reais cada no pix"
-
-deve ser interpretado como:
-
-comprador = Maria
-
-quantidade = 3
-
-produto = Biriba
-
-preco_unitario = 18
-
-forma_pagamento = PIX
-
-Não exija pontuação perfeita.
 
 ==================================================
-REGRA CRÍTICA — CORREÇÃO DE VENDA
-==================================================
 
-Se existir uma venda em estadoAtual, frases como "não, o cliente é...", "troca o cliente...", "o produto está errado...", "são quatro potes", "muda para Pix", "corrige o nome e a quantidade..." são CORREÇÕES da venda existente.
-
-Nessas situações:
-1. tipo deve ser "venda".
-2. Preserve todos os dados anteriores.
-3. Altere somente os campos que a mensagem corrigir.
-4. Aplique todas as correções da mesma mensagem.
-5. Nunca retorne venda vazia se estadoAtual já tiver dados.
-6. Nunca responda "conversa" ou "desconhecido" para uma correção clara.
-
-Exemplo:
-Estado: Bruno + Paçoca + 3 potes + tamanho 44 + cartão crédito + 3 parcelas.
-Mensagem: "Não. O cliente é Emanuel Ferrari Silvestre e o produto é Biriba."
-Resultado: Emanuel Ferrari Silvestre + Biriba + 3 potes + tamanho 44 + cartão crédito + 3 parcelas.
+CORREÇÃO DE VENDA
 
 ==================================================
-REGRA CRÍTICA — CLIENTE NOVO
-==================================================
 
-Os 8 campos obrigatórios do novo cliente são:
-1. nome completo ou razão social
-2. telefone
-3. CPF ou CNPJ
-4. rua ou logradouro
-5. número
-6. bairro
-7. cidade
-8. estado (UF)
+Se existir venda em ESTADO ATUAL, frases como "não, o cliente é...", "troca o cliente...", "o produto está errado...", "são quatro potes", "muda para Pix" são CORREÇÕES:
 
-Eles podem aparecer em linguagem natural, texto corrido ou transcrição de áudio. Não exija rótulos.
+1\. tipo = "venda".
 
-Exemplo:
-"Bruno Mendonça Silva, telefone 51998765432, CPF 21384394028, Rua das Palmeiras número 450, bairro Moinhos de Vento, Porto Alegre RS"
+2\. Preserve todos os dados anteriores.
 
-Extraia cada campo separadamente. NÃO coloque "Número", "Bairro", "Cidade" ou "Estado" dentro do valor de endereço.
+3\. Altere somente o que a mensagem corrigir (todas as correções da mesma mensagem).
+
+4\. Nunca retorne venda vazia se o estado já tiver dados.
+
+5\. Nunca responda "conversa" ou "desconhecido" para uma correção clara.
+
+
 
 ==================================================
-REGRA CRÍTICA — ÁUDIO
-==================================================
 
-A mensagem pode ser transcrição de áudio. Aceite linguagem informal, ausência de pontuação, acentos ausentes e números por extenso.
-
-"três" = 3
-"quatro" = 4
-"vinte e dois" = 22
-"quarenta e quatro" = 44
-"três vezes" = parcelas 3
-
-Não exija "Cliente:", "Produto:" ou outros rótulos.
-
-==================================================
 NUNCA FAÇA
-==================================================
-
-NUNCA invente IDs.
-
-NUNCA invente produtos.
-
-NUNCA invente clientes.
-
-NUNCA invente preços.
-
-NUNCA invente quantidade.
-
-NUNCA invente forma de pagamento.
-
-NUNCA invente tamanho de pote.
-
-NUNCA invente dados de cadastro.
-
-NUNCA registre venda sem cliente.
-
-NUNCA registre venda sem produto.
-
-NUNCA registre venda sem quantidade.
-
-NUNCA registre venda sem preço.
-
-NUNCA registre venda sem forma de pagamento.
 
 ==================================================
-NÃO EXECUTE AÇÕES
-==================================================
 
-Você NÃO registra nada diretamente.
+Nunca invente IDs, produtos, clientes, preços, quantidades, formas de pagamento, tamanhos de pote ou dados de cadastro.
 
-Você apenas interpreta.
+Você NÃO registra nada: apenas interpreta. A aplicação Node.js executa a ação.
 
-A aplicação Node.js será responsável por executar a ação.
+
 
 ==================================================
+
 FORMATO DE RESPOSTA
-==================================================
-
-A resposta INTEIRA deve ser SOMENTE JSON válido.
-
-NÃO escreva texto antes do JSON.
-
-NÃO escreva texto depois do JSON.
-
-NÃO use Markdown.
-
-NÃO use:
-
-\`\`\`json
-
-A primeira coisa deve ser "{".
-
-A última coisa deve ser "}".
 
 ==================================================
-FORMATO — CONVERSA
-==================================================
 
-{
-  "tipo": "conversa",
-  "resposta": "texto curto para enviar à gestora",
-  "faltando": [],
-  "perguntaProximo": null
-}
+Responda SOMENTE com um objeto JSON válido (chaves e textos entre aspas duplas).
 
-==================================================
-FORMATO — VENDA
-==================================================
+Sem texto antes ou depois. Sem Markdown. A primeira coisa deve ser { e a última }.
 
-{
-  "tipo": "venda",
-  "venda": {
-    "comprador": "Maria",
-    "forma_pagamento": "PIX",
-    "itens": [
-      {
-        "produto_final_id": 1,
-        "produto_nome": "Biriba",
-        "quantidade": 3,
-        "preco_unitario": 18,
-        "tipo": "pote",
-        "tamanho_pote": 22
-      }
-    ]
-  },
-  "faltando": [],
-  "perguntaProximo": null
-}
 
-==================================================
-FORMATO — VENDA COM CLIENTE NOVO
-==================================================
 
-{
-  "tipo": "venda",
-  "venda": {
-    "comprador": "João",
-    "novo_cliente": {
-      "documento": "876.952.342-21",
-      "estado": "São Paulo",
-      "cidade": "Marília",
-      "bairro": "Vila Nova",
-      "endereco": "Rua Arnaldo Melo",
-      "numero": "219"
-    },
-    "forma_pagamento": "DINHEIRO",
-    "itens": [
-      {
-        "produto_final_id": 1,
-        "produto_nome": "Paçoca",
-        "quantidade": 3,
-        "preco_unitario": 18.70,
-        "tipo": "pote",
-        "tamanho_pote": 22
-      }
-    ]
-  },
-  "faltando": [],
-  "perguntaProximo": null
-}
+CONVERSA:
 
-==================================================
-FORMATO — COMPRA
-==================================================
+{"tipo":"conversa","resposta":"texto curto","faltando":[],"perguntaProximo":null}
 
-{
-  "tipo": "compra",
-  "compras": [
-    {
-      "materia_prima_id": 1,
-      "produto_nome": "Açúcar",
-      "quantidade": 10,
-      "unidade": "kg",
-      "valor_total": 50
-    }
-  ],
-  "faltando": [],
-  "perguntaProximo": null
-}
 
-==================================================
-FORMATO — PRODUÇÃO
-==================================================
 
-{
-  "tipo": "producao",
-  "producao": {
-    "produto_final_id": 1,
-    "produto_nome": "Biriba",
-    "potes": 10,
-    "observacoes": null
-  },
-  "faltando": [],
-  "perguntaProximo": null
-}
+VENDA:
 
-==================================================
-FORMATO — GASTO
-==================================================
+{"tipo":"venda","venda":{"comprador":"Maria","forma_pagamento":"PIX","itens":[{"produto_final_id":1,"produto_nome":"Biriba","quantidade":3,"preco_unitario":18,"tipo":"pote","tamanho_pote":20}]},"faltando":[],"perguntaProximo":null}
 
-{
-  "tipo": "gasto",
-  "gasto": {
-    "descricao": "Compra de material",
-    "categoria": "Material",
-    "valor": 50
-  },
-  "faltando": [],
-  "perguntaProximo": null
-}
 
-==================================================
-FORMATO — DADOS FALTANDO
-==================================================
 
-{
-  "tipo": "venda",
-  "venda": null,
-  "faltando": ["comprador"],
-  "perguntaProximo": "Qual cliente comprou, meu bem?"
-}
+VENDA COM CLIENTE NOVO (somente campos informados pela gestora):
 
-==================================================
-REGRA FINAL
-==================================================
+{"tipo":"venda","venda":{"comprador":"João","novo_cliente":{"telefone":"14999998888","documento":"87695234221","estado":"SP","cidade":"Marília","bairro":"Vila Nova","endereco":"Rua Arnaldo Melo","numero":"219"},"forma_pagamento":"DINHEIRO","itens":[{"produto_final_id":1,"produto_nome":"Paçoca","quantidade":3,"tipo":"pote","tamanho_pote":20}]},"faltando":[],"perguntaProximo":null}
 
-Antes de responder, faça internamente estas verificações:
 
-1\. Existe uma operação em andamento no histórico?
-2\. Qual foi a última pergunta da Vovó?
-3\. A mensagem atual responde essa pergunta?
-4\. Quais informações já foram fornecidas anteriormente?
-5\. Quais informações estão sendo fornecidas agora?
-6\. Posso juntar essas informações?
-7\. Qual campo realmente continua faltando?
-8\. Existe algum ID correspondente no catálogo?
-9\. Estou inventando alguma informação?
 
-NÃO descarte informações do histórico.
+COMPRA:
 
-NÃO reinicie a operação sem motivo.
+{"tipo":"compra","compras":[{"materia_prima_id":1,"produto_nome":"Açúcar","quantidade":10,"unidade":"kg","valor_total":50}],"faltando":[],"perguntaProximo":null}
 
-Responda SOMENTE com JSON.
+
+
+PRODUÇÃO:
+
+{"tipo":"producao","producao":{"produto_final_id":1,"produto_nome":"Biriba","potes":10,"observacoes":null},"faltando":[],"perguntaProximo":null}
+
+
+
+GASTO:
+
+{"tipo":"gasto","gasto":{"descricao":"Compra de material","categoria":"Material","valor":50},"faltando":[],"perguntaProximo":null}
+
+
+
+DADOS FALTANDO:
+
+{"tipo":"venda","venda":null,"faltando":["comprador"],"perguntaProximo":"Qual cliente comprou, meu bem?"}
+
+
+
+Antes de responder, verifique mentalmente: há operação em andamento? Qual foi a última pergunta da Vovó? A mensagem atual a responde? O que já foi informado? O que falta? Existe ID no catálogo? Estou inventando algo? Responda SOMENTE com o JSON.
+
 `;
+
 }
+
+
+
+// ============================================================
+
+// EXTRAÇÃO DE JSON (lê só o texto final, nunca o "reasoning")
+
+// ============================================================
+
+
 
 function extrairJson(texto) {
-  if (!texto) {
-    throw new Error(
-      "A IA retornou uma resposta vazia.",
-    );
+
+  if (!texto || !String(texto).trim()) {
+
+    throw new Error("A IA retornou uma resposta vazia.");
+
   }
 
-  let limpo = String(texto).trim();
 
-  console.log("[IA] Conteúdo recebido:");
-  console.log(limpo);
 
-  if (limpo.startsWith("```")) {
-    limpo = limpo.replace(
-      /^```(?:json)?/i,
-      "",
-    );
+  const limpo = String(texto)
 
-    limpo = limpo.replace(
-      /```$/i,
-      "",
-    );
+    .replace(/```json/gi, "")
 
-    limpo = limpo.trim();
-  }
+    .replace(/```/g, "")
 
-  const inicio = limpo.indexOf("{");
-  const fim = limpo.lastIndexOf("}");
+    .trim();
 
-  if (
-    inicio === -1 ||
-    fim === -1 ||
-    fim <= inicio
-  ) {
-    throw new Error(
-      `A IA não retornou um JSON válido. Resposta recebida: ${limpo}`,
-    );
-  }
 
-  limpo = limpo.slice(
-    inicio,
-    fim + 1,
-  );
 
   try {
-    return JSON.parse(limpo);
-  } catch (error) {
-    console.error("[IA] JSON recebido:");
-    console.error(limpo);
 
-    throw new Error(
-      `Não consegui interpretar o JSON retornado pela IA: ${error.message}`,
-    );
+    return JSON.parse(limpo);
+
+  } catch (_) {
+
+    // segue para a busca de objeto balanceado
+
   }
+
+
+
+  for (let i = 0; i < limpo.length; i++) {
+
+    if (limpo[i] !== "{") continue;
+
+
+
+    let nivel = 0;
+
+    let emTexto = false;
+
+    let escapado = false;
+
+
+
+    for (let j = i; j < limpo.length; j++) {
+
+      const c = limpo[j];
+
+
+
+      if (emTexto) {
+
+        if (escapado) escapado = false;
+
+        else if (c === "\\\\") escapado = true;
+
+        else if (c === '"') emTexto = false;
+
+        continue;
+
+      }
+
+
+
+      if (c === '"') emTexto = true;
+
+      else if (c === "{") nivel++;
+
+      else if (c === "}") {
+
+        nivel--;
+
+        if (nivel === 0) {
+
+          try {
+
+            return JSON.parse(limpo.slice(i, j + 1));
+
+          } catch (_) {
+
+            break; // tenta o próximo "{"
+
+          }
+
+        }
+
+      }
+
+    }
+
+  }
+
+
+
+  throw new Error("Nenhum JSON válido foi encontrado na resposta da IA.");
+
 }
 
-async function interpretarMensagem({
-  texto,
-  produtos,
-  materiasPrimas,
-  clientes,
-  conversaPrevia,
-  estadoAtual,
-}) {
-  validarConfiguracao();
 
-  if (!texto || !texto.trim()) {
-    throw new Error(
-      "A mensagem para a IA está vazia.",
-    );
+
+function textoDaMensagem(mensagem) {
+
+  const c = mensagem?.content;
+
+  if (typeof c === "string") return c;
+
+  if (Array.isArray(c)) {
+
+    return c.map((x) => (typeof x === "string" ? x : x?.text || "")).join("");
+
   }
 
-  const catalogo = montarCatalogo(
-    produtos,
-    materiasPrimas,
-    clientes,
+  return "";
+
+}
+
+
+
+// ============================================================
+
+// CHAMADA A UM PROVEDOR
+
+// ============================================================
+
+
+
+const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
+
+
+
+async function chamarProvedor(provedor, mensagens) {
+
+  const inicio = Date.now();
+
+
+
+  const resposta = await axios.post(
+
+    provedor.url,
+
+    {
+
+      model: provedor.modelo,
+
+      messages: mensagens,
+
+      temperature: 0,
+
+      ...(provedor.usaMaxCompletionTokens
+        ? { max_completion_tokens: provedor.maxTokens }
+        : { max_tokens: provedor.maxTokens }),
+
+
+      ...provedor.corpoExtra,
+
+    },
+
+    {
+
+      headers: {
+
+        Authorization: `Bearer ${provedor.chave}`,
+
+        "Content-Type": "application/json",
+
+        ...provedor.headersExtras,
+
+      },
+
+      timeout: 45000,
+
+    },
+
   );
 
-  const systemPrompt =
-    montarSystemPrompt(catalogo);
+
+
+  const choice = resposta.data?.choices?.[0];
+
+  if (!choice?.message) {
+
+    throw new Error("A IA não retornou nenhuma escolha (choices).");
+
+  }
+
+
+
+  if (choice.finish_reason === "length") {
+
+    throw new Error("A resposta da IA foi cortada por limite de tokens.");
+
+  }
+
+
+
+  // IMPORTANTE: usa somente message.content. Nunca message.reasoning.
+
+  const json = extrairJson(textoDaMensagem(choice.message));
+
+
+
+  console.log(
+
+    `[IA] ${provedor.nome}/${provedor.modelo} respondeu em ${((Date.now() - inicio) / 1000).toFixed(1)}s`,
+
+  );
+
+
+
+  return json;
+
+}
+
+
+
+function erroTentaNovamente(error) {
+  const status = error.response?.status;
+
+  if (status === 429) return false;
+  if (status && status >= 400 && status < 500) return false;
+  if (status && status >= 500) return true;
+
+  // Se a resposta foi cortada por tokens, repetir exatamente a mesma chamada
+  // com o mesmo limite só desperdiça a cota. Vá direto para o próximo provedor.
+  if (/limite de tokens|cortada por limite de tokens/i.test(error.message || "")) {
+    return false;
+  }
+
+  if (error.code === "ECONNABORTED" || error.code === "ETIMEDOUT") return true;
+  if (!status) return true;
+  return false;
+}
+
+function descreverErro(error) {
+
+  const status = error.response?.status;
+
+  const dados = error.response?.data;
+
+  const detalhe =
+
+    dados?.error?.message || dados?.message || error.message || String(error);
+
+  return status ? `HTTP ${status}: ${detalhe}` : detalhe;
+
+}
+
+
+
+// ============================================================
+
+// INTERPRETAÇÃO PRINCIPAL
+
+// ============================================================
+
+
+
+async function interpretarMensagem({
+
+  texto,
+
+  produtos,
+
+  materiasPrimas,
+
+  clientes,
+
+  conversaPrevia,
+
+  estadoAtual,
+
+}) {
+
+  validarConfiguracao();
+
+
+
+  if (!texto || !texto.trim()) {
+
+    throw new Error("A mensagem para a IA está vazia.");
+
+  }
+
+
+
+  const catalogo = montarCatalogo(produtos, materiasPrimas, clientes, {
+    texto,
+    estadoAtual,
+    conversaPrevia,
+  });
+
+
+
+  const historico = Array.isArray(conversaPrevia)
+
+    ? conversaPrevia.join("\n")
+
+    : conversaPrevia || "";
+
+
 
   const mensagens = [
-    {
-      role: "system",
-      content: systemPrompt,
-    },
+
+    { role: "system", content: montarSystemPrompt(catalogo) },
+
   ];
 
-  /*
-   * IMPORTANTE:
-   * O histórico agora é apresentado como contexto explícito
-   * da conversa e NÃO como uma nova solicitação independente.
-   */
-  if (conversaPrevia) {
+
+
+  if (historico.trim()) {
+
     mensagens.push({
+
       role: "user",
-      content: `
-==================================================
-CONTEXTO DA CONVERSA EM ANDAMENTO
-==================================================
 
-Use este histórico para reconstruir a operação atual.
+      content: `CONTEXTO DA CONVERSA EM ANDAMENTO (preserve as informações relevantes):
 
-As informações abaixo já foram fornecidas pela gestora
-e DEVEM ser preservadas quando forem relevantes.
 
-${conversaPrevia}
 
-==================================================
-FIM DO HISTÓRICO
-==================================================
+${historico}
 
-Agora interprete a NOVA mensagem da gestora juntando-a
-com as informações acima.
 
-NÃO descarte informações anteriores.
 
-Se a nova mensagem responder uma pergunta feita pela Vovó,
-use essa resposta para completar a operação.
-`,
+FIM DO HISTÓRICO.`,
+
     });
+
   }
+
+
 
   if (estadoAtual) {
+
     mensagens.push({
+
       role: "user",
-      content: `
-==================================================
-ESTADO ATUAL DA OPERAÇÃO
-==================================================
 
-Este é o estado REAL que o FLOW está mantendo.
-Preserve esses dados. A mensagem atual deve ser aplicada sobre este estado, e não criar uma operação do zero.
+      content: `ESTADO ATUAL DA OPERAÇÃO (mantido pelo sistema):
 
-${JSON.stringify(estadoAtual, null, 2)}
+
+
+${JSON.stringify(estadoAtual)}
+
+
 
 REGRAS:
+
 - Preserve todo campo válido que já exista.
-- Se a mensagem atual corrigir um campo, substitua somente esse campo.
-- Se a mensagem atual não mencionar um campo, mantenha o valor anterior.
-- Nunca transforme um campo preenchido em null, vazio ou undefined sem pedido explícito da gestora.
-- Se a mensagem for uma correção de venda, retorne tipo "venda" e a venda com a correção aplicada.
-==================================================
-FIM DO ESTADO ATUAL
-==================================================
-`,
+
+- Se a mensagem corrigir um campo, substitua somente esse campo.
+
+- Se a mensagem não mencionar um campo, mantenha o valor anterior.
+
+- Nunca transforme campo preenchido em null ou vazio sem pedido explícito.
+
+- Dados em "novo_cliente" só valem se a gestora realmente os informou.
+
+FIM DO ESTADO ATUAL.`,
+
     });
+
   }
 
+
+
   mensagens.push({
+
     role: "user",
-    content: `
-==================================================
-NOVA MENSAGEM DA GESTORA
-==================================================
+
+    content: `NOVA MENSAGEM DA GESTORA:
+
+
 
 ${texto.trim()}
 
-==================================================
-FIM DA NOVA MENSAGEM
-==================================================
 
-Interprete esta mensagem considerando também o histórico
-da conversa, quando existir.
-`,
+
+Responda SOMENTE com o JSON.`,
+
   });
 
-  console.log(
-    "[IA] Enviando mensagem para OpenRouter...",
-  );
 
-  console.log(
-    "[IA] Modelo:",
-    OPENROUTER_MODEL,
-  );
 
-  try {
-    const resposta = await axios.post(
-      OPENROUTER_URL,
-      {
-        model: OPENROUTER_MODEL,
-        messages: mensagens,
-        temperature: 0.1,
-        max_tokens: 2500,
-      },
-      {
-        headers: {
-          Authorization:
-            `Bearer ${OPENROUTER_API_KEY}`,
+  const provedores = listarProvedores();
 
-          "Content-Type":
-            "application/json",
+  const falhas = [];
 
-          "HTTP-Referer":
-            "http://localhost",
 
-          "X-Title":
-            "Caderninho Digital - WhatsApp Bot",
-        },
 
-        timeout: 60000,
-      },
-    );
+  for (const provedor of provedores) {
 
-    console.log(
-      "[IA] Resposta recebida.",
-    );
+    for (let tentativa = 1; tentativa <= 2; tentativa++) {
 
-    console.log(
-      "[IA] Status HTTP:",
-      resposta.status,
-    );
+      try {
 
-    console.log(
-      "[IA] RESPOSTA COMPLETA DO OPENROUTER:",
-    );
+        console.log(
 
-    console.dir(
-      resposta.data,
-      {
-        depth: null,
-      },
-    );
+          `[IA] Consultando ${provedor.nome} (${provedor.modelo}), tentativa ${tentativa}/2...`,
 
-    const choice =
-      resposta.data?.choices?.[0];
+        );
 
-    if (!choice) {
-      throw new Error(
-        "O OpenRouter não retornou nenhuma escolha (choices).",
-      );
+        return await chamarProvedor(provedor, mensagens);
+
+      } catch (error) {
+
+        const motivo = descreverErro(error);
+
+        console.error(`[IA] Falha em ${provedor.nome}: ${motivo}`);
+
+
+
+        const status = error.response?.status;
+
+        if (status === 401 || status === 403) {
+
+          falhas.push(`${provedor.nome}: chave inválida ou sem permissão`);
+
+          break; // não adianta repetir; vai para o próximo provedor
+
+        }
+
+
+
+        if (tentativa < 2 && erroTentaNovamente(error)) {
+
+          await esperar(1500);
+
+          continue;
+
+        }
+
+
+
+        falhas.push(`${provedor.nome}: ${motivo}`);
+
+        break;
+
+      }
+
     }
 
-    console.log(
-      "[IA] Choice recebida:",
-    );
-
-    console.dir(
-      choice,
-      {
-        depth: null,
-      },
-    );
-
-    const mensagem =
-      choice.message;
-
-    if (!mensagem) {
-      throw new Error(
-        "O OpenRouter retornou uma escolha, mas não retornou o objeto message.",
-      );
-    }
-
-    console.log(
-      "[IA] Message recebida:",
-    );
-
-    console.dir(
-      mensagem,
-      {
-        depth: null,
-      },
-    );
-
-    let conteudo =
-      mensagem.content;
-
-    if (
-      !conteudo &&
-      Array.isArray(
-        mensagem.content,
-      )
-    ) {
-      conteudo =
-        mensagem.content
-          .map((item) => {
-            if (
-              typeof item ===
-              "string"
-            ) {
-              return item;
-            }
-
-            return (
-              item?.text || ""
-            );
-          })
-          .join("")
-          .trim();
-    }
-
-    if (!conteudo) {
-      console.error(
-        "[IA] O campo message.content veio vazio.",
-      );
-
-      console.error(
-        "[IA] finish_reason:",
-        choice.finish_reason,
-      );
-
-      console.error(
-        "[IA] usage:",
-        resposta.data?.usage,
-      );
-
-      throw new Error(
-        `A IA retornou uma resposta vazia. finish_reason: ${
-          choice.finish_reason ||
-          "não informado"
-        }`,
-      );
-    }
-
-    const resultado =
-      extrairJson(conteudo);
-
-    console.log(
-      "[IA] JSON interpretado com sucesso.",
-    );
-
-    console.dir(
-      resultado,
-      {
-        depth: null,
-      },
-    );
-
-    return resultado;
-  } catch (error) {
-    const status =
-      error.response?.status;
-
-    const data =
-      error.response?.data;
-
-    console.error(
-      "[IA] Erro ao consultar OpenRouter:",
-      status || "",
-      data || error.message,
-    );
-
-    if (status === 401) {
-      throw new Error(
-        "A chave OPENROUTER_API_KEY é inválida ou não foi aceita.",
-      );
-    }
-
-    if (status === 402) {
-      throw new Error(
-        "A conta/chave do OpenRouter não possui crédito ou o modelo escolhido exige pagamento.",
-      );
-    }
-
-    if (status === 403) {
-      throw new Error(
-        "O OpenRouter recusou a requisição. Verifique a chave e as permissões da conta.",
-      );
-    }
-
-    if (status === 404) {
-      throw new Error(
-        `O modelo "${OPENROUTER_MODEL}" não foi encontrado ou não está disponível.`,
-      );
-    }
-
-    if (status === 429) {
-      throw new Error(
-        "O limite de requisições da IA foi atingido. Tente novamente em alguns instantes.",
-      );
-    }
-
-    if (status >= 500) {
-      throw new Error(
-        "O OpenRouter apresentou um erro interno. Tente novamente em alguns instantes.",
-      );
-    }
-
-    const mensagemApi =
-      data?.error?.message ||
-      data?.message ||
-      error.message;
-
-    throw new Error(
-      `Erro ao consultar a IA: ${mensagemApi}`,
-    );
   }
+
+
+
+  throw new Error(`Não consegui consultar a IA. ${falhas.join(" | ")}`);
+
 }
 
+
+
 module.exports = {
+
   interpretarMensagem,
+
 };
