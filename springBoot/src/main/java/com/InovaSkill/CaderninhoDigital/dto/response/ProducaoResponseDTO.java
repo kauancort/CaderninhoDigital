@@ -15,7 +15,6 @@ public class ProducaoResponseDTO {
     private String produtoNome;
     private String gestorNome;
     private LocalDate dataProducao;
-    private Integer tamanhoPote;
     private BigDecimal quantidadeProduzida;
     private BigDecimal custoEstimado;
     private String observacao;

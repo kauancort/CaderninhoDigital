@@ -47,9 +47,6 @@ public class Producao {
     @Column(nullable = false)
     private LocalDate dataProducao;
 
-    @Column(name = "tamanho_pote")
-    private Integer tamanhoPote;
-
     @Column(nullable = false, precision = 12, scale = 3)
     private BigDecimal quantidadeProduzida;
 

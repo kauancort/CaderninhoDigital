@@ -53,12 +53,10 @@ public class ProducaoService {
     public ProducaoResponseDTO criar(Long usuarioId, ProducaoRequestDTO dto) {
         Usuario gestor = usuarioAcessoService.buscarGestor(usuarioId);
         Produto produto = buscarProdutoDoGestor(dto.getProdutoId(), gestor);
-        validarTamanhoPote(dto.getTamanhoPote());
         Producao producao = Producao.builder()
                 .produto(produto)
                 .gestor(gestor)
                 .dataProducao(dto.getDataProducao())
-                .tamanhoPote(dto.getTamanhoPote())
                 .quantidadeProduzida(dto.getQuantidadeProduzida())
                 .observacao(dto.getObservacao())
                 .custoEstimado(BigDecimal.ZERO)
@@ -155,12 +153,6 @@ public class ProducaoService {
                 .orElseThrow(() -> new ResourceNotFoundException("Produto não encontrado"));
         validarProdutoAtivo(produto);
         return produto;
-    }
-
-    private void validarTamanhoPote(Integer tamanhoPote) {
-        if (tamanhoPote == null || (tamanhoPote != 20 && tamanhoPote != 44)) {
-            throw new BusinessException("O tamanho do pote deve ser 20 ou 44 unidades");
-        }
     }
 
     private void validarProdutoAtivo(Produto produto) {
@@ -261,7 +253,6 @@ public class ProducaoService {
                 .produtoNome(producao.getProduto().getNome())
                 .gestorNome(producao.getGestor() != null ? producao.getGestor().getNome() : null)
                 .dataProducao(producao.getDataProducao())
-                .tamanhoPote(producao.getTamanhoPote())
                 .quantidadeProduzida(producao.getQuantidadeProduzida())
                 .custoEstimado(producao.getCustoEstimado())
                 .observacao(producao.getObservacao())
