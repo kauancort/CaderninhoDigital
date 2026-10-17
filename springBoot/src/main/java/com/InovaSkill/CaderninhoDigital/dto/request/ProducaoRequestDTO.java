@@ -16,6 +16,8 @@ public class ProducaoRequestDTO {
     private Long produtoId;
     @NotNull(message = "A data da produção é obrigatória")
     private LocalDate dataProducao;
+    @NotNull(message = "O tamanho do pote é obrigatório")
+    private Integer tamanhoPote;
     @NotNull(message = "A quantidade produzida é obrigatória")
     @DecimalMin(value = "0.0", inclusive = false, message = "A quantidade produzida deve ser maior que zero")
     private BigDecimal quantidadeProduzida;
