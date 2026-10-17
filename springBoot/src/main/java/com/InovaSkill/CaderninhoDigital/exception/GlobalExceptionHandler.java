@@ -71,6 +71,10 @@ public class GlobalExceptionHandler {
             HttpMessageNotReadableException ex,
             HttpServletRequest request
     ) {
+        // Loga a causa real (ex.: Unrecognized field "xyz") no servidor,
+        // sem expor detalhes internos na resposta ao cliente.
+        log.warn("JSON ilegível em {}: {}", request.getRequestURI(),
+                ex.getMostSpecificCause().getMessage());
         return buildError(HttpStatus.BAD_REQUEST, "JSON inválido ou campo não permitido", request.getRequestURI(),
                 CodigoErroOrquestrador.ENTRADA_INVALIDA.name(), correlacao(request));
     }
