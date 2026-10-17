@@ -173,4 +173,5 @@ Remoto oficial:
 git@github.com:kauancort/CaderninhoDigital.git
 ```
 
+
 Arquivos `.env`, dependências (`node_modules`), builds (`dist`, `.output`, `target`) e dados locais do Docker não devem ser enviados ao Git.
