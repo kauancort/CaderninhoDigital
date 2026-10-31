@@ -1,3 +1,4 @@
+
 const api = require("./apiClient");
 const catalogCache = require("./catalogCache");
 
@@ -34,34 +35,73 @@ function valorDocumento(cliente) {
 
 function encontrarClientesPorNome(nome, clientes) {
   if (!nome || !Array.isArray(clientes)) return [];
-  const alvo = normalizarTexto(nome).replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
+
+  const alvo = normalizarTexto(nome)
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
   if (alvo.length < 3) return [];
+
   const lista = clientes.filter((c) => valorNome(c));
-  const exatos = lista.filter((c) => normalizarTexto(valorNome(c)).replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim() === alvo);
+
+  const exatos = lista.filter((c) =>
+    normalizarTexto(valorNome(c))
+      .replace(/[^a-z0-9\s]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim() === alvo
+  );
+
   if (exatos.length) return exatos;
 
-  // Correspondência por nome completo contido na frase, nunca por palavras muito curtas.
+  // Correspondência por nome completo contido na frase.
   const contidos = lista.filter((c) => {
-    const n = normalizarTexto(valorNome(c)).replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
+    const n = normalizarTexto(valorNome(c))
+      .replace(/[^a-z0-9\s]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
     return n.length >= 5 && (alvo.includes(n) || n.includes(alvo));
   });
+
   if (contidos.length) return contidos;
 
-  // Correspondência aproximada por tokens só é aceita se houver um único candidato.
+  // Correspondência aproximada por tokens, aceita apenas se houver candidato claro.
   const tokensAlvo = new Set(alvo.split(" ").filter((t) => t.length >= 3));
   if (tokensAlvo.size < 2) return [];
-  const ranqueados = lista.map((c) => {
-    const tokens = new Set(normalizarTexto(valorNome(c)).replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter((t) => t.length >= 3));
-    const comuns = [...tokensAlvo].filter((t) => tokens.has(t)).length;
-    return { cliente: c, comuns, total: tokens.size };
-  }).filter((x) => x.comuns >= 2 && x.comuns / Math.max(1, x.total) >= 0.5).sort((a, b) => b.comuns - a.comuns);
+
+  const ranqueados = lista
+    .map((c) => {
+      const tokens = new Set(
+        normalizarTexto(valorNome(c))
+          .replace(/[^a-z0-9\s]/g, " ")
+          .split(/\s+/)
+          .filter((t) => t.length >= 3)
+      );
+
+      const comuns = [...tokensAlvo].filter((t) => tokens.has(t)).length;
+      return { cliente: c, comuns, total: tokens.size };
+    })
+    .filter((x) => x.comuns >= 2 && x.comuns / Math.max(1, x.total) >= 0.5)
+    .sort((a, b) => b.comuns - a.comuns);
+
   if (!ranqueados.length) return [];
-  if (ranqueados.length > 1 && ranqueados[0].comuns === ranqueados[1].comuns) return ranqueados.map((x) => x.cliente);
+
+  if (
+    ranqueados.length > 1 &&
+    ranqueados[0].comuns === ranqueados[1].comuns
+  ) {
+    return ranqueados.map((x) => x.cliente);
+  }
+
   return [ranqueados[0].cliente];
 }
 
 function validarNovoCliente(nome, dados) {
-  if (!nome || !String(nome).trim()) return "Informe o nome completo ou razão social do cliente.";
+  if (!nome || !String(nome).trim()) {
+    return "Informe o nome completo ou razão social do cliente.";
+  }
+
   const obrigatorios = [
     ["documento", "CPF ou CNPJ"],
     ["telefone", "telefone"],
@@ -87,7 +127,9 @@ function validarNovoCliente(nome, dados) {
   // Evita aceitar como telefone os primeiros dígitos do CPF/CNPJ.
   if (
     telefone === documento ||
-    (documento.length >= 11 && telefone.length >= 10 && documento.startsWith(telefone))
+    (documento.length >= 11 &&
+      telefone.length >= 10 &&
+      documento.startsWith(telefone))
   ) {
     return "O telefone informado parece ser parte do CPF/CNPJ. Informe o telefone correto do cliente com DDD.";
   }
@@ -102,7 +144,7 @@ async function resolverClienteId(nomeFalado, novoCliente = null) {
   let clientes = await catalogCache.getClientesCompletos();
   let candidatos = encontrarClientesPorNome(nome, clientes);
 
-  // Uma busca vazia pode ser causada por cache expirado ou cadastro recém-criado.
+  // Atualiza o cache se a busca não encontrou nenhum cliente.
   if (candidatos.length === 0) {
     await catalogCache.forcarAtualizacao();
     clientes = await catalogCache.getClientesCompletos();
@@ -110,10 +152,17 @@ async function resolverClienteId(nomeFalado, novoCliente = null) {
   }
 
   if (candidatos.length === 1) {
-    const clienteId = candidatos[0].id ?? candidatos[0].clienteId ?? candidatos[0].idCliente;
+    const clienteId =
+      candidatos[0].id ??
+      candidatos[0].clienteId ??
+      candidatos[0].idCliente;
+
     if (clienteId === undefined || clienteId === null) {
-      throw new Error(`Encontrei o cliente "${valorNome(candidatos[0])}", mas a API não retornou seu identificador. Não vou criar outro cadastro.`);
+      throw new Error(
+        `Encontrei o cliente "${valorNome(candidatos[0])}", mas a API não retornou seu identificador. Não vou criar outro cadastro.`
+      );
     }
+
     return { clienteId, criadoAgora: false };
   }
 
@@ -131,8 +180,9 @@ async function resolverClienteId(nomeFalado, novoCliente = null) {
   const documento = normalizarDocumento(novoCliente.documento);
 
   const existentePorDocumento = clientes.find(
-    (c) => somenteDigitos(valorDocumento(c)) === documento,
+    (c) => somenteDigitos(valorDocumento(c)) === documento
   );
+
   if (existentePorDocumento) {
     const erro = new Error("Já existe um cliente cadastrado com esse CPF/CNPJ.");
     erro.codigo = "DOCUMENTO_DUPLICADO";
@@ -157,11 +207,16 @@ async function resolverClienteId(nomeFalado, novoCliente = null) {
   });
 
   await catalogCache.forcarAtualizacao();
+
   const novo = novoResposta?.data || novoResposta?.cliente || novoResposta;
   const clienteId = novo?.id ?? novo?.clienteId ?? novo?.idCliente;
+
   if (clienteId === undefined || clienteId === null) {
-    throw new Error("O cliente pode ter sido enviado para cadastro, mas a API não retornou o identificador. Confira o sistema antes de tentar novamente para evitar duplicidade.");
+    throw new Error(
+      "O cliente pode ter sido enviado para cadastro, mas a API não retornou o identificador. Confira o sistema antes de tentar novamente para evitar duplicidade."
+    );
   }
+
   return { clienteId, criadoAgora: true };
 }
 

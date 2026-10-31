@@ -1,4 +1,43 @@
+
+
 require("dotenv").config();
+
+/*
+ * SERVIDOR HTTP PARA O RENDER
+ * O Render fornece a porta pela variável process.env.PORT.
+ * O HTTPS externo é gerenciado pelo próprio Render.
+ */
+const http = require("http");
+const path = require("path");
+
+const PORT = process.env.PORT || 3000;
+
+const server = http.createServer((req, res) => {
+  if (req.url === "/health" || req.url === "/") {
+    res.writeHead(200, {
+      "Content-Type": "application/json; charset=utf-8",
+    });
+
+    res.end(
+      JSON.stringify({
+        status: "online",
+        service: "Caderninho WhatsApp Bot",
+      })
+    );
+
+    return;
+  }
+
+  res.writeHead(404, {
+    "Content-Type": "application/json; charset=utf-8",
+  });
+
+  res.end(JSON.stringify({ error: "Not found" }));
+});
+
+server.listen(PORT, "0.0.0.0", () => {
+  console.log(`[HTTP] Servidor iniciado na porta ${PORT}`);
+});
 
 const { transcreverAudio } = require("./transcricaoService");
 const { Client, LocalAuth } = require("whatsapp-web.js");
@@ -24,6 +63,9 @@ console.log("[BOT] Criando cliente do WhatsApp...");
 const client = new Client({
   authStrategy: new LocalAuth({
     clientId: "caderninho-teste-2",
+    // No Render, configure WHATSAPP_SESSION_PATH=/var/data/whatsapp-session
+    // e monte um Persistent Disk em /var/data.
+    dataPath: process.env.WHATSAPP_SESSION_PATH || path.join(__dirname, ".wwebjs_auth"),
   }),
 
   puppeteer: {
