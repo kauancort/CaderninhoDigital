@@ -97,13 +97,6 @@ frontEnd/playwright-report/
 
 pitch/
 
-# Arquivos locais de sessão e cache do WhatsApp
-whatsapp-bot/.wwebjs_auth/
-whatsapp-bot/.wwebjs_cache/
-
-# Sessão e cache do WhatsApp
-**/.wwebjs_auth/
-**/.wwebjs_cache/
 # Arquivos de ambiente
 .env
 .env.*
