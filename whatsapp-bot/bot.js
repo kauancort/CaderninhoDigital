@@ -7,6 +7,7 @@ require("dotenv").config();
  */
 const http = require("http");
 const path = require("path");
+const fs = require("fs");
 
 const PORT = process.env.PORT || 3000;
 
@@ -58,34 +59,59 @@ process.on("uncaughtException", (err) => {
 
 console.log("[BOT] Criando cliente do WhatsApp...");
 
+/*
+ * CORREÇÃO DO CHROME NO RENDER
+ * Só usamos um caminho manual se a variável PUPPETEER_EXECUTABLE_PATH
+ * existir E o arquivo realmente existir. Caso contrário, o Puppeteer
+ * procura o Chrome sozinho (na pasta definida em .puppeteerrc.cjs).
+ */
+const puppeteerConfig = {
+  headless: true,
+  protocolTimeout: 180000,
+  args: [
+    "--no-sandbox",
+    "--disable-setuid-sandbox",
+    "--disable-dev-shm-usage",
+    "--disable-gpu",
+    "--disable-extensions",
+    "--disable-background-networking",
+    "--disable-background-timer-throttling",
+    "--disable-renderer-backgrounding",
+    "--disable-features=Translate,BackForwardCache",
+  ],
+};
+
+const caminhoChrome = process.env.PUPPETEER_EXECUTABLE_PATH;
+
+if (caminhoChrome && fs.existsSync(caminhoChrome)) {
+  puppeteerConfig.executablePath = caminhoChrome;
+  console.log("[BOT] Usando Chrome de PUPPETEER_EXECUTABLE_PATH:", caminhoChrome);
+} else if (caminhoChrome) {
+  console.warn(
+    "[BOT] PUPPETEER_EXECUTABLE_PATH inválido (arquivo não existe), ignorando:",
+    caminhoChrome
+  );
+}
+
+try {
+  console.log(
+    "[BOT] Chrome esperado pelo Puppeteer em:",
+    require("puppeteer").executablePath()
+  );
+} catch (e) {
+  console.warn("[BOT] Não foi possível descobrir o caminho do Chrome:", e?.message || e);
+}
+
 const client = new Client({
   authStrategy: new LocalAuth({
     clientId: "caderninho-teste-2",
-    // No Render, configure WHATSAPP_SESSION_PATH=/var/data/whatsapp-session
-    // e monte um Persistent Disk em /var/data.
+    // Plano gratuito do Render não tem disco persistente:
+    // sem WHATSAPP_SESSION_PATH, a sessão fica dentro do projeto
+    // e será perdida a cada reinício (será preciso ler o QR de novo).
     dataPath: process.env.WHATSAPP_SESSION_PATH || path.join(__dirname, ".wwebjs_auth"),
   }),
 
-  puppeteer: {
-    headless: true,
-    protocolTimeout: 180000,
-
-    executablePath:
-      process.env.PUPPETEER_EXECUTABLE_PATH ||
-      "/opt/render/.cache/puppeteer/chrome/linux-146.0.7680.31/chrome-linux64/chrome",
-
-    args: [
-      "--no-sandbox",
-      "--disable-setuid-sandbox",
-      "--disable-dev-shm-usage",
-      "--disable-gpu",
-      "--disable-extensions",
-      "--disable-background-networking",
-      "--disable-background-timer-throttling",
-      "--disable-renderer-backgrounding",
-      "--disable-features=Translate,BackForwardCache",
-    ],
-  },
+  puppeteer: puppeteerConfig,
 });
 
 console.log("[BOT] Cliente do WhatsApp criado.");
@@ -110,7 +136,7 @@ async function numeroDaGestoraAutorizado(message) {
 
   if (!numeroGestora) {
     console.error(
-      "[BOT] WHATSAPP_GESTORA não está configurado no .env."
+      "[BOT] WHATSAPP_GESTORA não está configurado nas variáveis de ambiente."
     );
 
     return false;
@@ -270,6 +296,15 @@ client.on("qr", (qr) => {
   qrcode.generate(qr, {
     small: true,
   });
+
+  /*
+   * No log do Render o QR desenhado costuma sair torto.
+   * Copie o texto abaixo e cole em um gerador de QR Code
+   * (ex.: qr-code-generator) para escanear com o WhatsApp.
+   * ATENÇÃO: quem tiver esse texto pode logar no seu WhatsApp.
+   * Depois que o bot estiver conectado, APAGUE a linha abaixo.
+   */
+  console.log("[BOT] QR (texto):", qr);
 });
 
 client.on("authenticated", () => {
@@ -525,12 +560,6 @@ client.on("message_create", async (message) => {
 /* =========================
    INICIALIZAÇÃO
 ========================= */
-
-client.on("loading_screen", (percent, message) => {
-  console.log(
-    `[BOT] Progresso do WhatsApp Web: ${percent}% - ${message}`
-  );
-});
 
 console.log("[BOT] Iniciando WhatsApp...");
 
